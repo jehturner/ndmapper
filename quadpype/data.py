@@ -1,3 +1,5 @@
+# Copyright(c) 2015 Association of Universities for Research in Astronomy, Inc.
+
 # Describe as a list or collection or files/datasets/exposures/nddata/...?
 # Result/node/IO etc.??
 

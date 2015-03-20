@@ -1,4 +1,6 @@
-# Module to execute IRAF tasks with PyRAF
+# Copyright(c) 2015 Association of Universities for Research in Astronomy, Inc.
+
+# Draft module to execute IRAF tasks with PyRAF.
 
 from pyraf import iraf
 
