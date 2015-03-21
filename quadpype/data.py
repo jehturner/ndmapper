@@ -11,6 +11,7 @@ import os.path
 import string
 import re
 from copy import deepcopy
+from astropy.nddata import NDDataBase
 
 class FileName(object):
     """
@@ -89,11 +90,15 @@ class FileName(object):
 
         # Actually parse the path or use placeholder attributes if it's None:
         if path is None:
+
+            # In this case we want a completely empty string to represent the
+            # file, so that (eg.) NDDataFile objects instantiated with None
+            # won't get some anomalous default filename.
             self.dir = ''
             self.prefix = ''
             self.base = ''
             self.suffix = ''
-            self.ext = 'fits'
+            self.ext = None
 
         else:
             # Separate directory, filename root & file extension:
@@ -172,6 +177,129 @@ class FileName(object):
         # look to be immutable anyway so this shouldn't be a problem; likewise
         # for strings:
         return FileName(path=str(self), regex=self._re, sep=self.sep)
+
+class NDDataFile(object):
+    """
+    A class representing a data-file-like object, including a filename and/or
+    a list of associated NDData instances, along with any ancillary data such
+    as a primary header or binary tables that describe the file as a whole and
+    aren't part of the NDData structure itself.
+    
+    This class can simply store a collection of associated NDData instances in
+    memory or it can simply store a filename, eg. for use with IRAF tasks that
+    do disk-based I/O, or it can do both, handling any loading & saving. In
+    principle this abstraction allows mixing Python code operating on NDData
+    fairly seamlessly with steps that do disk I/O (eg. IRAF tasks), as well
+    as providing a convenient file-like way of organizing an NDData collection.
+
+    Parameters
+    ----------
+
+    filename : str or FileName, optional
+        The filename on disk of the dataset(s) to be represented.
+
+    data : NDData or list of NDData or NDDataFile, optional
+        NDData instance(s) for the dataset(s) to be represented (or an
+        existing NDDataFile instance to copy deeply).
+
+    strip : bool
+        Remove any existing prefix and suffixes from the supplied filename
+        (prior to adding any specified prefix & suffix)?
+
+    prefix : str, None
+        Prefix string to add before the base filename.
+
+    suffix : str, None
+        Suffix string to add after the base filename (including any initial
+        separator).
+
+    dirname : str, None
+        Directory name to add to the filename (replacing any existing dir).
+
+    Attributes
+    ----------
+
+    filename : FileName or None
+        A filename-parsing object representing the path on disk.
+
+    data : list of NDData or None
+        NDData instance(s) associated with the NDDataFile.
+
+    """
+
+    filename = None
+
+    def __init__(self, data=None, filename=None, strip=False, prefix=None,
+        suffix=None, dirname=''):
+
+        if isinstance(data, NDDataFile):  # create new copy of existing obj
+            self.data = deepcopy(data.data)
+            self.filename = deepcopy(data.filename)
+        elif isinstance(data, NDDataBase):
+            self.data = [data]
+        elif data and hasattr(data, '__iter__'):  # non-empty sequence,
+            self.data = data                      # presumably of NDData
+        elif data is None:
+            self.data = None
+        else:
+            raise TypeError('NDDataFile: data parameter has an unexpected type')
+
+        # Use any filename inherited from input NDDataFile unless specified:
+        if not filename:
+            filename = self.filename
+
+        # Parse any filename into a FileName object:
+        self.filename = FileName(filename, strip=strip, prefix=prefix,
+            suffix=suffix, dirname=dirname)
+
+        # Track how many NDData objects this instance contains. An empty
+        # NDDataFile has length zero.
+        if self.data is None:
+            self._len = 0
+        else:
+            self._len = len(self.data)            
+
+    # Specify that class manages its own iteration with next() method:
+    def __iter__(self):
+        self._n = 0
+        return self
+
+    # Iteration over the NDDataFile instance returns ~NDData:
+    def next(self):
+        self._n += 1
+        if self._n > self._len:
+            raise StopIteration
+        else:
+            return self.data[self._n-1]
+
+    # Allow subscripting this instance to get ~NDData:
+    def __getitem__(self, key):
+        return self.data[key]
+
+    # Deletion of an item from the NDDataFile:
+    # This is a simplistic implementation for now; it will probably need to
+    # handle some cleaning up etc.
+    def __delitem__(self, key):
+        del self.data[key]
+
+    # When printing the instance, show the filename:
+    def __str__(self):
+        return str(self.filename)
+
+    # Facilitate appending new NDData instances to the NDDataFile, If the
+    # input is another NDDataFile instance, any existing filename is dropped.
+    def append(self, elements):
+        if not isinstance(elements, NDDataFile):
+            elements = NDDataFile(elements)
+        if elements.data:
+            if self.data is None:
+                self.data = []
+            self.data += elements.data
+        if self.data is not None:
+            self._len = len(self.data)
+
+    def __len__(self):
+        return self._len
 
 class DataList(object):
     """
@@ -295,15 +423,23 @@ class DataList(object):
     # def __deepcopy__(self, memo):
     #     return DataList()  # fix this
 
+    def __len__(self):
+        return self._len
+
 # eg flats = thingmy, a list
 
 # To do:
-# - Implement append & deepcopy methods?
+# - Created NDDataFile class from DataList.
+#   - Modify & simplify DataList to use it.
+#     - Do we still need a special DataList object?
+#   - Make DataList return NDDataFile when subscripting etc.
+# - Implement deepcopy methods?
 #   - Append a filename or list of filenames or a DataList
 #     - Instantiate a DataList and append that?
-# - Deal with complex filename mappings, eg. 1 MEF to several nddatas?
-#   - Want a multi-nddata bundle of some sort. Does it map to a filename?
-# - Create a DataSet object with one filename & one nddata and make
-#   DataList return that when subscripting etc.?
+# - Make base class for FileName with re.??
+#   - But how to call that from NDDataFile etc.?
+#   - Want some way to avoid re-compiling the re and specifying it every
+#     time something is instantiated for non-Gemini data, eg. a global
+#     that the user can modify.
 # - Start unit tests as soon as feasible.
 
