@@ -7,6 +7,10 @@
 # point, but it seems to have no concept of file association and for now that
 # looks more work than getting started with something simple.
 
+# Need to understand the differences between AstroPy and Gemini Python
+# docstring conventions better, which are supposedly the same but one has
+# extra fields.
+
 import os.path
 import string
 import re
@@ -23,7 +27,8 @@ class FileName(object):
 
     regex : str, re
         Regular expression matching root filename (without a file extension;
-        defaults to Gemini's "S20150101S0001"-style convention).
+        defaults to Gemini's "S20150101S0001"-style convention -- but this
+        default should be separated into package configuration somehow).
 
     sep : str, None
         Separator for suffix components (defaults to "_").
@@ -92,7 +97,7 @@ class FileName(object):
         if path is None:
 
             # In this case we want a completely empty string to represent the
-            # file, so that (eg.) NDDataFile objects instantiated with None
+            # file, so that (eg.) DataFile objects instantiated with None
             # won't get some anomalous default filename.
             self.dir = ''
             self.prefix = ''
@@ -178,29 +183,31 @@ class FileName(object):
         # for strings:
         return FileName(path=str(self), regex=self._re, sep=self.sep)
 
-class NDDataFile(object):
+
+class DataFile(object):
     """
     A class representing a data-file-like object, including a filename and/or
     a list of associated NDData instances, along with any ancillary data such
-    as a primary header or binary tables that describe the file as a whole and
-    aren't part of the NDData structure itself.
+    as a primary header, binary tables that describe the file as a whole and
+    aren't part of the NDData structure itself or processing history.
     
     This class can simply store a collection of associated NDData instances in
     memory or it can simply store a filename, eg. for use with IRAF tasks that
     do disk-based I/O, or it can do both, handling any loading & saving. In
     principle this abstraction allows mixing Python code operating on NDData
-    fairly seamlessly with steps that do disk I/O (eg. IRAF tasks), as well
-    as providing a convenient file-like way of organizing an NDData collection.
+    fairly seamlessly with steps that do disk I/O (eg. IRAF tasks, as long as
+    expectations regarding metadata are compatible), as well as providing a
+    convenient file-like way of organizing an NDData collection.
 
     Parameters
     ----------
 
+    data : NDData or list of NDData or DataFile, optional
+        NDData instance(s) for the dataset(s) to be represented (or an
+        existing DataFile instance to copy deeply).
+
     filename : str or FileName, optional
         The filename on disk of the dataset(s) to be represented.
-
-    data : NDData or list of NDData or NDDataFile, optional
-        NDData instance(s) for the dataset(s) to be represented (or an
-        existing NDDataFile instance to copy deeply).
 
     strip : bool
         Remove any existing prefix and suffixes from the supplied filename
@@ -223,7 +230,7 @@ class NDDataFile(object):
         A filename-parsing object representing the path on disk.
 
     data : list of NDData or None
-        NDData instance(s) associated with the NDDataFile.
+        NDData instance(s) associated with the DataFile.
 
     """
 
@@ -232,7 +239,7 @@ class NDDataFile(object):
     def __init__(self, data=None, filename=None, strip=False, prefix=None,
         suffix=None, dirname=''):
 
-        if isinstance(data, NDDataFile):  # create new copy of existing obj
+        if isinstance(data, DataFile):  # create new copy of existing obj
             self.data = deepcopy(data.data)
             self.filename = deepcopy(data.filename)
         elif isinstance(data, NDDataBase):
@@ -242,9 +249,9 @@ class NDDataFile(object):
         elif data is None:
             self.data = None
         else:
-            raise TypeError('NDDataFile: data parameter has an unexpected type')
+            raise TypeError('DataFile: data parameter has an unexpected type')
 
-        # Use any filename inherited from input NDDataFile unless specified:
+        # Use any filename inherited from input DataFile unless specified:
         if not filename:
             filename = self.filename
 
@@ -253,7 +260,7 @@ class NDDataFile(object):
             suffix=suffix, dirname=dirname)
 
         # Track how many NDData objects this instance contains. An empty
-        # NDDataFile has length zero.
+        # DataFile has length zero.
         if self.data is None:
             self._len = 0
         else:
@@ -264,7 +271,7 @@ class NDDataFile(object):
         self._n = 0
         return self
 
-    # Iteration over the NDDataFile instance returns ~NDData:
+    # Iteration over the DataFile instance returns ~NDData:
     def next(self):
         self._n += 1
         if self._n > self._len:
@@ -276,7 +283,7 @@ class NDDataFile(object):
     def __getitem__(self, key):
         return self.data[key]
 
-    # Deletion of an item from the NDDataFile:
+    # Deletion of an item from the DataFile:
     # This is a simplistic implementation for now; it will probably need to
     # handle some cleaning up etc.
     def __delitem__(self, key):
@@ -286,11 +293,16 @@ class NDDataFile(object):
     def __str__(self):
         return str(self.filename)
 
-    # Facilitate appending new NDData instances to the NDDataFile, If the
-    # input is another NDDataFile instance, any existing filename is dropped.
+    # Need to fix this to do something sensible when there's no filename??
+    # This produces an unquoted string in lists!
+    def __repr__(self):
+        return 'DataFile \'%s\' (len %d)' % (self.__str__(), self._len)
+
+    # Facilitate appending new NDData instances to the DataFile, If the
+    # input is another DataFile instance, any existing filename is dropped.
     def append(self, elements):
-        if not isinstance(elements, NDDataFile):
-            elements = NDDataFile(elements)
+        if not isinstance(elements, DataFile):
+            elements = DataFile(elements)
         if elements.data:
             if self.data is None:
                 self.data = []
@@ -301,143 +313,129 @@ class NDDataFile(object):
     def __len__(self):
         return self._len
 
-class DataList(object):
+
+class DataFileList(list):
     """
-    A class that represents a list of files and/or corresponding NDData
-    objects in memory. It can also track the associated processing history. 
-
-    For the time being, all this does is track lists of filenames and their
-    prefixes, for running IRAF tasks, but the idea is eventually to be able to
-    convert transparently between files on disk and NDData instances through
-    this representation, allowing IRAF & Python steps to be mixed freely
-    (*if* they have compatible expectations regarding metadata).
-
-    # Need to understand the differences between AstroPy and Gemini Python
-    # docstring conventions better, which are supposedly the same.
+    A class that holds a list of DataFile objects, tracking filenames
+    and/or NDData collections with ancillary information. This implementation 
+    is pretty much a normal Python list but provides a more convenient
+    interface for instantiating multiple DataFile objects from a list of
+    filenames or nddata instances/lists. 
 
     Parameters
     ----------
 
-    filenames : str or list of str, optional
-        The filename(s) on disk of the dataset(s) to be represented.
-
-    data : NDData or list of NDData or DataList, optional
+    data : NDData or list of NDData or list of lists of NDData or DataFile
+           or DataFileList, optional
         NDData instance(s) for the dataset(s) to be represented (or an
-        existing DataList instance to copy deeply).
+        existing DataFileList instance to copy deeply).
+
+    filenames : str or list of str, optional
+        The filename(s) on disk of the dataset(s) to be represented. There
+        should either be as many filenames as data or None (but lists of
+        NDData can be nested to associate subsets with fewer filenames).
+
+    strip : bool
+        Remove any existing prefix and suffixes from the supplied filename
+        (prior to adding any specified prefix & suffix)?
+
+    prefix : str, None
+        Prefix string to add before the base filename.
+
+    suffix : str, None
+        Suffix string to add after the base filename (including any initial
+        separator).
+
+    dirname : str, None
+        Directory name to add to the filename (replacing any existing dir).
 
     """
 
     filenames = []
 
-    # Support initializing with DataList instance(s) (as data)?
-
     def __init__(self, data=None, filenames=[], strip=False, prefix=None,
         suffix=None, dirname=''):
 
-        # Can initialize with an existing DataList object as data, creating
-        # a new copy (can also use copy function but not deepcopy):
-        if isinstance(data, DataList):
-            self.data = deepcopy(data.data)
-            self.filenames = deepcopy(data.filenames)
-        elif data is not None:
-            raise NotImplementedError('DataList: parameter data only accepts ' \
-                'a DataList for now')
+        # This is a little fiddly (not too much considering) but handling
+        # these cases here should make things conceptually simpler and/or
+        # more readable from a user perspective...
+
+        data_len = seqlen(data)
+        fn_len = seqlen(filenames)
+
+        # If we got a single NDData or DataFile instance, create an
+        # DataFile directly from it, overriding specified prefixes etc.:
+        if isinstance(data, DataFile) or isinstance(data, NDDataBase):
+            if fn_len > 1:
+                raise ValueError('DataFileList: got multiple filenames for ' \
+                    + 'a single data object')
+            elif fn_len == 1:
+                filename = filenames[0]
+            else:
+                filename = filenames
+            initlist = [DataFile(data=data, filename=filename, strip=strip,
+                prefix=prefix, suffix=suffix, dirname=dirname)]
+
+        # If we got an existing DataFileList instance, re-create it from its
+        # member DataFile objects in order to apply any override params.
+        # Likewise, if we got a list of DataFile objects, list of NDData
+        # or list of lists of NDData, construct a DataFileList from that.
         else:
-            self.data = None
+            # Should have got something iterable or None for data. Expand
+            # out both data & filenames to avoid repetition below.
+            if not data:
+                if fn_len is None:
+                    filenames = [filenames]
+                data = [None for fn in filenames]
+            # Filenames need to be unique so there must be None or as many
+            # as there are items in data (but data can include singly-nested
+            # lists of NDData, with each sub-list associated with one filename
+            # and one resulting DataFile).
+            elif not filenames:
+                filenames = [None for obj in data]
+            elif fn_len != data_len:
+                raise ValueError('DataFileList: data & filenames differ ' \
+                    'in length')
+            initlist = [DataFile(data=obj, filename=fn, strip=strip,
+                prefix=prefix, suffix=suffix, dirname=dirname) \
+                for obj, fn in zip(data, filenames)]
 
-        # Get the default regexp from FileName class and cache it for
-        # subsequent instances (without having to define multiple defaults):
-        self._re = FileName().re
+        # Do whatever initialization a list object normally does:
+        list.__init__(self, initlist)
 
-        # If the argument was a single filename, convert to a list:
-        if isinstance(filenames, basestring):
-            filenames = [filenames]
+    # Wrap the normal list append in the same way as __init__:
+    def append(self, data=None, filename=None, strip=False, prefix=None,
+        suffix=None, dirname=''):
 
-        # Use any filenames inherited from an input DataList if not specified:
-        if not filenames:
-            filenames = self.filenames
+        list.append(self, DataFile(data=data, filename=filename, strip=strip,
+            prefix=prefix, suffix=suffix, dirname=dirname))
 
-        # Parse the list of file names into a list of FileName objects:
-        self.filenames = [FileName(fn, regex=self._re, strip=strip, \
-            prefix=prefix, suffix=suffix, dirname=dirname) for fn in filenames]
+    # Wrap the normal list extend in the same way as __init__:
+    def extend(self, data=None, filenames=[], strip=False, prefix=None,
+        suffix=None, dirname=''):
 
-        # When we init with nddata instances here later, we should ensure that
-        # filenames is populated with the corresponding number of entries, even
-        # if they are empty strings or None. Consider using some default names
-        # until specified.
+        list.extend(self, DataFileList(data=data, filenames=filenames, 
+            strip=strip, prefix=prefix, suffix=suffix, dirname=dirname))
 
-        self._len = len(self.filenames)
 
-    # Specify that class manages its own iteration with next() method:
-    def __iter__(self):
-        self._n = 0
-        return self
-
-    # Iteration over the DataList instance:
-    # What should this return, in order to retain the file/nddata
-    # association??? A single-element DataList or a Data Set
-    def next(self):
-        self._n += 1
-        if self._n > self._len:
-            raise StopIteration
-        else:
-            return DataList(filenames=str(self.filenames[self._n-1]))
-
-    # Subscripting the DataList instance:
-    def __getitem__(self, key):
-        return DataList(filenames=str(self.filenames[key]))
-
-    # Deletion of an item from the DataList:
-    # This is a simplistic implementation for now; it will probably need to
-    # handle some cleaning up etc.
-    def __delitem__(self, key):
-        del self.filenames[key]
-
-    # Return the first (and only, when iterating) filename from the list:
-    @property
-    def name(self):
-        if self._len > 0:
-            return self.filenames[0]
-        else:
-            return None
-
-    # When printing the DataList instance, show the filename(s), which is
-    # what a human being commonly uses to distinguish the items:
-    # Print basenames without any path prefix?
-    def __str__(self):
-        return str([str(fn) for fn in self.filenames])
-
-    def append(self, elements):
-        if isinstance(elements, DataList):
-            #dl = DataList(elements)
-            if elements.data:
-                self.data += deepcopy(elements.data)
-            if elements.filenames:
-                self.filenames += deepcopy(elements.filenames)
-            self._len = len(self.filenames)
-        # Could extend this to accept the same parameters as __init__ and
-        # instantiate a new DataList before appending it.
-        else:
-            raise NotImplementedError('DataList: append() expects a DataList')
-
-    # def __deepcopy__(self, memo):
-    #     return DataList()  # fix this
-
-    def __len__(self):
-        return self._len
-
-# eg flats = thingmy, a list
+def seqlen(arg):
+    """
+    Return the argument's length only if it's a sequence, otherwise None.
+    """
+    if hasattr(arg, '__iter__'):    
+        try:
+            slen = len(arg)
+        except TypeError:
+            slen = None
+    else:
+        slen = None
+    return slen
+    
 
 # To do:
-# - Created NDDataFile class from DataList.
-#   - Modify & simplify DataList to use it.
-#     - Do we still need a special DataList object?
-#   - Make DataList return NDDataFile when subscripting etc.
 # - Implement deepcopy methods?
-#   - Append a filename or list of filenames or a DataList
-#     - Instantiate a DataList and append that?
 # - Make base class for FileName with re.??
-#   - But how to call that from NDDataFile etc.?
+#   - But how to call that from DataFile etc.?
 #   - Want some way to avoid re-compiling the re and specifying it every
 #     time something is instantiated for non-Gemini data, eg. a global
 #     that the user can modify.
