@@ -17,6 +17,11 @@ import re
 from copy import deepcopy
 from astropy.nddata import NDDataBase
 
+# # Could do something like this to make the regex settable once but then
+# # it has to be declared global in init and the regex parameter would have
+# # to be set to something like None to specify its use.
+# filename_regex = '[NS][0-9]{8}S[0-9]{3,4}'
+
 class FileName(object):
     """
     Parameters
@@ -76,7 +81,7 @@ class FileName(object):
 
     """
 
-    def __init__(self, path=None, regex="[NS][0-9]{8}S[0-9]{3,4}", sep="_",
+    def __init__(self, path=None, regex='[NS][0-9]{8}S[0-9]{3,4}', sep='_',
         strip=False, prefix=None, suffix=None, dirname=None):
 
         # Compile regular expression if supplied as a string:
@@ -133,9 +138,14 @@ class FileName(object):
                     self.prefix = froot[:match.start()]
                     self.suffix = self._split(froot[match.end():])
             else:
+                # Here we should consider just setting the basename to
+                # everything before the filename extension and setting the
+                # prefix to '' when the filename is in a non-standard format,
+                # to permit whatever output naming a user wants. Also set a
+                # "standard format" attribute to allow checking for this.
                 raise ValueError('failed to parse base name with regexp "%s"\n'
-                    '            from %s' % (regex, path))
-
+                    '            from "%s"' % (regex, path))
+            
         # Add on any specified prefix or suffix:
         if prefix:
             self.prefix = prefix + self.prefix
@@ -235,6 +245,7 @@ class DataFile(object):
     """
 
     filename = None
+    log = ''
 
     def __init__(self, data=None, filename=None, strip=False, prefix=None,
         suffix=None, dirname=''):
@@ -433,6 +444,21 @@ def seqlen(arg):
     
 
 # To do:
+# - Moved onto iraf_task for now.
+# - Add a MEF extension field to the filename parser! Currently it is part
+#   of the file extension.
+#   - Probably need to split the [sci] from the filename before parsing the
+#     extension from the base name as currently, because there won't always
+#     be a file extension (eg. .fits) to parse it from. Also os.path doesn't
+#     know anything about it. That means supporting known syntax such as
+#     IRAF's -- note that PyRAF now doesn't recognize it.
+#   - Alternatively, disallow MEF extensions here and instead add a param
+#     separate from the filename, telling DataFile to use a specific one,
+#     then append it for iraf in iraf_task (probably a better place).
+#     - This makes more sense, since it's more modular -- with the filename
+#       doing just its job -- and indeed the DataFile is supposed to be a
+#       list of NDData instances, not of single MEF extensions. The DataFile
+#       should know how its MEF extensions are named though.
 # - Implement deepcopy methods?
 # - Make base class for FileName with re.??
 #   - But how to call that from DataFile etc.?
