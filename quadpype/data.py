@@ -153,7 +153,7 @@ class FileName(object):
             self.suffix.extend(self._split(suffix))
 
         # Add or replace any initial directory name if specified:
-        if dirname:
+        if dirname is not None:
             self.dir = dirname
 
     # Split a string (suffix) into a list that includes the separator
@@ -213,8 +213,10 @@ class DataFile(object):
     ----------
 
     data : NDData or list of NDData or DataFile, optional
-        NDData instance(s) for the dataset(s) to be represented (or an
-        existing DataFile instance to copy deeply).
+        NDData instance(s) for the dataset(s) to be represented, or an
+        existing DataFile instance (in which case the result will be a new
+        DataFile referring to the same NDData instance(s) as the original,
+        until such time as a copy is saved to disk [not implemented]).
 
     filename : str or FileName, optional
         The filename on disk of the dataset(s) to be represented.
@@ -248,10 +250,10 @@ class DataFile(object):
     log = ''
 
     def __init__(self, data=None, filename=None, strip=False, prefix=None,
-        suffix=None, dirname=''):
+        suffix=None, dirname=None):
 
         if isinstance(data, DataFile):  # create new copy of existing obj
-            self.data = deepcopy(data.data)
+            self.data = data.data
             self.filename = deepcopy(data.filename)
         elif isinstance(data, NDDataBase):
             self.data = [data]
@@ -338,8 +340,11 @@ class DataFileList(list):
 
     data : NDData or list of NDData or list of lists of NDData or DataFile
            or DataFileList, optional
-        NDData instance(s) for the dataset(s) to be represented (or an
-        existing DataFileList instance to copy deeply).
+        NDData/DataFile instance(s) for the dataset(s) to be represented (or
+        an existing DataFileList instance). Any member DataFile instances will
+        become new copies if any of the filename-modifying parameters are set,
+        otherwise the DataFileList will simply hold references to the original
+        instances (allowing manipulation of existing DataFiles via new lists).
 
     filenames : str or list of str, optional
         The filename(s) on disk of the dataset(s) to be represented. There
@@ -365,7 +370,7 @@ class DataFileList(list):
     filenames = []
 
     def __init__(self, data=None, filenames=[], strip=False, prefix=None,
-        suffix=None, dirname=''):
+        suffix=None, dirname=None):
 
         # This is a little fiddly (not too much considering) but handling
         # these cases here should make things conceptually simpler and/or
@@ -374,6 +379,9 @@ class DataFileList(list):
         data_len = seqlen(data)
         fn_len = seqlen(filenames)
 
+        fn_modified = filenames or strip or prefix or suffix \
+            or dirname is not None
+        
         # If we got a single NDData or DataFile instance, create an
         # DataFile directly from it, overriding specified prefixes etc.:
         if isinstance(data, DataFile) or isinstance(data, NDDataBase):
@@ -384,46 +392,69 @@ class DataFileList(list):
                 filename = filenames[0]
             else:
                 filename = filenames
-            initlist = [DataFile(data=data, filename=filename, strip=strip,
-                prefix=prefix, suffix=suffix, dirname=dirname)]
+
+            # If instantiating with an unmodified DataFile (no filename prefix
+            # changes etc.), just reference the existing instance by default,
+            # instead of making a copy, to allow making new lists of existing
+            # DataFile instances:
+            if isinstance(data, DataFile) and not fn_modified:
+                initlist = [data]
+            else:
+                initlist = [DataFile(data=data, filename=filename, strip=strip,
+                    prefix=prefix, suffix=suffix, dirname=dirname)]
 
         # If we got an existing DataFileList instance, re-create it from its
-        # member DataFile objects in order to apply any override params.
-        # Likewise, if we got a list of DataFile objects, list of NDData
-        # or list of lists of NDData, construct a DataFileList from that.
+        # member DataFile objects to apply any override params. Likewise, if
+        # we got a list of DataFile objects, list of NDData or list of lists
+        # of NDData, construct a DataFileList from that.
         else:
-            # Should have got something iterable or None for data. Expand
-            # out both data & filenames to avoid repetition below.
-            if not data:
-                if fn_len is None:
-                    filenames = [filenames]
-                data = [None for fn in filenames]
-            # Filenames need to be unique so there must be None or as many
-            # as there are items in data (but data can include singly-nested
-            # lists of NDData, with each sub-list associated with one filename
-            # and one resulting DataFile).
-            elif not filenames:
-                filenames = [None for obj in data]
-            elif fn_len != data_len:
-                raise ValueError('DataFileList: data & filenames differ ' \
-                    'in length')
-            initlist = [DataFile(data=obj, filename=fn, strip=strip,
-                prefix=prefix, suffix=suffix, dirname=dirname) \
-                for obj, fn in zip(data, filenames)]
+            # If instantiating with a list or DataFileList of unmodified
+            # DataFiles (no filename prefix changes etc.), just reference
+            # the existing instances by default, instead of creating copies,
+            # to allow making new lists of existing DataFile instances:
+            if isinstance(data, list) \
+                and all([isinstance(item, DataFile) for item in data]) \
+                and not fn_modified:
+                initlist = data
+
+            # Otherwise create a new copy of each DataFile to hold mods:
+            else:
+                # Should have got something iterable or None for data. Expand
+                # out both data & filenames to avoid repetition below.
+                if not data:
+                    if fn_len is None:
+                        filenames = [filenames]
+                    data = [None for fn in filenames]
+                # Filenames need to be unique so there must be None or as many
+                # as there are items in data (but data can include singly-
+                # nested lists of NDData, with each sub-list associated with
+                # one filename and one resulting DataFile).
+                elif not filenames:
+                    filenames = [None for obj in data]
+                elif fn_len != data_len:
+                    raise ValueError('DataFileList: data & filenames differ ' \
+                        'in length')
+                initlist = [DataFile(data=obj, filename=fn, strip=strip,
+                    prefix=prefix, suffix=suffix, dirname=dirname) \
+                    for obj, fn in zip(data, filenames)]
 
         # Do whatever initialization a list object normally does:
         list.__init__(self, initlist)
 
     # Wrap the normal list append in the same way as __init__:
     def append(self, data=None, filename=None, strip=False, prefix=None,
-        suffix=None, dirname=''):
+        suffix=None, dirname=None):
 
-        list.append(self, DataFile(data=data, filename=filename, strip=strip,
-            prefix=prefix, suffix=suffix, dirname=dirname))
+        if isinstance(data, DataFile) and not (filename or strip or prefix or \
+            suffix or dirname is not None):
+            list.append(self, data)
+        else:
+            list.append(self, DataFile(data=data, filename=filename,
+                strip=strip, prefix=prefix, suffix=suffix, dirname=dirname))
 
     # Wrap the normal list extend in the same way as __init__:
     def extend(self, data=None, filenames=[], strip=False, prefix=None,
-        suffix=None, dirname=''):
+        suffix=None, dirname=None):
 
         list.extend(self, DataFileList(data=data, filenames=filenames, 
             strip=strip, prefix=prefix, suffix=suffix, dirname=dirname))
