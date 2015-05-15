@@ -16,11 +16,8 @@ import string
 import re
 from copy import deepcopy
 from astropy.nddata import NDDataBase
+from . import config
 
-# # Could do something like this to make the regex settable once but then
-# # it has to be declared global in init and the regex parameter would have
-# # to be set to something like None to specify its use.
-# filename_regex = '[NS][0-9]{8}S[0-9]{3,4}'
 
 class FileName(object):
     """
@@ -30,10 +27,14 @@ class FileName(object):
     path : str, FileName
         Single filename to parse into a FileName object representation.
 
-    regex : str, re
-        Regular expression matching root filename (without a file extension;
-        defaults to Gemini's "S20150101S0001"-style convention -- but this
-        default should be separated into package configuration somehow).
+    regex : str, re, None
+        Regular expression matching root filename (without a file extension).
+        By default this is None, causing the value of the package configuration
+        variable "quadpype.config['filename_regex']" to be used, which
+        defaults to Gemini's "S20150101S0001"-style convention (thus allowing
+        use of other conventions without having to override the regex every
+        time a DataFile is instantiated, as well as allowing for optional
+        pre-compilation).
 
     sep : str, None
         Separator for suffix components (defaults to "_").
@@ -73,16 +74,19 @@ class FileName(object):
     ext : list
         File extension, eg. "fits".
 
-    re : re
-        Regular expression used to match the base name.
-
     sep : str, None
         One or more characters specified as a separator.
 
     """
 
-    def __init__(self, path=None, regex='[NS][0-9]{8}S[0-9]{3,4}', sep='_',
-        strip=False, prefix=None, suffix=None, dirname=None):
+    def __init__(self, path=None, regex=None, sep='_', strip=False, \
+        prefix=None, suffix=None, dirname=None):
+
+        # Get default regex from package configuration so non-Gemini users
+        # don't have to specify an alternative convention every time this
+        # class is instantiated:
+        if regex is None:
+            regex = config['filename_regex']
 
         # Compile regular expression if supplied as a string:
         if isinstance(regex, basestring):
