@@ -7,7 +7,8 @@ import tempfile
 import datetime
 import traceback
 from pyraf import iraf
-from data import DataFile, DataFileList
+from . import config
+from .data import DataFile, DataFileList
 
 
 def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
@@ -56,6 +57,10 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
         Optional filename for logging output, which includes any IRAF log
         contents (delimited by run_task status lines) or Python exceptions.
 
+        The default of None causes the value of the package configuration
+        variable "quadpype.config['logfile']" to be used, which itself
+        defaults to None (in which case no log is written).
+
         Where only a filename string is provided and the IRAF task has a
         parameter named "logfile", the corresponding IRAF log will be captured
         automatically, otherwise only status information and Python exceptions
@@ -66,7 +71,8 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
         the log (instead of any IRAF log file contents).
 
         The IRAF log contents relevant to each file are also appended to the
-        corresponding output DataFile's log attribute.
+        corresponding output DataFile's log attribute (whether or not a log
+        file is specified here and written to disk).
 
     params : dict
         Named IRAF task parameters. These may include ancillary input or
@@ -93,13 +99,13 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
     print logstart
 
     # Start the log file:
-    if logfile is None or isinstance(logfile, basestring):
-        logname = logfile
-        if logname is not None:
-            userlog = open(logname, 'a')
-            userlog.write('%s\n' % logstart)
-        else:
-            userlog = None
+    if logfile is None:
+        logfile = config['logfile']
+    if logfile is None:
+        userlog = None
+    elif isinstance(logfile, basestring):
+        userlog = open(logfile, 'a')
+        userlog.write('%s\n' % logstart)
     else:
         # Dict, to be implemented:
         raise NotImplementedError('logfile must currently be str or None')
@@ -292,21 +298,9 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
     return outputs
 
     # TO DO:
-    # - Fix IRAF log not getting appended to DataFiles because something
-    #   (creation of outlist?) is apparently creating copies.
-    #   - This looks like a problem with DataFileList instantiation creating
-    #     copies, so it needs fixing there rather than here.
-    #     - The problem is that DataFiles get re-created in order to apply
-    #       any override parameters when instantiating.
-    #       - Because things like prefix can be overridden, a new copy must
-    #         be created in some cases if we don't want to modify originals.
-    #       - Only create a copy when strip, prefix, suffix or dirname is set?
-    #         - Also need to fix DataFile so dirname defaults to None instead
-    #           of '', as the latter doesn't allow changing it to the CWD
-    #           without prefixing "./".
-    # - Check output file didn't already exist.
+    # - Check that output file doesn't already exist.
     # - Improve error trapping somehow.
-    # - Finish logging behaviour as per the docstring.
+    # - Finish logging behaviour as per the docstring(?).
     # - Scan for duplicates in output filenames? May be legitimate??
     # - Want to ensure the name ends in .fits etc?
     # - Copy files with path prefixes into the CWD under temporary filenames
@@ -326,7 +320,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
     # - Capture any stdout or stderr as well as the log?
     # - Consider allowing params other than input & output to be DataFileLists
     #   and converting them to strings as needed, for convenience.
-
+    # - Also need unit tests for DataFile/DataFileList.a
         
 def conv_io_pars(pardict):
     """

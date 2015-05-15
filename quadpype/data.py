@@ -495,10 +495,5 @@ def seqlen(arg):
 #       list of NDData instances, not of single MEF extensions. The DataFile
 #       should know how its MEF extensions are named though.
 # - Implement deepcopy methods?
-# - Make base class for FileName with re.??
-#   - But how to call that from DataFile etc.?
-#   - Want some way to avoid re-compiling the re and specifying it every
-#     time something is instantiated for non-Gemini data, eg. a global
-#     that the user can modify.
 # - Start unit tests as soon as feasible.
 

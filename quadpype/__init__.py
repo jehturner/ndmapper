@@ -10,7 +10,9 @@ A simple package to automate pushing data through a series of processing steps.
 from ._astropy_init import *
 # ----------------------------------------------------------------------------
 
-config = {'filename_regex' : '[NS][0-9]{8}S[0-9]{3,4}'}
+config = {'filename_regex' : '[NS][0-9]{8}S[0-9]{3,4}',
+          'logfile' : None
+         }
 
 # For egg_info test builds to pass, put package imports here.
 if not _ASTROPY_SETUP_:
