@@ -27,15 +27,6 @@ class FileName(object):
     path : str, FileName
         Single filename to parse into a FileName object representation.
 
-    regex : str, re, None
-        Regular expression matching root filename (without a file extension).
-        By default this is None, causing the value of the package configuration
-        variable "quadpype.config['filename_regex']" to be used, which
-        defaults to Gemini's "S20150101S0001"-style convention (thus allowing
-        use of other conventions without having to override the regex every
-        time a DataFile is instantiated, as well as allowing for optional
-        pre-compilation).
-
     sep : str, None
         Separator for suffix components (defaults to "_").
 
@@ -52,6 +43,15 @@ class FileName(object):
 
     dirname : str, None
         Directory name to add to the path (replacing any existing directory).
+
+    regex : str, re, None
+        Regular expression matching root filename (without a file extension).
+        By default this is None, causing the value of the package configuration
+        variable "quadpype.config['filename_regex']" to be used, which
+        defaults to Gemini's "S20150101S0001"-style convention (thus allowing
+        use of other conventions without having to override the regex every
+        time a DataFile is instantiated, as well as allowing for optional
+        pre-compilation).
 
 
     Attributes
@@ -79,8 +79,8 @@ class FileName(object):
 
     """
 
-    def __init__(self, path=None, regex=None, sep='_', strip=False, \
-        prefix=None, suffix=None, dirname=None):
+    def __init__(self, path=None, sep='_', strip=False, prefix=None, \
+        suffix=None, dirname=None, regex=None):
 
         # Get default regex from package configuration so non-Gemini users
         # don't have to specify an alternative convention every time this
@@ -195,7 +195,7 @@ class FileName(object):
         # One can't copy a regex, except by re.compile(_re.pattern), but they
         # look to be immutable anyway so this shouldn't be a problem; likewise
         # for strings:
-        return FileName(path=str(self), regex=self._re, sep=self.sep)
+        return FileName(path=str(self), sep=self.sep, regex=self._re)
 
 
 class DataFile(object):
