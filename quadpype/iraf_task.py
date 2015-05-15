@@ -200,11 +200,6 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
             outlist = [{key : DataFileList(outputs[key][n]) for key in \
                        outputs.keys()} for n in range(nfiles)]
 
-        # The above seems to be creating a copy of the DataFiles, preventing
-        # us from attaching IRAF log information below??
-            
-        # for t in zip(*inputs.values()):
-
         # Add run_task delimiter to individual DataFile log attributes (done
         # separately from IRAF log so it's still present if the latter isn't):
         for dfl in outputs.values():
@@ -293,8 +288,8 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
         if userlog:
             userlog.close()
         
-    # Return the outputs dictionary provided by the user, after expanding any
-    # input parameter refs expanded to DataFileLists etc.:
+    # Return the outputs dictionary provided by the user, after expanding
+    # any input parameter refs expanded to DataFileLists etc.:
     return outputs
 
     # TO DO:
