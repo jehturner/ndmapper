@@ -15,7 +15,10 @@ import os.path
 import string
 import re
 from copy import deepcopy
-from astropy.nddata import NDDataBase
+import numpy as np
+from astropy.nddata import NDDataBase, NDDataArray
+from astropy.nddata import NDUncertainty, StdDevUncertainty
+import astropy.io.fits as pyfits
 from . import config
 
 
@@ -50,8 +53,8 @@ class FileName(object):
         variable "quadpype.config['filename_regex']" to be used, which
         defaults to Gemini's "S20150101S0001"-style convention (thus allowing
         use of other conventions without having to override the regex every
-        time a DataFile is instantiated, as well as allowing for optional
-        pre-compilation).
+        time a DataFile is instantiated, as well as optionally allowing the
+        default to be pre-compiled).
 
 
     Attributes
@@ -111,7 +114,7 @@ class FileName(object):
             self.dir = ''
             self.prefix = ''
             self.base = ''
-            self.suffix = ''
+            self.suffix = []
             self.ext = None
 
         else:
@@ -134,21 +137,19 @@ class FileName(object):
             # Separate any prefix and/or suffixes from the base name:
             match = self._re.search(froot)
             if match:
+                self.standard = True
                 self.base = match.group()
                 if strip:
                     self.prefix = ''
-                    self.suffix = ['']
+                    self.suffix = []
                 else:
                     self.prefix = froot[:match.start()]
                     self.suffix = self._split(froot[match.end():])
             else:
-                # Here we should consider just setting the basename to
-                # everything before the filename extension and setting the
-                # prefix to '' when the filename is in a non-standard format,
-                # to permit whatever output naming a user wants. Also set a
-                # "standard format" attribute to allow checking for this.
-                raise ValueError('failed to parse base name with regexp "%s"\n'
-                    '            from "%s"' % (regex, path))
+                self.standard = False
+                self.base = froot
+                self.prefix = ''
+                self.suffix = []
             
         # Add on any specified prefix or suffix:
         if prefix:
@@ -216,11 +217,16 @@ class DataFile(object):
     Parameters
     ----------
 
-    data : NDData or list of NDData or DataFile, optional
+    data : NDData or list of NDData or DataFile or None
         NDData instance(s) for the dataset(s) to be represented, or an
         existing DataFile instance (in which case the result will be a new
         DataFile referring to the same NDData instance(s) as the original,
-        until such time as a copy is saved to disk [not implemented]).
+        until such time as it is saved [not implemented]).
+
+        If "filename" refers to an existing file and "data" is None, the data
+        will be mapped lazily from that file (data=[] can be used to avoid
+        this if the intention is to replace any existing data). Otherwise,
+        the user-specified data will be used instead.
 
     filename : str or FileName, optional
         The filename on disk of the dataset(s) to be represented.
@@ -253,6 +259,9 @@ class DataFile(object):
     filename = None
     log = ''
 
+    _dirty = True    # has the file been modified since saved/loaded?
+
+
     def __init__(self, data=None, filename=None, strip=False, prefix=None,
         suffix=None, dirname=None):
 
@@ -261,8 +270,8 @@ class DataFile(object):
             self.filename = deepcopy(data.filename)
         elif isinstance(data, NDDataBase):
             self.data = [data]
-        elif data and hasattr(data, '__iter__'):  # non-empty sequence,
-            self.data = data                      # presumably of NDData
+        elif hasattr(data, '__iter__'):  # sequence, presumably of NDData (or
+            self.data = data             # empty to ignore existing file data)
         elif data is None:
             self.data = None
         else:
@@ -275,6 +284,13 @@ class DataFile(object):
         # Parse any filename into a FileName object:
         self.filename = FileName(filename, strip=strip, prefix=prefix,
             suffix=suffix, dirname=dirname)
+
+        # Does the file already exist on disk?
+        if data is None and os.path.exists(str(self.filename)):
+            self._load()
+
+        # TO DO: should also read the primary header here as an attribute
+        # of the data file.
 
         # Track how many NDData objects this instance contains. An empty
         # DataFile has length zero.
@@ -329,6 +345,16 @@ class DataFile(object):
 
     def __len__(self):
         return self._len
+
+    # Lazily-load? the (meta-)data from file. For the time being we assume
+    # the data live in a FITS file, since the NDData I/O functionality
+    # (NDIOMixin & astropy.io.registry) is still being fleshed out and it's
+    # unclear how it would handle mapping multiple NDData objects from a
+    # file -- but things are otherwise not structured to assume FITS, except
+    # in that we currently support only flat lists of NDData objects rather
+    # than any arbitrary hierarchy supported by, say, HDF5.
+    def _load(self):
+        self.data = list(_load_nddata_from_FITS(str(self.filename)))
 
 
 class DataFileList(list):
@@ -478,22 +504,125 @@ def seqlen(arg):
     return slen
     
 
+def _load_nddata_from_FITS(filename):
+    """
+    Open an existing FITS file and return the corresponding NDDataArray
+    instances.
+
+    TO DO: populate the mask attribute from flags.
+    """
+
+    hdulist = pyfits.open(filename, mode='readonly')
+
+    # A dict of empty lists to sort recognized extensions into:
+    ext_dict = {'data' : [], 'uncertainty' : [], 'flags' : [], 'undef' : []}
+
+    # Sort any FITS image extensions by EXTNAME into SCI/VAR/DQ lists:
+    have_names = False
+    for hdu in hdulist:
+
+        # Ignore any non-image extensions:
+        if isinstance(hdu, pyfits.ImageHDU):
+
+            # The name/ver attributes are semi-documented but seem to be
+            # part of the public API now.
+            if hdu.name:  # seems to default to ''; also works for None
+                have_names = True
+
+            if hdu.name == config['data_name']:
+                ext_dict['data'].append(hdu)
+
+            elif hdu.name == config['uncertainty_name']:
+                ext_dict['uncertainty'].append(hdu)
+
+            elif hdu.name == config['flags_name']:
+                ext_dict['flags'].append(hdu)
+
+            elif not hdu.name:
+                ext_dict['undef'].append(hdu)
+
+            # else:
+            #     ignore any extensions with unrecognized names
+
+            # print ext_dict
+
+    # If there are no named image extensions, treat them as main data arrays:
+    if not have_names:
+        ext_dict['data'] = ext_dict['undef']
+
+    # List existing data (SCI) array extension numbers for reference:
+    extvers = [hdu.ver for hdu in ext_dict['data']]
+
+    # Create the NDDataArray instances. Since the main data array is mandatory,
+    # we just ignore any uncertainty (VAR) or flags (DQ) extensions without a
+    # corresponding data (SCI) array and loop over the latter:
+    lastver = 0
+    ndlist = []
+    for data_hdu in ext_dict['data']:
+
+        # Give any unnumbered SCI extensions the next available EXTVER after
+        # the last one used:
+        if data_hdu.ver < 1:  # seems to default to -1; also works for None
+            thisver = lastver + 1
+            while thisver in extvers:
+                thisver += 1
+            data_hdu.ver = thisver
+            uncert_hdu = None
+            flags_hdu = None
+
+        # Otherwise, if the EXTVER was defined to begin with, look for
+        # associated uncertainty & flags (VAR/DQ) extensions:
+        else:
+            # Find uncertainty & flags HDUs matching this EXTVER:
+            uncert_hdu = None
+            for hdu in ext_dict['uncertainty']:
+                if hdu.ver == data_hdu.ver:
+                    uncert_hdu = hdu
+                    break
+
+            flags_hdu = None
+            for hdu in ext_dict['flags']:
+                if hdu.ver == data_hdu.ver:
+                    flags_hdu = hdu
+                    break
+
+        lastver = data_hdu.ver
+
+        if uncert_hdu:
+            uncert_data = StdDevUncertainty(np.sqrt(uncert_hdu.data))
+        else:
+            uncert_data = None
+
+        if flags_hdu:
+            flags_data = flags_hdu.data
+        else:
+            flags_data = None
+
+        # Instantiate the NDData instance:
+        # TO DO: Fix this to use a VarUncertainty class instead of StdDev.
+        ndlist.append(NDDataArray(data=data_hdu.data, uncertainty=uncert_data,
+            mask=None, flags=flags_data, wcs=None, meta=data_hdu.header,
+            unit=None))
+
+    # We don't keep the file open continually, since it may get updated later
+    # by IRAF or whatever (this means some trickery later on to keep io.fits
+    # happy, since we haven't read in the lazy-loaded data arrays yet).
+    hdulist.close()
+
+    return ndlist
+
+
 # To do:
+# - In progress
+#   - Add the primary header as a DataFile attribute.
+#   - Add NDLater & NDFITSLoader/NDLoader classes for lazy-loaded NDData.
+#     - Reasonably important for IRAF to avoid duplicating everything.
+#   - Write a separate len method so data can be lazy-loaded??
+#     - How to do lazy loading for NDData when main array is mandatory?
+#       - Need a sub-class?? Replace an empty array?
+#     - Ask Erik about it?
+#   - Go back to looping over MEF files in iraf_task.
 # - Moved onto iraf_task for now.
-# - Add a MEF extension field to the filename parser! Currently it is part
-#   of the file extension.
-#   - Probably need to split the [sci] from the filename before parsing the
-#     extension from the base name as currently, because there won't always
-#     be a file extension (eg. .fits) to parse it from. Also os.path doesn't
-#     know anything about it. That means supporting known syntax such as
-#     IRAF's -- note that PyRAF now doesn't recognize it.
-#   - Alternatively, disallow MEF extensions here and instead add a param
-#     separate from the filename, telling DataFile to use a specific one,
-#     then append it for iraf in iraf_task (probably a better place).
-#     - This makes more sense, since it's more modular -- with the filename
-#       doing just its job -- and indeed the DataFile is supposed to be a
-#       list of NDData instances, not of single MEF extensions. The DataFile
-#       should know how its MEF extensions are named though.
 # - Implement deepcopy methods?
 # - Start unit tests as soon as feasible.
 
