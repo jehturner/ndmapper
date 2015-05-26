@@ -46,8 +46,6 @@ def test_DataFile_gemini_IRAF_existing():
     fn = get_pkg_data_filename('data/eqbprgS20120827S0069_flat.fits')
     df = DataFile(filename=fn)
 
-    print df.filename.dir
-
     # Ignore the directory name because the above call translates it to the
     # absolute location of this package on the system.
     assert df.filename.prefix == 'eqbprg' and \
