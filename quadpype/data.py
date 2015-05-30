@@ -228,6 +228,11 @@ class DataFile(object):
         this if the intention is to replace any existing data). Otherwise,
         the user-specified data will be used instead.
 
+    meta : dict-like
+        A meta-data dictionary / header describing the file as a whole
+        (rather than any individual nddata object), replacing any existing
+        meta-data if the file already exists on disk.
+
     filename : str or FileName, optional
         The filename on disk of the dataset(s) to be represented.
 
@@ -251,53 +256,67 @@ class DataFile(object):
     filename : FileName or None
         A filename-parsing object representing the path on disk.
 
+    meta : dict-like
+        The header/meta-data associated with the file as a whole (eg. the
+        primary FITS header) rather than an individual nddata instance.
+
     data : list of NDData or None
         NDData instance(s) associated with the DataFile.
 
     """
 
     filename = None
+    meta = None
     log = ''
 
     _dirty = True    # has the file been modified since saved/loaded?
 
 
-    def __init__(self, data=None, filename=None, strip=False, prefix=None,
-        suffix=None, dirname=None):
+    def __init__(self, data=None, meta=None, filename=None, strip=False,
+        prefix=None, suffix=None, dirname=None):
 
         if isinstance(data, DataFile):  # create new copy of existing obj
             self.data = data.data
+            self.meta = deepcopy(data.meta)
             self.filename = deepcopy(data.filename)
         elif isinstance(data, NDDataBase):
             self.data = [data]
-        elif hasattr(data, '__iter__'):  # sequence, presumably of NDData (or
-            self.data = data             # empty to ignore existing file data)
+        elif hasattr(data, '__iter__') and \
+            all([isinstance(d, (NDDataBase)) for d in data]):  # True for []
+            # Sequence of NDData (or empty to ignore existing file data):
+            self.data = data
         elif data is None:
             self.data = None
         else:
             raise TypeError('DataFile: data parameter has an unexpected type')
 
-        # Use any filename inherited from input DataFile unless specified:
+        # Use any filename & meta-data inherited from input DataFile unless
+        # specified:
         if not filename:
             filename = self.filename
+        if meta is not None:
+            self.meta = meta
 
         # Parse any filename into a FileName object:
         self.filename = FileName(filename, strip=strip, prefix=prefix,
             suffix=suffix, dirname=dirname)
 
-        # Does the file already exist on disk?
-        if data is None and os.path.exists(str(self.filename)):
-            self._load()
+        # Load the file if it already exists on disk and it contents haven't
+        # been overridden:
+        exists = os.path.exists(str(self.filename))
+        if self.meta is None and exists:
+            self._load_meta()
+        if data is None and exists:
+            self._load_data()
 
-        # TO DO: should also read the primary header here as an attribute
-        # of the data file.
-
-        # Track how many NDData objects this instance contains. An empty
-        # DataFile has length zero.
+        # Ensure (meta-)data attributes have the right types & track how many
+        # NDData objects this instance contains. An empty DataFile has length
+        # zero.
         if self.data is None:
-            self._len = 0
-        else:
-            self._len = len(self.data)            
+            self.data = []
+        if self.meta is None:
+            self.meta = {}
+        self._len = len(self.data)
 
     # Specify that class manages its own iteration with next() method:
     def __iter__(self):
@@ -353,8 +372,11 @@ class DataFile(object):
     # file -- but things are otherwise not structured to assume FITS, except
     # in that we currently support only flat lists of NDData objects rather
     # than any arbitrary hierarchy supported by, say, HDF5.
-    def _load(self):
+    def _load_data(self):
         self.data = list(_load_nddata_from_FITS(str(self.filename)))
+
+    def _load_meta(self):
+        self.meta = _load_primary_header_from_FITS(str(self.filename))
 
 
 class DataFileList(list):
@@ -375,6 +397,12 @@ class DataFileList(list):
         become new copies if any of the filename-modifying parameters are set,
         otherwise the DataFileList will simply hold references to the original
         instances (allowing manipulation of existing DataFiles via new lists).
+
+    meta : dict-like or list of dict-like or None, optional
+        The header/meta-data associated with each file as a whole (eg. the
+        primary FITS header) rather than with individual nddata instances.
+        There should be one instance per file or None (which preserves any
+        information from an existing file).
 
     filenames : str or list of str, optional
         The filename(s) on disk of the dataset(s) to be represented. There
@@ -399,110 +427,163 @@ class DataFileList(list):
 
     filenames = []
 
-    def __init__(self, data=None, filenames=[], strip=False, prefix=None,
-        suffix=None, dirname=None):
+    def __init__(self, data=None, meta=None, filenames=[], strip=False,
+        prefix=None, suffix=None, dirname=None):
 
         # This is a little fiddly (not too much considering) but handling
         # these cases here should make things conceptually simpler and/or
         # more readable from a user perspective...
 
-        data_len = seqlen(data)
-        fn_len = seqlen(filenames)
+        # First convert arguments to lists if they aren't already. There isn't
+        # really a simple way of doing this with a function because for some
+        # arguments we want to distinguish specific list-like objects from a
+        # list of those objects, for others, we want to distinguish duck-typed
+        # sequence objects from a list etc. -- ie. the criteria vary. Also, it
+        # seems safer to require specific input types in some cases and warn
+        # the user if something unexpected is received.
 
+        # Deal with special cases of single objects that we accept for
+        # convenience, although we are instantiating a list of things.
+        if _compatible_data_obj(data):
+            data = [data]
+        elif data is not None and not (hasattr(data, '__iter__') and \
+            all([_compatible_data_obj(d) for d in data])):
+            raise TypeError('DataFileList: data parameter has an unexpected ' \
+                            'type')
+        len_data = seqlen(data)
+
+        if isinstance(filenames, basestring):
+            filenames = [filenames]
+        elif filenames is not None and not hasattr(filenames, '__iter__'):
+            raise TypeError('DataFileList: filenames parameter has an ' \
+                            ' unexpected type')
+        len_fn = seqlen(filenames)
+
+        if hasattr(meta, 'keys'):  # dict-like (incl. PyFITS headers).
+            meta = [meta]
+        len_meta = seqlen(meta)
+
+        # Determine whether the filename is being modified, to help decide
+        # below whether a new copy of the input is needed:
         fn_modified = filenames or strip or prefix or suffix \
             or dirname is not None
-        
-        # If we got a single NDData or DataFile instance, create an
-        # DataFile directly from it, overriding specified prefixes etc.:
-        if isinstance(data, DataFile) or isinstance(data, NDDataBase):
-            if fn_len > 1:
-                raise ValueError('DataFileList: got multiple filenames for ' \
-                    + 'a single data object')
-            elif fn_len == 1:
-                filename = filenames[0]
-            else:
-                filename = filenames
 
-            # If instantiating with an unmodified DataFile (no filename prefix
-            # changes etc.), just reference the existing instance by default,
-            # instead of making a copy, to allow making new lists of existing
-            # DataFile instances:
-            if isinstance(data, DataFile) and not fn_modified:
-                initlist = [data]
-            else:
-                initlist = [DataFile(data=data, filename=filename, strip=strip,
-                    prefix=prefix, suffix=suffix, dirname=dirname)]
+        # If instantiating with a list or DataFileList of unmodified
+        # DataFiles (no filename prefix changes etc.), just reference
+        # the existing instances by default, instead of creating copies,
+        # to allow making new lists of existing DataFile instances:
+        if isinstance(data, list) \
+           and all([isinstance(item, DataFile) for item in data]) \
+           and meta is None and not fn_modified:
+            initlist = data
 
-        # If we got an existing DataFileList instance, re-create it from its
-        # member DataFile objects to apply any override params. Likewise, if
-        # we got a list of DataFile objects, list of NDData or list of lists
-        # of NDData, construct a DataFileList from that.
+        # Otherwise create a new copy of each DataFile to hold mods. Here
+        # we should have an existing DataFileList instance, a list of DataFile
+        # objects, list of NDData or list of lists of NDData.
         else:
-            # If instantiating with a list or DataFileList of unmodified
-            # DataFiles (no filename prefix changes etc.), just reference
-            # the existing instances by default, instead of creating copies,
-            # to allow making new lists of existing DataFile instances:
-            if isinstance(data, list) \
-                and all([isinstance(item, DataFile) for item in data]) \
-                and not fn_modified:
-                initlist = data
-
-            # Otherwise create a new copy of each DataFile to hold mods:
-            else:
-                # Should have got something iterable or None for data. Expand
-                # out both data & filenames to avoid repetition below.
+            # Expand out both data & filenames to lists of the same length,
+            # to avoid repetition below.
+            if len_data < 2:
+                # This can produce either [None] or [[]], the latter of which
+                # overrides any existing data when instantiating DataFile.
                 if not data:
-                    if fn_len is None:
-                        filenames = [filenames]
-                    data = [None for fn in filenames]
-                # Filenames need to be unique so there must be None or as many
-                # as there are items in data (but data can include singly-
-                # nested lists of NDData, with each sub-list associated with
-                # one filename and one resulting DataFile).
-                elif not filenames:
-                    filenames = [None for obj in data]
-                elif fn_len != data_len:
-                    raise ValueError('DataFileList: data & filenames differ ' \
-                        'in length')
-                initlist = [DataFile(data=obj, filename=fn, strip=strip,
-                    prefix=prefix, suffix=suffix, dirname=dirname) \
-                    for obj, fn in zip(data, filenames)]
+                    data = [data]
+                # Only if both data & filenames are 0/None, expand them to
+                # match meta:
+                if meta and not filenames:
+                    filenames = [None for mdict in meta]
+                data = [data[0] for fn in filenames]
+            # Filenames need to be unique so there must be None or as many
+            # as there are items in data (but data can include singly-
+            # nested lists of NDData, with each sub-list associated with
+            # one filename and one resulting DataFile).
+            elif not filenames:
+                filenames = [None for obj in data]
+            # Should we also be expanding out a single data object to the
+            # number of filenames?
+            elif len_fn != len_data:
+                raise ValueError('DataFileList: data & filenames differ ' \
+                    'in length')
+            # If meta is None or a single dict, expand it to match the
+            # length of data & filenames, which are by now the same. Meta
+            # only determines the number of data files produced (above)
+            # if both filenames and data are None.
+            if len_meta < 2:
+                if not meta:
+                    meta = [None]
+                meta = [meta[0] for fn in filenames]
+            if len(meta) != len(filenames):
+                raise ValueError('DataFileList: meta does not match ' \
+                    'data/filenames in length')
+            initlist = [DataFile(data=obj, meta=mdict, filename=fn,
+                strip=strip, prefix=prefix, suffix=suffix,
+                dirname=dirname) for obj, mdict, fn in \
+                zip(data, meta, filenames)]
 
         # Do whatever initialization a list object normally does:
         list.__init__(self, initlist)
 
     # Wrap the normal list append in the same way as __init__:
-    def append(self, data=None, filename=None, strip=False, prefix=None,
-        suffix=None, dirname=None):
+    def append(self, data=None, meta=None, filename=None, strip=False, \
+        prefix=None, suffix=None, dirname=None):
 
-        if isinstance(data, DataFile) and not (filename or strip or prefix or \
-            suffix or dirname is not None):
+        if isinstance(data, DataFile) and not (meta or filename or strip or \
+            prefix or suffix or dirname is not None):
             list.append(self, data)
         else:
-            list.append(self, DataFile(data=data, filename=filename,
+            list.append(self, DataFile(data=data, meta=meta, filename=filename,
                 strip=strip, prefix=prefix, suffix=suffix, dirname=dirname))
 
     # Wrap the normal list extend in the same way as __init__:
-    def extend(self, data=None, filenames=[], strip=False, prefix=None,
-        suffix=None, dirname=None):
+    def extend(self, data=None, meta=None, filenames=[], strip=False, \
+        prefix=None, suffix=None, dirname=None):
 
-        list.extend(self, DataFileList(data=data, filenames=filenames, 
-            strip=strip, prefix=prefix, suffix=suffix, dirname=dirname))
+        list.extend(self, DataFileList(data=data, meta=meta, \
+            filenames=filenames, strip=strip, prefix=prefix, suffix=suffix, \
+            dirname=dirname))
 
 
-def seqlen(arg):
+def seqlen(arg, convert_empty=False):
     """
-    Return the argument's length only if it's a sequence, otherwise None.
+    Return the length of the argument if a sequence, otherwise 1 or None.
     """
-    if hasattr(arg, '__iter__'):    
+    if hasattr(arg, '__iter__'):   # no strings etc.
         try:
             slen = len(arg)
         except TypeError:
+            raise TypeError('seqlen: unexpectedly got an iterable object ' \
+                            'with no length!')
+
+        if convert_empty is True and slen == 0:
             slen = None
-    else:
+
+    elif arg is None:
         slen = None
+
+    else:
+        slen = 1
+
     return slen
     
+
+def _compatible_data_obj(arg):
+    # For now DataFile doesn't support ndarray but that's OK, as it reports
+    # the same error DataFileList would for unsupported types and this will
+    # work if and when it's added there:
+    if isinstance(arg, DataFile) or isinstance(arg, NDDataBase) or \
+       isinstance(arg, np.ndarray):
+        return True
+    else:
+        return False
+
+
+def _load_primary_header_from_FITS(filename):
+    """
+    Open an existing FITS file and return the primary header as a dict-like
+    (PyFITS header) object.
+    """
+    return pyfits.getheader(filename)
+
 
 def _load_nddata_from_FITS(filename):
     """
@@ -614,7 +695,6 @@ def _load_nddata_from_FITS(filename):
 
 # To do:
 # - In progress
-#   - Add the primary header as a DataFile attribute.
 #   - Add NDLater & NDFITSLoader/NDLoader classes for lazy-loaded NDData.
 #     - Reasonably important for IRAF to avoid duplicating everything.
 #   - Write a separate len method so data can be lazy-loaded??
@@ -624,5 +704,4 @@ def _load_nddata_from_FITS(filename):
 #   - Go back to looping over MEF files in iraf_task.
 # - Moved onto iraf_task for now.
 # - Implement deepcopy methods?
-# - Start unit tests as soon as feasible.
 
