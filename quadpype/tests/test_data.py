@@ -2,6 +2,7 @@ import pytest
 import os.path
 import numpy as np
 from astropy.utils.data import get_pkg_data_filename
+from astropy.nddata import NDDataArray
 from ..data import FileName, DataFile, DataFileList
 
 
@@ -21,6 +22,7 @@ def test_FileName_gemini_IRAF_1():
            fn.standard == True and \
            str(fn) == '/home/james/rgS20120827S0066.fits'
 
+
 def test_FileName_nonconforming_1():
 
     fn = FileName('/home/fred/blah.fits')
@@ -32,6 +34,7 @@ def test_FileName_nonconforming_1():
            fn.ext == 'fits' and \
            fn.standard == False and \
            str(fn) == '/home/fred/blah.fits'
+
 
 def test_DataFile_gemini_IRAF_new_1():
 
@@ -45,6 +48,7 @@ def test_DataFile_gemini_IRAF_new_1():
            df.filename.ext == 'fits' and \
            df.filename.standard == True and \
            len(df) == 0
+
 
 def test_DataFile_gemini_IRAF_existing_1():
 
@@ -62,6 +66,7 @@ def test_DataFile_gemini_IRAF_existing_1():
            abs(np.mean(df[0]) - 1.0623) < 0.0001 and \
            abs(np.mean(df[1]) - 0.9461) < 0.0001
 
+
 def test_DataFileList_gemini_IRAF_existing_1():
 
     dfl = DataFileList(filenames=fn_mefnodq)
@@ -77,6 +82,7 @@ def test_DataFileList_gemini_IRAF_existing_1():
            abs(np.mean(dfl[0][0]) - 1.0623) < 0.0001 and \
            abs(np.mean(dfl[0][1]) - 0.9461) < 0.0001
 
+
 def test_DataFileList_replacing_data_1():
 
     # Replace the data & header from file with blank ones:
@@ -84,11 +90,13 @@ def test_DataFileList_replacing_data_1():
 
     assert len(dfl) == 1 and len(dfl[0]) == 0 and len(dfl[0].meta) == 0
 
+
 def test_DataFileList_len_mismatch_1():
 
     # Cannot have multiple data objects per filename:
     with pytest.raises(ValueError):
         dfl = DataFileList(data=[DataFile(), DataFile()], filenames=fn_mefnodq)
+
 
 def test_DataFileList_broadcast_data_1():
 
@@ -99,10 +107,31 @@ def test_DataFileList_broadcast_data_1():
     assert len(dfl) == 2 and dfl[0] is not dfl[1] \
         and dfl[0].data is dfl[1].data
 
+
 def test_DataFileList_copy_self_1():
 
     dfl1 = DataFileList(filenames=fn_mefnodq)
     dfl2 = DataFileList(dfl1)
 
     assert dfl1 is not dfl2 and dfl1 == dfl2
+
+
+def test_DataFileList_append_1():
+
+    dfl = DataFileList(filenames=fn_mefnodq)
+    dfl.append(DataFile(filename='some_file'))
+
+    assert len(dfl) == 2 and str(dfl[0].filename) == fn_mefnodq \
+        and str(dfl[1].filename) == 'some_file'
+
+
+def test_DataFileList_nested_nddata_1():
+
+    # But we can map the same dataset to multiple files:
+    dfl = DataFileList(data=[[NDDataArray([1,2,3]), NDDataArray([4])], \
+                             NDDataArray([5,6])], \
+                       filenames=['test_name_1', 'test_name_2'])
+
+    assert len(dfl[0]) == 2 and len(dfl[1]) == 1
+
 
