@@ -443,11 +443,13 @@ class DataFileList(list):
         # the user if something unexpected is received.
 
         # Deal with special cases of single objects that we accept for
-        # convenience, although we are instantiating a list of things.
+        # convenience, although we are instantiating a list of things. These
+        # cases are enumerated to distinguish them from container lists.
         if _compatible_data_obj(data):
             data = [data]
-        elif data is not None and not (hasattr(data, '__iter__') and \
-            all([_compatible_data_obj(d) for d in data])):
+        elif data is not None and not hasattr(data, '__iter__'):
+            # If the constituent elements of the list don't have the right
+            # type, let DataFile complain rather than checking here.
             raise TypeError('DataFileList: data parameter has an unexpected ' \
                             'type')
         len_data = seqlen(data)
