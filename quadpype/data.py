@@ -672,6 +672,7 @@ def _load_nddata_from_FITS(filename):
         lastver = data_hdu.ver
 
         if uncert_hdu:
+            # TO DO: Fix this to use a VarUncertainty class instead of StdDev.
             uncert_data = StdDevUncertainty(np.sqrt(uncert_hdu.data))
         else:
             uncert_data = None
@@ -682,7 +683,6 @@ def _load_nddata_from_FITS(filename):
             flags_data = None
 
         # Instantiate the NDData instance:
-        # TO DO: Fix this to use a VarUncertainty class instead of StdDev.
         ndlist.append(NDDataArray(data=data_hdu.data, uncertainty=uncert_data,
             mask=None, flags=flags_data, wcs=None, meta=data_hdu.header,
             unit=None))
