@@ -127,7 +127,9 @@ def test_DataFileList_append_1():
 
 def test_DataFileList_nested_nddata_1():
 
-    # But we can map the same dataset to multiple files:
+    # Here the outer list maps to DataFiles and the inner one (if applicable)
+    # to data extensions/groups within a file. The inner list can be omitted
+    # where the file only contains a single NDData instance.
     dfl = DataFileList(data=[[NDDataArray([1,2,3]), NDDataArray([4])], \
                              NDDataArray([5,6])], \
                        filenames=['test_name_1', 'test_name_2'])
