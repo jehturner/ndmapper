@@ -687,6 +687,13 @@ def _load_nddata_from_FITS(filename):
             mask=None, flags=flags_data, wcs=None, meta=data_hdu.header,
             unit=None))
 
+        # Record the EXTVER (which necessarily matches between data,
+        # uncertainty & flags) for each NDData instance, to identify its
+        # location on disk fully (eg. providing a MEF extension for IRAF and
+        # supporting lazy loading). This should be defined as None in NDLater,
+        # to ensure it's always accessible.
+        ndlist[-1]._group_id = data_hdu.ver
+
     # We don't keep the file open continually, since it may get updated later
     # by IRAF or whatever (this means some trickery later on to keep io.fits
     # happy, since we haven't read in the lazy-loaded data arrays yet).
