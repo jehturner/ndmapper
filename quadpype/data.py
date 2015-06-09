@@ -579,6 +579,34 @@ def _compatible_data_obj(arg):
         return False
 
 
+class NDFileIO(object):
+    """
+    Propagate additional information needed for NDData instances to support
+    lazy loading, report which FITS extensions they came from for IRAF etc.
+
+    Attributes
+    ----------
+
+    group_id :
+        Group identifier appropriate for the file type (int EXTVER for FITS).
+
+    data_idx : int
+    uncertainty_idx : int or None
+    flags_idx : int or None
+        The original index of each constituent data/uncertainty/flags array
+        within the host file (extension number for FITS).
+
+    """
+
+    def __init__(self, group_id=None, data_idx=None, uncertainty_idx=None, \
+                 flags_idx=None):
+
+        self.group_id = group_id
+        self.data_idx = data_idx
+        self.uncertainty_idx = uncertainty_idx
+        self.flags_idx = flags_idx
+
+
 def _load_primary_header_from_FITS(filename):
     """
     Open an existing FITS file and return the primary header as a dict-like
@@ -598,50 +626,59 @@ def _load_nddata_from_FITS(filename):
     hdulist = pyfits.open(filename, mode='readonly')
 
     # A dict of empty lists to sort recognized extensions into:
-    ext_dict = {'data' : [], 'uncertainty' : [], 'flags' : [], 'undef' : []}
+    idx_dict = {'data' : [], 'uncertainty' : [], 'flags' : [], 'undef' : []}
 
-    # Sort any FITS image extensions by EXTNAME into SCI/VAR/DQ lists:
+    # Sort any FITS image extensions by EXTNAME into SCI/VAR/DQ lists
+    # (remembering the original MEF index for later I/O):
     have_names = False
+    idx = 0
     for hdu in hdulist:
 
-        # Ignore any non-image extensions:
-        if isinstance(hdu, pyfits.ImageHDU):
+        # Ignore any non-image extensions (NB. any data in a FITS primary
+        # header must be an image array according to the std & PyFITS docs):
+        if isinstance(hdu, pyfits.ImageHDU) or (idx==0 and hdu.size > 0):
 
             # The name/ver attributes are semi-documented but seem to be
-            # part of the public API now.
-            if hdu.name:  # seems to default to ''; also works for None
+            # part of the public API now. The name seems to default to ''
+            # when undefined but the following would also work for None:
+            if hdu.name and idx > 0:  # ignore 'PRIMARY'
                 have_names = True
 
             if hdu.name == config['data_name']:
-                ext_dict['data'].append(hdu)
+                idx_dict['data'].append(idx)
 
             elif hdu.name == config['uncertainty_name']:
-                ext_dict['uncertainty'].append(hdu)
+                idx_dict['uncertainty'].append(idx)
 
             elif hdu.name == config['flags_name']:
-                ext_dict['flags'].append(hdu)
+                idx_dict['flags'].append(idx)
 
-            elif not hdu.name:
-                ext_dict['undef'].append(hdu)
+            elif not hdu.name or idx == 0:  # ignore 'PRIMARY'
+                idx_dict['undef'].append(idx)
 
             # else:
             #     ignore any extensions with unrecognized names
 
-            # print ext_dict
+            # print idx_dict
 
-    # If there are no named image extensions, treat them as main data arrays:
+        idx += 1
+
+    # If there are no named image extensions, treat the unnamed ones as our
+    # "data" (SCI) arrays (otherwise ignore them):
     if not have_names:
-        ext_dict['data'] = ext_dict['undef']
+        idx_dict['data'] = idx_dict['undef']
 
     # List existing data (SCI) array extension numbers for reference:
-    extvers = [hdu.ver for hdu in ext_dict['data']]
+    extvers = [hdulist[idx].ver for idx in idx_dict['data']]
 
     # Create the NDDataArray instances. Since the main data array is mandatory,
     # we just ignore any uncertainty (VAR) or flags (DQ) extensions without a
     # corresponding data (SCI) array and loop over the latter:
     lastver = 0
     ndlist = []
-    for data_hdu in ext_dict['data']:
+    for data_idx in idx_dict['data']:
+
+        data_hdu = hdulist[data_idx]
 
         # Give any unnumbered SCI extensions the next available EXTVER after
         # the last one used:
@@ -651,22 +688,30 @@ def _load_nddata_from_FITS(filename):
                 thisver += 1
             data_hdu.ver = thisver
             uncert_hdu = None
+            uncert_idx = None
             flags_hdu = None
+            flags_idx = None
 
         # Otherwise, if the EXTVER was defined to begin with, look for
         # associated uncertainty & flags (VAR/DQ) extensions:
         else:
             # Find uncertainty & flags HDUs matching this EXTVER:
             uncert_hdu = None
-            for hdu in ext_dict['uncertainty']:
+            uncert_idx = None
+            for idx in idx_dict['uncertainty']:
+                hdu = hdulist[idx]
                 if hdu.ver == data_hdu.ver:
                     uncert_hdu = hdu
+                    uncert_idx = idx
                     break
 
             flags_hdu = None
-            for hdu in ext_dict['flags']:
+            flags_idx = None
+            for idx in idx_dict['flags']:
+                hdu = hdulist[idx]
                 if hdu.ver == data_hdu.ver:
                     flags_hdu = hdu
+                    flags_idx = idx
                     break
 
         lastver = data_hdu.ver
@@ -687,12 +732,12 @@ def _load_nddata_from_FITS(filename):
             mask=None, flags=flags_data, wcs=None, meta=data_hdu.header,
             unit=None))
 
-        # Record the EXTVER (which necessarily matches between data,
-        # uncertainty & flags) for each NDData instance, to identify its
-        # location on disk fully (eg. providing a MEF extension for IRAF and
-        # supporting lazy loading). This should be defined as None in NDLater,
-        # to ensure it's always accessible.
-        ndlist[-1]._group_id = data_hdu.ver
+        # To specify the NDData instance's location on disk fully (providing
+        # MEF extensions for IRAF & supporting lazy loading), record the
+        # original FITS extension indices and the group's EXTVER (which by
+        # definition matches between data, uncertainty & flags):
+        ndlist[-1]._io = NDFileIO(group_id=data_hdu.ver, data_idx=data_idx,
+            uncertainty_idx=uncert_idx, flags_idx=flags_idx)
 
     # We don't keep the file open continually, since it may get updated later
     # by IRAF or whatever (this means some trickery later on to keep io.fits
