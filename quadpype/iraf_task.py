@@ -1,4 +1,5 @@
 # Copyright(c) 2015 Association of Universities for Research in Astronomy, Inc.
+# by James E.H. Turner.
 
 # Draft module to execute IRAF tasks with PyRAF.
 
@@ -12,7 +13,7 @@ from .data import DataFile, DataFileList
 
 
 def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
-             logfile=None, **params):
+             MEF_ext=True, logfile=None, **params):
     """
     Wrapper to run an IRAF task on one or more DataFile objects and collect
     the results.
@@ -49,9 +50,17 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
         instead of calling it on them one at a time by default (since not
         all tasks support input lists)?
 
-    extname : str or None
-        Optional MEF extension name, for tasks expecting simple FITS files
-        [not implemented].
+    MEF_ext : bool
+        Specify and iterate over FITS image extensions, for tasks expecting
+        simple FITS as input (eg. core IRAF tasks; default = True)? This
+        should be set to False for tasks that already handle multi-extension
+        FITS files (eg. from Gemini IRAF) or when the input files are already
+        simple FITS. The extension names iterated over are defined by the
+        package "config" dictionary.
+
+        The number of data_name extensions must be the same for every input file
+        or one (in which case that single extension will be re-used for each
+        iteration over the extensions of the other input files).
 
     logfile : str or {str : str} or None
         Optional filename for logging output, which includes any IRAF log
@@ -78,6 +87,8 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
         Named IRAF task parameters. These may include ancillary input or
         output filenames that don't need to be tracked by the main inputs &
         outputs dictionaries.
+
+    There is no support for mixing MEF- and simple FITS files in a single call.
 
     There is some possibility of the combine or extname parameters (possibly 
     also prefix if it has a different meaning from the Gemini one) conflicting
@@ -205,66 +216,139 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
         for dfl in outputs.values():
             for df in dfl:
                 df.log += '\n%s\n' % logstart
-        
+
+        # Define IRAF string format for any extension FITS extension numbers:
+        in_extfmt = '[%s]'
+        out_extfmt = '[%s,%s,append]' % (config['data_name'], '%s')
+
         # Iterate over the parameter set(s) and run the task on each one:
         for inpset, outpset in zip(inlist, outlist):
 
-            # Complete the IRAF parameter set with input/output file lists for
-            # this iteration over the input files:
-            for param in inpset:
-                params[param] = ','.join( \
-                    [str(fname) for fname in inpset[param]])
-            for param in outpset:
-                params[param] = ','.join( \
-                    [str(fname) for fname in outpset[param]])
+            # When MEF_ext=True, we require all the inputs to have the same or
+            # unit length at each iteration (or overall if combine=True) and
+            # the same EXTVERs in order to match data extensions unambiguously
+            # between the inputs. While one could envisage more intelligent
+            # expansion behaviour than this for special cases of combine=True
+            # (such as requiring the lengths to match only between files at
+            # the same list positions) it would be difficult to generalize
+            # without unnecessarily imposing fixed relationships between sets
+            # of input files (eg. there's nothing to stop an IRAF task from
+            # taking a different number of files for each input or combining
+            # them in some way other than one operation over all the inputs
+            # per list position). The most likely case of iterating implicitly
+            # over MEF extensions for multiple groups of files that only match
+            # within each group can be handled using combine=False.
+            if MEF_ext:
+                # List EXTVERs for each input file (matching inpset dict):
+                extdict = {param : [{ndd._io.group_id : ndd._io.data_idx \
+                                     for ndd in df} for df in inpset[param]] \
+                           for param in inpset}
+                # Also derive a flat list of all sorted EXTVER lists, so we
+                # can easily check that they match & get the nominal EXTVERs:
+                allvers = [sorted(extmap.iterkeys()) for extmaps in \
+                           extdict.itervalues() for extmap in extmaps]
+                # Find the longest extension list, which we'll iterate over if
+                # all goes well (the others should be the same or unit length):
+                extvers = max(allvers, key=len)
+                # Fail if the other non-unit-length EXTVER lists don't match:
+                if not all([dfvers == extvers for dfvers in allvers
+                            if len(dfvers) > 1]):
+                    raise ValueError('non-matching input MEF EXTVERs')
 
-            # Specify log file for IRAF. Even if the user specifies a name, use
-            # a temporary file and capture its contents before appending to the
-            # user-specified file.
-            if logpar is not None:
-                templog = tempfile.NamedTemporaryFile()
-                params[logpar] = templog.name
+            # Not iterating explicitly over MEF extensions:
             else:
-                templog = None
+                # Dummy dict to iterate over below, avoiding duplication:
+                extdict = {param : [None for df in inpset[param]] \
+                           for param in inpset}
+                extvers = ['']
 
-            # print 'pars', params
+            # Run the task once on per MEF extension, if applicable, otherwise
+            # just once in total:
+            for ver in extvers:
 
-            # Execute task with our Python inputs converted to IRAF-style pars:
-            try:
-                task(**params)
+                # Complete the IRAF parameter set with input/output file lists
+                # for this iteration over the input files:
+                for param in inpset:
 
-            # Note that PyRAF doesn't trap failures in IRAF tasks that accept
-            # input file lists and only issue a warning and carry on when an
-            # error specific to one of the files occurs, so we have to check
-            # separately that the expected output gets created to be confident
-            # it worked.
-            except (iraf.IrafError, KeyError), errstr:
-                # Currently this is just a placeholder for any needed clean-up.
-                raise
+                    # IRAF filenames for this parameter:
+                    fnlist = []
 
-            # Save any temporary IRAF log output whether or not the task
-            # succeeded:
-            finally:
-                if templog is not None:
-                    logtext = templog.read()
-                    # Copy the temporary IRAF log into the user-specified log:
-                    if userlog:
-                        userlog.write(logtext)
-                    # Attach log text to all output DataFile objects since,
-                    # where there's more than one, we don't know which if any
-                    # is the main one and it may be applicable to them all:
-                    for dfl in outpset.values():
-                        for df in dfl:
-                            df.log += logtext
-                    templog.close()
+                    # Iterate over files for this parameter & their ext maps:
+                    for df, dfextmap in zip(inpset[param], extdict[param]):
 
-            # Check that any non-blank output filenames were actually created.
-            for key, val in outpset.items():
-                for fname in val:
-                    namestr = str(fname)
-                    if namestr and not os.path.isfile(namestr):
-                        raise RuntimeError('No file %s after running %s' % \
-                            (namestr, taskname))
+                        # OS filename, without any ext:
+                        fn = str(df)
+
+                        # If iterating over FITS extensions, find the data
+                        # extension number corresponding to this extver, or if
+                        # there's only one data ext re-use that number:
+                        if dfextmap:
+                            if len(df) == 1:
+                                fn += in_extfmt % df[0]._io.data_idx
+                            else:
+                                fn += in_extfmt % dfextmap[ver]
+
+                        fnlist.append(fn)
+
+                    # Convert filename list to IRAF comma-separated string
+                    # and add the relevant task parameter/value:
+                    params[param] = ','.join(fnlist)
+
+                # Similar IRAF comma-separated list for the output files. Here
+                # we just give IRAF the extname/ver to use instead of the ext.
+                for param in outpset:
+                    params[param] = ','.join( \
+                        [str(df)+(out_extfmt % ver) if ver else str(df) \
+                         for df in outpset[param]])
+
+                # Specify log file for IRAF. Even if the user specifies a name,
+                # use a temporary file and capture its contents before
+                # appending to the user-specified file.
+                if logpar is not None:
+                    templog = tempfile.NamedTemporaryFile()
+                    params[logpar] = templog.name
+                else:
+                    templog = None
+
+                # print 'pars', params
+
+                # Execute with our Python inputs converted to IRAF-style pars:
+                try:
+                    task(**params)
+
+                # Note that PyRAF doesn't trap failures in IRAF tasks that
+                # accept input file lists and only issue a warning and carry on
+                # when an error specific to one of the files occurs, so we have
+                # to check separately that the expected output gets created to
+                # be confident it worked.
+
+                except (iraf.IrafError, KeyError), errstr:
+                    # Currently this is just a placeholder for any clean-up.
+                    raise
+
+                # Save any temporary IRAF log output whether or not the task
+                # succeeded:
+                finally:
+                    if templog is not None:
+                        logtext = templog.read()
+                        # Copy the temporary IRAF log into user-specified log:
+                        if userlog:
+                            userlog.write(logtext)
+                        # Attach log text to all output DataFile objects since,
+                        # where there's more than one, we don't know which if
+                        # any is the main one and it may apply to them all:
+                        for dfl in outpset.values():
+                            for df in dfl:
+                                df.log += logtext
+                        templog.close()
+
+                # Check that any non-blank output filenames were created:
+                for key, val in outpset.items():
+                    for df in val:
+                        namestr = str(df)
+                        if namestr and not os.path.isfile(namestr):
+                            raise RuntimeError('No file %s after running %s' % \
+                                (namestr, taskname))
 
         # Print final run_task() delimiter:
         dt = datetime.datetime.now()
@@ -287,7 +371,10 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
     finally:
         if userlog:
             userlog.close()
-        
+
+    # Need to re-load any files listed in the outputs here, to figure out
+    # their new lengths etc.
+
     # Return the outputs dictionary provided by the user, after expanding
     # any input parameter refs expanded to DataFileLists etc.:
     return outputs
@@ -303,19 +390,10 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
     #   so the filenames aren't obfuscated too much in the log.
     #   - Don't cd to the data because it might break user & IRAF expectations
     #     about login.cl, database directories etc.
-    # - Append [SCI] to the filenames if MEF_task=False.
-    #   - Look up naming convention from DataFile??
-    #   - Iterate over EXTVERS for each DataFile in this case in IRAF's
-    #     params dictionary below.
-    #     - Read the file to count the EXTVERs?
-    #       - Get DataFile to auto-open it and populate _len when data=None.
-    #         - Create lazy-loaded NDData instances to ensure consistency
-    #           with the list length?
-    #   - Ensure check for existence of output files omits the [SCI].
+    # - Ensure check for existence of output files omits the [SCI].
     # - Capture any stdout or stderr as well as the log?
     # - Consider allowing params other than input & output to be DataFileLists
     #   and converting them to strings as needed, for convenience.
-    # - Also need unit tests for DataFile/DataFileList.a
         
 def conv_io_pars(pardict):
     """
