@@ -372,28 +372,40 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
         if userlog:
             userlog.close()
 
-    # Need to re-load any files listed in the outputs here, to figure out
-    # their new lengths etc.
+    # Map data from files listed in the outputs after creation by IRAF:
+    for param in outputs:
+        for df in outputs[param]:
+            df.reload()
 
     # Return the outputs dictionary provided by the user, after expanding
     # any input parameter refs expanded to DataFileLists etc.:
     return outputs
 
     # TO DO:
-    # - Check that output file doesn't already exist.
+    # - Replace the above reload with a load() function.
+    # - Check that output file doesn't already exist etc.
+    #   - Omit the [SCI] (if appropriate).
+    #   - This can cause obscure FITS kernel failure when running on repeated
+    #     arguments.
+    #     - Also check that FITS extensions don't already exist?
+    #     - Scan for duplicates in output filenames? May be legitimate??
     # - Improve error trapping somehow.
+    # - Flesh out the model of passing a non-existent file object to a task
+    #   or Python function as a filename spec. and having the function add
+    #   the data etc.
     # - Finish logging behaviour as per the docstring(?).
-    # - Scan for duplicates in output filenames? May be legitimate??
+    #   - Also send record of inputs/outputs to the log only in case the
+    #     IRAF task doesn't do it?
     # - Want to ensure the name ends in .fits etc?
     # - Copy files with path prefixes into the CWD under temporary filenames
     #   (to avoid conflicts) and log their correspondence to temporary names
     #   so the filenames aren't obfuscated too much in the log.
     #   - Don't cd to the data because it might break user & IRAF expectations
     #     about login.cl, database directories etc.
-    # - Ensure check for existence of output files omits the [SCI].
     # - Capture any stdout or stderr as well as the log?
     # - Consider allowing params other than input & output to be DataFileLists
     #   and converting them to strings as needed, for convenience.
+    # - Add IRAF tests with another 2 FITS files: with VAR/DQ, unnumbered.
         
 def conv_io_pars(pardict):
     """
