@@ -378,6 +378,29 @@ class DataFile(object):
     def _load_meta(self):
         self.meta = _load_primary_header_from_FITS(str(self.filename))
 
+    def reload(self):
+        """
+        Re-load NDData instances & shared meta-data from the associated file
+        on disk, to synchronize the DataFile instance with any changes made by
+        external programs such as IRAF.
+
+        When instantiating a new DataFile object, it is unnecessary to run
+        reload() afterwards if the associated file already exists; it will be
+        read automatically.
+
+        Note that data arrays are not actually copied into memory here; they
+        are re-mapped and still lazily-loaded once referenced (if applicable).
+        """
+        if not str(self.filename):
+            raise IOError('Attempt to re-load DataFile object with no ' \
+                          'associated file')
+
+        # If the file doesn't exist etc., just pass through the IOError from
+        # PyFITS, without masking the origin of any more obscure errors:
+        self._load_meta()
+        self._load_data()
+        self._len = len(self.data)
+
 
 class DataFileList(list):
     """
