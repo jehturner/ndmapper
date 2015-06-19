@@ -579,7 +579,7 @@ def _compatible_data_obj(arg):
         return False
 
 
-class NDFileIO(object):
+class NDMapIO(object):
     """
     Propagate additional information needed for NDData instances to support
     lazy loading, report which FITS extensions they came from for IRAF etc.
@@ -736,7 +736,7 @@ def _load_nddata_from_FITS(filename):
         # MEF extensions for IRAF & supporting lazy loading), record the
         # original FITS extension indices and the group's EXTVER (which by
         # definition matches between data, uncertainty & flags):
-        ndlist[-1]._io = NDFileIO(group_id=data_hdu.ver, data_idx=data_idx,
+        ndlist[-1]._io = NDMapIO(group_id=data_hdu.ver, data_idx=data_idx,
             uncertainty_idx=uncert_idx, flags_idx=flags_idx)
 
     # We don't keep the file open continually, since it may get updated later
