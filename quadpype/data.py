@@ -660,7 +660,7 @@ def _load_nddata_from_FITS(filename):
 
         # Ignore any non-image extensions (NB. any data in a FITS primary
         # header must be an image array according to the std & PyFITS docs):
-        if isinstance(hdu, pyfits.ImageHDU) or (idx==0 and hdu.size > 0):
+        if (isinstance(hdu, pyfits.ImageHDU) or idx==0) and hdu.size > 0:
 
             # The name/ver attributes are semi-documented but seem to be
             # part of the public API now. The name seems to default to ''
