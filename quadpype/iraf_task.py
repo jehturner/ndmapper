@@ -28,12 +28,12 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
     inputs : dict of str : (DataFile or DataFileList)
         Dictionary mapping task parameter names to one or more input DataFile
         instances to pass one at a time to the task (combine=False) or all
-        together (combine=True).
+        together (combine=True). All the named files must already exist.
 
     outputs : (dict of str : (DataFile or DataFileList or str)) or None
         Specify output parameter name(s) and their filename value(s), if any.
-        The same dictionary is returned as output after applying any automatic
-        modifications.
+        The files named must not already exist. The same dictionary is
+        returned as output after applying any automatic modifications.
 
         If the "prefix" parameter is set, the value(s) may name a parameter
         from the inputs dictionary, prefixed with '@' (eg. "@infiles"), to
@@ -73,11 +73,11 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
         Where only a filename string is provided and the IRAF task has a
         parameter named "logfile", the corresponding IRAF log will be captured
         automatically, otherwise only status information and Python exceptions
-        will get recorded. Where single-item dictionary is provided, the key
+        will get recorded. Where a single-item dictionary is provided, the key
         specifies an alternative IRAF "log file" parameter name to use and the
         value again specifies the output filename [not implemented]. A special
         key string of 'STDOUT' causes the standard output to be captured in
-        the log (instead of any IRAF log file contents).
+        the log (instead of any IRAF log file contents) [not implemented].
 
         The IRAF log contents relevant to each file are also appended to the
         corresponding output DataFile's log attribute (whether or not a log
@@ -99,7 +99,8 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
     -------
 
     outputs : dict of str : (DataFile or DataFileList or str)
-        The DataFile outputs specified by the input parameter "outputs".
+        The DataFile objects specified by the parameter "outputs", updated
+        with the results from IRAF.
 
     """
 
@@ -159,6 +160,13 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
         inplen = conv_io_pars(inputs)
         nfiles = max(inplen)
 
+        # Ensure that all the input files exist (otherwise most of the code
+        # below won't get run, including the check for output file creation):
+        for dfl in inputs.values():
+            for df in dfl:
+                if not os.access(str(df), os.R_OK):
+                    raise IOError('cannot read %s' % str(df))
+
         # Apply any specified prefix to the filenames of the reference input
         # parameter to form the corresponding output filenames:
         if prefix is not None and outputs is not None:
@@ -211,18 +219,24 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
             outlist = [{key : DataFileList(outputs[key][n]) for key in \
                        outputs.keys()} for n in range(nfiles)]
 
-        # Add run_task delimiter to individual DataFile log attributes (done
-        # separately from IRAF log so it's still present if the latter isn't):
-        for dfl in outputs.values():
-            for df in dfl:
-                df.log += '\n%s\n' % logstart
-
         # Define IRAF string format for any extension FITS extension numbers:
         in_extfmt = '[%s]'
         out_extfmt = '[%s,%s,append]' % (config['data_name'], '%s')
 
         # Iterate over the parameter set(s) and run the task on each one:
         for inpset, outpset in zip(inlist, outlist):
+
+            # Ensure that the output files do not already exist (either since
+            # the beginning or from a prior iteration). We'll worry about other
+            # filesystem errors later on when checking that the file actually
+            # gets created by IRAF. While we're at it, add the run_task
+            # delimiter to the DataFile log attributes (done separately from
+            # the IRAF log so it's still present when not using the latter).
+            for dfl in outpset.values():
+                for df in dfl:
+                    df.log += '\n%s\n' % logstart
+                    if os.path.exists(str(df)):
+                        raise IOError('%s already exists' % str(df))
 
             # When MEF_ext=True, we require all the inputs to have the same or
             # unit length at each iteration (or overall if combine=True) and
@@ -342,7 +356,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
                                 df.log += logtext
                         templog.close()
 
-                # Check that any non-blank output filenames were created:
+                # Check that any non-blank output filenames got created:
                 for key, val in outpset.items():
                     for df in val:
                         namestr = str(df)
@@ -372,7 +386,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
         if userlog:
             userlog.close()
 
-    # Map data from files listed in the outputs after creation by IRAF:
+    # Map data from files listed in the outputs after their creation by IRAF:
     for param in outputs:
         for df in outputs[param]:
             df.reload()
@@ -382,14 +396,21 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
     return outputs
 
     # TO DO:
-    # - Replace the above reload with a load() function.
-    # - Check that output file doesn't already exist etc.
-    #   - Omit the [SCI] (if appropriate).
+    # - Working on catching errors with non/already-existent files
     #   - This can cause obscure FITS kernel failure when running on repeated
     #     arguments.
-    #     - Also check that FITS extensions don't already exist?
-    #     - Scan for duplicates in output filenames? May be legitimate??
-    # - Improve error trapping somehow.
+    #     - Moved logic to detect existing output files to within parameters
+    #       loop, in case they are created by a previous iteration.
+    #       - Should file existence/non-existence instead by tested by
+    #         instantiating DataFile with a mode?
+    #         - Probably no substitute because one could pass files opened for
+    #           writing as inputs etc. Seem like separate issues.
+    #         - But consider adding logic to find output duplicates instead,
+    #           since it's confusing to be told "file exists" when it didn't
+    #           originally.
+    #           - Duplicates over parameters could conceivably be legitimate
+    #             so just prohibit them between different call iterations
+    #             (over files, not MEF exts).
     # - Flesh out the model of passing a non-existent file object to a task
     #   or Python function as a filename spec. and having the function add
     #   the data etc.
@@ -397,6 +418,10 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
     #   - Also send record of inputs/outputs to the log only in case the
     #     IRAF task doesn't do it?
     # - Want to ensure the name ends in .fits etc?
+    #   - This would have to be done by DataFile, otherwise it would judge
+    #     incorrectly whether the file already exists.
+    #     - Not sure whether we want DataFile to be that fits-specific.
+    #       Probably use a (prioritized?) list of all recognized file types.
     # - Copy files with path prefixes into the CWD under temporary filenames
     #   (to avoid conflicts) and log their correspondence to temporary names
     #   so the filenames aren't obfuscated too much in the log.
@@ -406,6 +431,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
     # - Consider allowing params other than input & output to be DataFileLists
     #   and converting them to strings as needed, for convenience.
     # - Add IRAF tests with another 2 FITS files: with VAR/DQ, unnumbered.
+    # - Improve error trapping further??
         
 def conv_io_pars(pardict):
     """
