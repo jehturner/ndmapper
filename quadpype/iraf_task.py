@@ -223,20 +223,33 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
         in_extfmt = '[%s]'
         out_extfmt = '[%s,%s,append]' % (config['data_name'], '%s')
 
-        # Iterate over the parameter set(s) and run the task on each one:
-        for inpset, outpset in zip(inlist, outlist):
-
-            # Ensure that the output files do not already exist (either since
-            # the beginning or from a prior iteration). We'll worry about other
-            # filesystem errors later on when checking that the file actually
-            # gets created by IRAF. While we're at it, add the run_task
-            # delimiter to the DataFile log attributes (done separately from
-            # the IRAF log so it's still present when not using the latter).
+        # Do a pre-iteration over output parameter set(s) to ensure the files
+        # don't already exist and are not duplicated between iterations, to
+        # avoid obscure failures (duplicates are allowed within an iteration
+        # and if not legitimate should eventually be caught when the task
+        # itself complains). We'll worry about other errors like file
+        # permissions later on, when checking that the files get created by
+        # IRAF. While we're at it, add the run_task delimiter to the DataFile
+        # log attributes (done separately from the IRAF log so it's still
+        # present when not using the latter).
+        prevnames = []
+        for outpset in outlist:
+            iternames = []
             for dfl in outpset.values():
                 for df in dfl:
                     df.log += '\n%s\n' % logstart
-                    if os.path.exists(str(df)):
+                    # (This comparison should also deal automatically with any
+                    # explicit .fits extensions once DataFile handles them:)
+                    name = os.path.abspath(str(df))
+                    if name in prevnames:
+                        raise IOError('duplicate output file: %s' % str(df))
+                    if os.path.exists(name):
                         raise IOError('%s already exists' % str(df))
+                    iternames.append(name)
+            prevnames.extend(iternames)
+
+        # Iterate over the parameter set(s) and run the task on each one:
+        for inpset, outpset in zip(inlist, outlist):
 
             # When MEF_ext=True, we require all the inputs to have the same or
             # unit length at each iteration (or overall if combine=True) and
@@ -396,21 +409,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
     return outputs
 
     # TO DO:
-    # - Working on catching errors with non/already-existent files
-    #   - This can cause obscure FITS kernel failure when running on repeated
-    #     arguments.
-    #     - Moved logic to detect existing output files to within parameters
-    #       loop, in case they are created by a previous iteration.
-    #       - Should file existence/non-existence instead by tested by
-    #         instantiating DataFile with a mode?
-    #         - Probably no substitute because one could pass files opened for
-    #           writing as inputs etc. Seem like separate issues.
-    #         - But consider adding logic to find output duplicates instead,
-    #           since it's confusing to be told "file exists" when it didn't
-    #           originally.
-    #           - Duplicates over parameters could conceivably be legitimate
-    #             so just prohibit them between different call iterations
-    #             (over files, not MEF exts).
+    # - Implementing file access modes in DataFile.
     # - Flesh out the model of passing a non-existent file object to a task
     #   or Python function as a filename spec. and having the function add
     #   the data etc.
@@ -418,10 +417,14 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
     #   - Also send record of inputs/outputs to the log only in case the
     #     IRAF task doesn't do it?
     # - Want to ensure the name ends in .fits etc?
-    #   - This would have to be done by DataFile, otherwise it would judge
-    #     incorrectly whether the file already exists.
-    #     - Not sure whether we want DataFile to be that fits-specific.
-    #       Probably use a (prioritized?) list of all recognized file types.
+    #   - Would do this in DataFile, otherwise it would judge incorrectly
+    #     whether the file already exists (and in any case DataFile needs to
+    #     know how to load the file etc.).
+    #     - Use a (prioritized?) list of all recognized file types rather than
+    #       making DataFile FITS-specific.
+    #       - Only when the file mode corresponds to input files(?). Otherwise
+    #         there's no way to know which is the right implicit extension.
+    #         Unless there's a package-configurable default?
     # - Copy files with path prefixes into the CWD under temporary filenames
     #   (to avoid conflicts) and log their correspondence to temporary names
     #   so the filenames aren't obfuscated too much in the log.
