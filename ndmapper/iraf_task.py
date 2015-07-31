@@ -67,7 +67,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
         contents (delimited by run_task status lines) or Python exceptions.
 
         The default of None causes the value of the package configuration
-        variable "quadpype.config['logfile']" to be used, which itself
+        variable "ndmapper.config['logfile']" to be used, which itself
         defaults to None (in which case no log is written).
 
         Where only a filename string is provided and the IRAF task has a

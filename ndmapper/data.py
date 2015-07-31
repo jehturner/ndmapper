@@ -51,7 +51,7 @@ class FileName(object):
     regex : str, re, None
         Regular expression matching root filename (without a file extension).
         By default this is None, causing the value of the package configuration
-        variable "quadpype.config['filename_regex']" to be used, which
+        variable "ndmapper.config['filename_regex']" to be used, which
         defaults to Gemini's "S20150101S0001"-style convention (thus allowing
         use of other conventions without having to override the regex every
         time a DataFile is instantiated, as well as optionally allowing the
