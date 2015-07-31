@@ -1,0 +1,15 @@
+Before sketching out process
+
+o Rename the repo.
+o Implement NDLater.
+o Add file access modes in DataFile?
+  - See DataFile docstring.
+
+Later
+
+o IRAF tests with additional files (inc. VAR/DQ).
+o Complete logging behaviour.
+o Add auto .fits (and other known types) in DataFile?
+o Capture stdout/stderr?
+o Save functionality.
+
