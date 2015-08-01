@@ -1,9 +1,9 @@
 Before sketching out process
 
-o Rename the repo.
+o Add file access modes in DataFile.
+  - This is done but do we want to add a self._clobber attribute for later
+    use when writing to disk and/or set the _dirty attribute?
 o Implement NDLater.
-o Add file access modes in DataFile?
-  - See DataFile docstring.
 
 Later
 

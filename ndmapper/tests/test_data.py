@@ -39,7 +39,7 @@ def test_FileName_nonconforming_1():
 def test_DataFile_gemini_IRAF_new_1():
 
     # Use a filename that can't exist, just to be sure it doesn't...
-    df = DataFile(filename='rgS20120827S9999.fits')
+    df = DataFile(filename='rgS20120827S9999.fits', mode='new')
 
     assert df.filename.dir == '' and \
            df.filename.prefix == 'rg' and \
@@ -101,7 +101,8 @@ def test_DataFileList_len_mismatch_1():
 def test_DataFileList_broadcast_data_1():
 
     # But we can map the same dataset to multiple files:
-    dfl = DataFileList(data=DataFile(), filenames=[fn_mefnodq, 'test_name'])
+    dfl = DataFileList(data=DataFile(), filenames=[fn_mefnodq, 'test_name'],
+        mode='overwrite')
 
     # Produces 2 separate DataFiles referring to the same data array.
     assert len(dfl) == 2 and dfl[0] is not dfl[1] \
@@ -119,7 +120,7 @@ def test_DataFileList_copy_self_1():
 def test_DataFileList_append_1():
 
     dfl = DataFileList(filenames=fn_mefnodq)
-    dfl.append(DataFile(filename='some_file'))
+    dfl.append(DataFile(filename='some_file', mode='new'))
 
     assert len(dfl) == 2 and str(dfl[0].filename) == fn_mefnodq \
         and str(dfl[1].filename) == 'some_file'
@@ -132,8 +133,7 @@ def test_DataFileList_nested_nddata_1():
     # where the file only contains a single NDData instance.
     dfl = DataFileList(data=[[NDDataArray([1,2,3]), NDDataArray([4])], \
                              NDDataArray([5,6])], \
-                       filenames=['test_name_1', 'test_name_2'])
+                       filenames=['test_name_1', 'test_name_2'], mode='new')
 
     assert len(dfl[0]) == 2 and len(dfl[1]) == 1
-
 

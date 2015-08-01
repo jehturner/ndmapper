@@ -237,6 +237,21 @@ class DataFile(object):
     filename : str or FileName, optional
         The filename on disk of the dataset(s) to be represented.
 
+    mode : str
+        'read' (default), 'new' or 'overwrite'
+        Specifies whether the file is expected to exist on disk already and be
+        read into this DataFile (only if a filename is provided). Since
+        ndmapper performs reads and writes on request (rather than keeping the
+        corresponding files open), DataFile instances can be read or written
+        later irrespective of the mode, but "mode" controls whether to create
+        this instance from an existing file and whether existence or
+        non-existence are allowed (largely to avoid unexpected results, eg.
+        when working in the wrong directory). With 'read', the specified file
+        must already exist, with 'new', it must not exist and with 'overwrite',
+        any existing file is ignored and will be replaced when writing to disk.
+        The 'data' and 'filename' parameters always override whatever would
+        otherwise be read from disk.
+
     strip : bool
         Remove any existing prefix and suffixes from the supplied filename
         (prior to adding any specified prefix & suffix)?
@@ -273,8 +288,8 @@ class DataFile(object):
     _dirty = True    # has the file been modified since saved/loaded?
 
 
-    def __init__(self, data=None, meta=None, filename=None, strip=False,
-        prefix=None, suffix=None, dirname=None):
+    def __init__(self, data=None, meta=None, filename=None, mode='read',
+        strip=False, prefix=None, suffix=None, dirname=None):
 
         if isinstance(data, DataFile):  # create new copy of existing obj
             self.data = data.data
@@ -302,12 +317,24 @@ class DataFile(object):
         self.filename = FileName(filename, strip=strip, prefix=prefix,
             suffix=suffix, dirname=dirname)
 
-        # Load the file if it already exists on disk and it contents haven't
-        # been overridden:
+        # Load the file if requested and it contents haven't been overridden
+        # and check that it exists or doesn't, to match expectations:
         exists = os.path.exists(str(self.filename))
-        if self.meta is None and exists:
+        read_file = False
+        if str(self.filename):  # Ignore mode=='read' if there's no filename
+            if mode == 'read':
+                read_file = True
+                if not exists:
+                    raise IOError('%s not found' % str(self.filename))
+            elif mode == 'new':
+                if exists:
+                    raise IOError('%s already exists' % str(self.filename))
+            elif mode != 'overwrite':
+                raise ValueError('unrecognized file mode, \'%s\'' % mode)
+
+        if read_file and self.meta is None:
             self._load_meta()
-        if data is None and exists:
+        if read_file and data is None:
             self._load_data()
 
         # Ensure (meta-)data attributes have the right types & track how many
@@ -433,6 +460,16 @@ class DataFileList(list):
         should either be as many filenames as data or None (but lists of
         NDData can be nested to associate subsets with fewer filenames).
 
+    mode : str
+        'read', 'new' or 'overwrite'
+        Specifies whether the files are expected to exist on disk already and
+        be read into the corresponding DataFile instances (only if filenames
+        are provided; also see DataFile). With 'read', the specified files must
+        already exist, with 'new', they must not exist and with 'overwrite',
+        any existing files are ignored and will be replaced when writing to
+        disk. The 'data' and 'filename' parameters always override whatever
+        would otherwise be read from disk.
+
     strip : bool
         Remove any existing prefix and suffixes from the supplied filename
         (prior to adding any specified prefix & suffix)?
@@ -451,8 +488,8 @@ class DataFileList(list):
 
     filenames = []
 
-    def __init__(self, data=None, meta=None, filenames=[], strip=False,
-        prefix=None, suffix=None, dirname=None):
+    def __init__(self, data=None, meta=None, filenames=[], mode='read',
+        strip=False, prefix=None, suffix=None, dirname=None):
 
         # This is a little fiddly (not too much considering) but handling
         # these cases here should make things conceptually simpler and/or
@@ -542,7 +579,7 @@ class DataFileList(list):
                 raise ValueError('DataFileList: meta does not match ' \
                     'data/filenames in length')
             initlist = [DataFile(data=obj, meta=mdict, filename=fn,
-                strip=strip, prefix=prefix, suffix=suffix,
+                mode=mode, strip=strip, prefix=prefix, suffix=suffix,
                 dirname=dirname) for obj, mdict, fn in \
                 zip(data, meta, filenames)]
 
@@ -558,15 +595,16 @@ class DataFileList(list):
             list.append(self, data)
         else:
             list.append(self, DataFile(data=data, meta=meta, filename=filename,
-                strip=strip, prefix=prefix, suffix=suffix, dirname=dirname))
+                mode=mode, strip=strip, prefix=prefix, suffix=suffix,
+                dirname=dirname))
 
     # Wrap the normal list extend in the same way as __init__:
     def extend(self, data=None, meta=None, filenames=[], strip=False, \
         prefix=None, suffix=None, dirname=None):
 
         list.extend(self, DataFileList(data=data, meta=meta, \
-            filenames=filenames, strip=strip, prefix=prefix, suffix=suffix, \
-            dirname=dirname))
+            filenames=filenames, mode=mode, strip=strip, prefix=prefix,
+            suffix=suffix, dirname=dirname))
 
 
 def seqlen(arg, convert_empty=False):
