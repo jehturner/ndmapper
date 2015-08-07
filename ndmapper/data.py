@@ -1,6 +1,9 @@
 # Copyright(c) 2015 Association of Universities for Research in Astronomy, Inc.
 # by James E.H. Turner.
 
+# Code based on NDData: Copyright (c) 2011-2015, Astropy Developers. Licensed
+# under a 3-clause BSD style license - see ASTROPY.rst.
+
 # Describe as a list or collection or files/datasets/exposures/nddata/...?
 # Result/node/IO etc.??
 
@@ -16,10 +19,15 @@ import os.path
 import string
 import re
 from copy import deepcopy
+import collections
+
 import numpy as np
-from astropy.nddata import NDDataBase, NDDataArray
+
+from astropy.units import Unit, Quantity
+from astropy.nddata import NDDataBase, NDData, NDDataArray
 from astropy.nddata import NDUncertainty, StdDevUncertainty
 import astropy.io.fits as pyfits
+
 from . import config
 
 
@@ -679,8 +687,8 @@ def _load_primary_header_from_FITS(filename):
 
 def _load_nddata_from_FITS(filename):
     """
-    Open an existing FITS file and return the corresponding NDDataArray
-    instances.
+    Open an existing FITS file and return a list of the corresponding NDData
+    (NDLater) instances.
 
     TO DO: populate the mask attribute from flags.
     """
@@ -733,7 +741,7 @@ def _load_nddata_from_FITS(filename):
     # List existing data (SCI) array extension numbers for reference:
     extvers = [hdulist[idx].ver for idx in idx_dict['data']]
 
-    # Create the NDDataArray instances. Since the main data array is mandatory,
+    # Create the NDLater instances. Since the main data array is mandatory,
     # we just ignore any uncertainty (VAR) or flags (DQ) extensions without a
     # corresponding data (SCI) array and loop over the latter:
     lastver = 0
@@ -790,7 +798,7 @@ def _load_nddata_from_FITS(filename):
             flags_data = None
 
         # Instantiate the NDData instance:
-        ndlist.append(NDDataArray(data=data_hdu.data, uncertainty=uncert_data,
+        ndlist.append(NDLater(data=data_hdu.data, uncertainty=uncert_data,
             mask=None, flags=flags_data, wcs=None, meta=data_hdu.header,
             unit=None))
 
@@ -809,6 +817,129 @@ def _load_nddata_from_FITS(filename):
     return ndlist
 
 
+class NDLater(NDDataArray):
+    """
+    A version of the "standard" AstroPy NDDataArray that facilitates lazy
+    loading of pixel data, allowing code to work freely with NDData-like
+    objects without excessive use of memory.
+
+    (See NDDataArray doc string.)
+    """
+
+    # This is based on the NDData & NDDataArray __init__ but avoids referencing
+    # array attributes here, instead storing a fn that knows how to get them.
+    def __init__(self, data, uncertainty=None, mask=None, flags=None,
+                 wcs=None, meta=None, unit=None):
+
+        # The following modified NDData code replaces NDDataArray's initial
+        # super(NDDataArray, self).__init__(...):
+
+        # The only initialization we can inherit from our ancestors is the
+        # most basic stuff that happens in the NDDataBase class:
+        super(NDData, self).__init__()
+
+        if isinstance(data, NDDataArray):  # ??? Correct ???
+            # No need to check the data because data must have successfully
+            # initialized.
+            self._data = data._data
+            self.uncertainty = data.uncertainty
+            self._mask = data.mask
+            self._wcs = data.wcs
+            self._meta = data.meta
+            self._unit = data.unit
+
+            if uncertainty is not None:
+                self._uncertainty = uncertainty
+                log.info("Overwriting NDData's current uncertainty being"
+                         " overwritten with specified uncertainty")
+
+            if mask is not None:
+                self._mask = mask
+                log.info("Overwriting NDData's current "
+                         "mask with specified mask")
+
+            if wcs is not None:
+                self._wcs = wcs
+                log.info("Overwriting NDData's current wcs with specified wcs")
+
+            if meta is not None:
+                self._meta = meta
+                log.info("Overwriting NDData's current meta "
+                         "with specified meta")
+
+            if unit is not None and unit is not data.unit:
+                raise ValueError('Unit provided in initializer does not '
+                                 'match data unit.')
+        else:
+            if hasattr(data, 'mask'):
+                self._data = np.array(data.data, subok=True, copy=False)
+
+                if mask is not None:
+                    self._mask = mask
+                    log.info("NDData was created with a masked array, and a "
+                             "mask was explicitly provided to NDData. The  "
+                             "explicitly passed-in mask will be used and the "
+                             "masked array's mask will be ignored.")
+                else:
+                    self._mask = data.mask
+            elif isinstance(data, Quantity):
+                self._data = np.array(data.value, subok=True, copy=False)
+                self._mask = mask
+            elif (not hasattr(data, 'shape') or
+                  not hasattr(data, '__getitem__') or
+                  not hasattr(data, '__array__')):
+                # Data doesn't look like a numpy array, try converting it to
+                # one.
+                self._data = np.array(data, subok=True, copy=False)
+                # Quick check to see if what we got out looks like an array
+                # rather than an object (since numpy will convert a
+                # non-numerical input to an array of objects).
+                if self._data.dtype == 'O':
+                    raise TypeError("Could not convert data to numpy array.")
+                self._mask = mask
+            else:
+                self._data = data  # np.array(data, subok=True, copy=False)
+                self._mask = mask
+
+            self._wcs = wcs
+
+            if meta is None:
+                self._meta = OrderedDict()
+            elif not isinstance(meta, collections.Mapping):
+                raise TypeError("meta attribute must be dict-like")
+            else:
+                self._meta = meta
+
+            if isinstance(data, Quantity):
+                if unit is not None:
+                    raise ValueError("Cannot use the unit argument when data "
+                                     "is a Quantity")
+                else:
+                    self._unit = data.unit
+            else:
+                if unit is not None:
+                    self._unit = Unit(unit)
+                else:
+                    self._unit = None
+            # This must come after self's unit has been set so that the unit
+            # of the uncertainty, if any, can be converted to the unit of the
+            # unit of self.
+            self.uncertainty = uncertainty
+
+        # The remaining code is from NDDataArray:
+
+        # ...then reset uncertainty to force it to go through the
+        # setter logic below. In base NDData all that is done is to
+        # set self._uncertainty to whatever uncertainty is passed in.
+        self.uncertainty = self._uncertainty
+
+        # Same thing for mask.
+        self.mask = self._mask
+
+        # Initial flags because it is no longer handled in NDData
+        # or NDDataBase.
+        self.flags = flags
+
 # To do:
 # - In progress
 #   - Add NDLater & NDFITSLoader/NDLoader classes for lazy-loaded NDData.
@@ -818,6 +949,8 @@ def _load_nddata_from_FITS(filename):
 #       - Need a sub-class?? Replace an empty array?
 #     - Ask Erik about it?
 #   - Go back to looping over MEF files in iraf_task.
-# - Moved onto iraf_task for now.
+# - Is the DataFile init logic needlessly re-reading any DataFile passed
+#   as an argument? More specifically, I think this will be triggered when
+#   adding a DataFile to a DataFileList with mode='read'.
 # - Implement deepcopy methods?
 
