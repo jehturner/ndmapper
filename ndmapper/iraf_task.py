@@ -157,7 +157,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
         # Make sure each input parameter is expressed as a filename list and
         # determine how many sets of input files there are to iterate over
         # (should be as many as the length of the longest list).
-        inplen = conv_io_pars(inputs)
+        inplen = conv_io_pars(inputs, mode='read')
         nfiles = max(inplen)
 
         # Ensure that all the input files exist (otherwise most of the code
@@ -191,7 +191,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
                     outputs[key] = preflist
 
         # Make sure output parameters are filename lists, as for the input:
-        outplen = conv_io_pars(outputs)
+        outplen = conv_io_pars(outputs, mode='new')
 
         # Now if we're iterating over the files and feeding them to the task
         # one at a time for each parameter, expand out any single filenames
@@ -409,7 +409,6 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
     return outputs
 
     # TO DO:
-    # - Implementing file access modes in DataFile.
     # - Flesh out the model of passing a non-existent file object to a task
     #   or Python function as a filename spec. and having the function add
     #   the data etc.
@@ -436,7 +435,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
     # - Add IRAF tests with another 2 FITS files: with VAR/DQ, unnumbered.
     # - Improve error trapping further??
         
-def conv_io_pars(pardict):
+def conv_io_pars(pardict, mode):
     """
     Convert dict of input or output Python file lists/names to dict of
     type DataFileList and return a list of the list lengths (private).
@@ -446,9 +445,9 @@ def conv_io_pars(pardict):
         # to a DataFileList:
         parval = pardict[param]
         if isinstance(parval, basestring):
-            parval = DataFile(filename=parval)
+            parval = DataFile(filename=parval, mode=mode)
         try:
-            pardict[param] = DataFileList(parval)
+            pardict[param] = DataFileList(parval, mode=mode)
         except TypeError:
             raise TypeError('could not convert %s to DataFileList' \
                             % type(parval))
