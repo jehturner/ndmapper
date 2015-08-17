@@ -26,6 +26,7 @@ import numpy as np
 from astropy.units import Unit, Quantity
 from astropy.nddata import NDDataBase, NDData, NDDataArray
 from astropy.nddata import NDUncertainty, StdDevUncertainty
+from astropy.utils.compat.odict import OrderedDict
 import astropy.io.fits as pyfits
 
 from . import config
@@ -652,13 +653,17 @@ def _compatible_data_obj(arg):
 class NDMapIO(object):
     """
     Propagate additional information needed for NDData instances to support
-    lazy loading, report which FITS extensions they came from for IRAF etc.
+    lazy loading & report which FITS extensions they came from for IRAF etc.
 
     Attributes
     ----------
 
-    group_id :
-        Group identifier appropriate for the file type (int EXTVER for FITS).
+    filename : str
+        The path to the file from which the data are to be mapped.
+
+    group_id : int or str or None
+        Group identifier appropriate for the file type (int EXTVER for FITS),
+        which labels this particular NDData instance within a DataFile.
 
     data_idx : int
     uncertainty_idx : int or None
@@ -668,13 +673,48 @@ class NDMapIO(object):
 
     """
 
-    def __init__(self, group_id=None, data_idx=None, uncertainty_idx=None, \
-                 flags_idx=None):
+    def __init__(self, filename, group_id=None, data_idx=None, \
+        uncertainty_idx=None, flags_idx=None):
 
+        self.filename = filename
         self.group_id = group_id
         self.data_idx = data_idx
         self.uncertainty_idx = uncertainty_idx
         self.flags_idx = flags_idx
+
+        # These functions must take a filename and some kind of index argument
+        # and return an ndarray-like or dict-like object, respectively. I'll
+        # flesh out how to provide alternative loaders for other file types
+        # after gauging any interest from AstroPy people on how this might
+        # all fit with their existing io registry. This current scheme makes
+        # no allowance for telling PyFITS to use memory mapping etc. so should
+        # perhaps be made a bit more flexible. Also see note on load_flags().
+        self._dloader = pyfits.getdata
+        self._mloader = pyfits.getheader
+
+        # Consider automatically determining group_id from the input here
+        # (ie. setting it to hdu.ver == EXTVER) if None -- but this requires
+        # a more sophisticated back-end reader than the above 2 functions.
+
+    def load_data(self):
+        return self._dloader(self.filename, self.data_idx)
+
+    def load_uncertainty(self):
+        if self.uncertainty_idx:
+            uncert = self._dloader(self.filename, self.uncertainty_idx)
+            # Presumably this kills any memory mapping? Worry about it later.
+            # The sqrt is just a temporary hack until I write a Var subclass.
+            return StdDevUncertainty(np.sqrt(uncert))
+
+    def load_flags(self):
+        if self.flags_idx:
+            # Here I had to add a PyFITS- and application-specific flag to
+            # avoid scaling int16 data quality to float32, so the above API
+            # of f(filename, index) is probably a bit oversimplified.
+            return self._dloader(self.filename, self.flags_idx, uint=True)
+
+    def load_meta(self):
+        return self._mloader(self.filename, self.data_idx)
 
 
 def _load_primary_header_from_FITS(filename):
@@ -685,12 +725,15 @@ def _load_primary_header_from_FITS(filename):
     return pyfits.getheader(filename)
 
 
+# After implementing lazy loading with NDLater instead of loading everything
+# here as a placeholder, 11 tests now take ~2.3s total to run instead of ~1.2s
+# (I think that involves 2 tests that read 2 SCI extensions each).
 def _load_nddata_from_FITS(filename):
     """
     Open an existing FITS file and return a list of the corresponding NDData
     (NDLater) instances.
 
-    TO DO: populate the mask attribute from flags.
+    TO DO: populate the mask attribute from flags, wcs & units.
     """
 
     hdulist = pyfits.open(filename, mode='readonly')
@@ -757,57 +800,33 @@ def _load_nddata_from_FITS(filename):
             while thisver in extvers:
                 thisver += 1
             data_hdu.ver = thisver
-            uncert_hdu = None
             uncert_idx = None
-            flags_hdu = None
             flags_idx = None
 
         # Otherwise, if the EXTVER was defined to begin with, look for
         # associated uncertainty & flags (VAR/DQ) extensions:
         else:
             # Find uncertainty & flags HDUs matching this EXTVER:
-            uncert_hdu = None
             uncert_idx = None
             for idx in idx_dict['uncertainty']:
                 hdu = hdulist[idx]
                 if hdu.ver == data_hdu.ver:
-                    uncert_hdu = hdu
                     uncert_idx = idx
                     break
 
-            flags_hdu = None
             flags_idx = None
             for idx in idx_dict['flags']:
                 hdu = hdulist[idx]
                 if hdu.ver == data_hdu.ver:
-                    flags_hdu = hdu
                     flags_idx = idx
                     break
 
         lastver = data_hdu.ver
 
-        if uncert_hdu:
-            # TO DO: Fix this to use a VarUncertainty class instead of StdDev.
-            uncert_data = StdDevUncertainty(np.sqrt(uncert_hdu.data))
-        else:
-            uncert_data = None
-
-        if flags_hdu:
-            flags_data = flags_hdu.data
-        else:
-            flags_data = None
-
-        # Instantiate the NDData instance:
-        ndlist.append(NDLater(data=data_hdu.data, uncertainty=uncert_data,
-            mask=None, flags=flags_data, wcs=None, meta=data_hdu.header,
-            unit=None))
-
-        # To specify the NDData instance's location on disk fully (providing
-        # MEF extensions for IRAF & supporting lazy loading), record the
-        # original FITS extension indices and the group's EXTVER (which by
-        # definition matches between data, uncertainty & flags):
-        ndlist[-1]._io = NDMapIO(group_id=data_hdu.ver, data_idx=data_idx,
-            uncertainty_idx=uncert_idx, flags_idx=flags_idx)
+        # Instantiate the NDData instance, recording the original FITS
+        # extension indices and the group extver (== data extver).
+        ndlist.append(NDLater(filename, group_id=data_hdu.ver, \
+            data_idx=data_idx, uncertainty_idx=uncert_idx, flags_idx=flags_idx))
 
     # We don't keep the file open continually, since it may get updated later
     # by IRAF or whatever (this means some trickery later on to keep io.fits
@@ -819,136 +838,137 @@ def _load_nddata_from_FITS(filename):
 
 class NDLater(NDDataArray):
     """
-    A version of the "standard" AstroPy NDDataArray that facilitates lazy
-    loading of pixel data, allowing code to work freely with NDData-like
-    objects without excessive use of memory.
+    A compatible variant of NDDataArray that facilitates lazy loading of
+    pixel data, allowing code to work freely with NDData-like objects
+    (including headers) without using more memory than necessary.
 
-    (See NDDataArray doc string.)
+    The main API difference from NDDataArray is that NDLater is initialized
+    with a filename and extension numbers instead of ndarray objects. It is
+    also assumed that any meta-data, wcs & unit will be derived from the same
+    input file directly (once implemented) and can then be overridden after
+    instantiation if necessary.
+
+    Parameters
+    ----------
+
+    filename : str
+        The path to the file from which the data are to be mapped.
+
+    group_id : int or str or None
+        Group identifier appropriate for the file type (int EXTVER for FITS);
+        labels this particular NDData instance within a DataFile.
+
+    data_idx : int
+    uncertainty_idx : int or None
+    flags_idx : int or None
+        The original index of each constituent data/uncertainty/flags array
+        within the host file (extension number for FITS).
+
+    (See NDDataArray doc string for methods & attributes.
+     This is a Work in progress, to support DataFile.)
+
     """
 
     # This is based on the NDData & NDDataArray __init__ but avoids referencing
-    # array attributes here, instead storing a fn that knows how to get them.
-    def __init__(self, data, uncertainty=None, mask=None, flags=None,
-                 wcs=None, meta=None, unit=None):
-
-        # The following modified NDData code replaces NDDataArray's initial
-        # super(NDDataArray, self).__init__(...):
+    # array attributes here, instead storing an obj that knows how to get them.
+    def __init__(self, filename, group_id, data_idx, uncertainty_idx,
+        flags_idx):
 
         # The only initialization we can inherit from our ancestors is the
-        # most basic stuff that happens in the NDDataBase class:
+        # most basic stuff that happens in the NDDataBase class (which doesn't
+        # do much at present but just in case it does later...):
         super(NDData, self).__init__()
 
-        if isinstance(data, NDDataArray):  # ??? Correct ???
-            # No need to check the data because data must have successfully
-            # initialized.
-            self._data = data._data
-            self.uncertainty = data.uncertainty
-            self._mask = data.mask
-            self._wcs = data.wcs
-            self._meta = data.meta
-            self._unit = data.unit
+        # Remember our "parent class", for later use in getters/setters, where
+        # to be on the safe side, we invoke the NDDataArray getter/setter logic
+        # after actually loading the data array(s).
+        self._parent = super(NDLater, self)
 
-            if uncertainty is not None:
-                self._uncertainty = uncertainty
-                log.info("Overwriting NDData's current uncertainty being"
-                         " overwritten with specified uncertainty")
+        # Do we need an option to instantiate with an existing NDLater object,
+        # eg. as "filename"? Probably not -- one would more likely instantiate
+        # an NDDataArray from NDLater to copy it?
 
-            if mask is not None:
-                self._mask = mask
-                log.info("Overwriting NDData's current "
-                         "mask with specified mask")
-
-            if wcs is not None:
-                self._wcs = wcs
-                log.info("Overwriting NDData's current wcs with specified wcs")
-
-            if meta is not None:
-                self._meta = meta
-                log.info("Overwriting NDData's current meta "
-                         "with specified meta")
-
-            if unit is not None and unit is not data.unit:
-                raise ValueError('Unit provided in initializer does not '
-                                 'match data unit.')
-        else:
-            if hasattr(data, 'mask'):
-                self._data = np.array(data.data, subok=True, copy=False)
-
-                if mask is not None:
-                    self._mask = mask
-                    log.info("NDData was created with a masked array, and a "
-                             "mask was explicitly provided to NDData. The  "
-                             "explicitly passed-in mask will be used and the "
-                             "masked array's mask will be ignored.")
-                else:
-                    self._mask = data.mask
-            elif isinstance(data, Quantity):
-                self._data = np.array(data.value, subok=True, copy=False)
-                self._mask = mask
-            elif (not hasattr(data, 'shape') or
-                  not hasattr(data, '__getitem__') or
-                  not hasattr(data, '__array__')):
-                # Data doesn't look like a numpy array, try converting it to
-                # one.
-                self._data = np.array(data, subok=True, copy=False)
-                # Quick check to see if what we got out looks like an array
-                # rather than an object (since numpy will convert a
-                # non-numerical input to an array of objects).
-                if self._data.dtype == 'O':
-                    raise TypeError("Could not convert data to numpy array.")
-                self._mask = mask
-            else:
-                self._data = data  # np.array(data, subok=True, copy=False)
-                self._mask = mask
-
-            self._wcs = wcs
-
-            if meta is None:
-                self._meta = OrderedDict()
-            elif not isinstance(meta, collections.Mapping):
-                raise TypeError("meta attribute must be dict-like")
-            else:
-                self._meta = meta
-
-            if isinstance(data, Quantity):
-                if unit is not None:
-                    raise ValueError("Cannot use the unit argument when data "
-                                     "is a Quantity")
-                else:
-                    self._unit = data.unit
-            else:
-                if unit is not None:
-                    self._unit = Unit(unit)
-                else:
-                    self._unit = None
-            # This must come after self's unit has been set so that the unit
-            # of the uncertainty, if any, can be converted to the unit of the
-            # unit of self.
-            self.uncertainty = uncertainty
-
-        # The remaining code is from NDDataArray:
-
-        # ...then reset uncertainty to force it to go through the
-        # setter logic below. In base NDData all that is done is to
-        # set self._uncertainty to whatever uncertainty is passed in.
-        self.uncertainty = self._uncertainty
-
-        # Same thing for mask.
+        # We'll add support for these later, when needed. Where possible, we
+        # initialize these via the upstream setter logic of the public API
+        # (which wcs doesn't have yet). Some of those setters expect the
+        # private attribute version to be set already, so do that first.
+        self._mask = None
         self.mask = self._mask
+        self._wcs = None
+        self._unit = None
+        self.unit = self._unit
 
-        # Initial flags because it is no longer handled in NDData
-        # or NDDataBase.
-        self.flags = flags
+        # Instantiate the object to which lazy loading is delegated (and
+        # which tracks the mapping of attributes to extensions):
+        self._io = NDMapIO(filename, group_id, data_idx, uncertainty_idx, \
+                           flags_idx)
+
+        # Don't bother loading the header lazily, but still get it from
+        # NDMapIO, which knows how to delegate to the right back-end loader
+        # for the file format. May need the meta-data here anyway, eg. to
+        # determine things like units & WCS.
+        self._meta = self._io.load_meta()
+        if self._meta is None:
+            self._meta = OrderedDict()
+
+        # Normally self._data, self._uncertainty are set by NDData and
+        # self._flags by NDDataArray. At present they are only used by the
+        # relevant attribute getters & setters upstream. Initializing them
+        # to None here indicates that the data haven't been loaded yet.
+        self._data = None
+        self._uncertainty = None
+        self.uncertainty = self._uncertainty
+        self._flags = None
+        self.flags = self._flags
+
+    @property
+    def data(self):
+        if self._data is None:
+            self._data = self._io.load_data()
+        return self._data
+
+    @data.deleter
+    def data(self):
+        # This doesn't always free memory in practice, probably due to PyFITS's
+        # default memory mapping, but either way it provides the indended means
+        # of dropping our reference to the data.
+        self._data = None
+
+    @property
+    def uncertainty(self):
+        # This prevents resetting the value to None; use del instead
+        if self._parent.uncertainty is None:
+            self.uncertainty = self._io.load_uncertainty()
+        return self._parent.uncertainty
+
+    # Parent class setters seem not to get called automatically once a getter
+    # is defined but unfortunately super() simply doesn't work as a proxy for
+    # setters (Python issue 14965) so we have to do it the following way:
+
+    @uncertainty.setter
+    def uncertainty(self, value):
+        NDDataArray.uncertainty.fset(self, value)
+
+    @uncertainty.deleter
+    def uncertainty(self):
+        self.uncertainty = None
+
+    @property
+    def flags(self):
+        # This prevents resetting the value to None; use del instead
+        if self._parent.flags is None:
+            self.flags = self._io.load_flags()
+        return self._parent.flags
+
+    @flags.setter
+    def flags(self, value):
+        NDDataArray.flags.fset(self, value)
+
+    @flags.deleter
+    def flags(self):
+        self.flags = None
 
 # To do:
-# - In progress
-#   - Add NDLater & NDFITSLoader/NDLoader classes for lazy-loaded NDData.
-#     - Reasonably important for IRAF to avoid duplicating everything.
-#   - Write a separate len method so data can be lazy-loaded??
-#     - How to do lazy loading for NDData when main array is mandatory?
-#       - Need a sub-class?? Replace an empty array?
-#     - Ask Erik about it?
-#   - Go back to looping over MEF files in iraf_task.
 # - Is the DataFile init logic needlessly re-reading any DataFile passed
 #   as an argument? More specifically, I think this will be triggered when
 #   adding a DataFile to a DataFileList with mode='read'.
