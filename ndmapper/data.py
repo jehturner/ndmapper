@@ -825,8 +825,9 @@ def _load_nddata_from_FITS(filename):
 
         # Instantiate the NDData instance, recording the original FITS
         # extension indices and the group extver (== data extver).
-        ndlist.append(NDLater(filename, group_id=data_hdu.ver, \
-            data_idx=data_idx, uncertainty_idx=uncert_idx, flags_idx=flags_idx))
+        ndlist.append(NDLater(filename, data_idx=data_idx, \
+            uncertainty_idx=uncert_idx, flags_idx=flags_idx, \
+            group_id=data_hdu.ver))
 
     # We don't keep the file open continually, since it may get updated later
     # by IRAF or whatever (this means some trickery later on to keep io.fits
@@ -871,8 +872,8 @@ class NDLater(NDDataArray):
 
     # This is based on the NDData & NDDataArray __init__ but avoids referencing
     # array attributes here, instead storing an obj that knows how to get them.
-    def __init__(self, filename, group_id, data_idx, uncertainty_idx,
-        flags_idx):
+    def __init__(self, filename, data_idx, uncertainty_idx=None, \
+        flags_idx=None, group_id=None):
 
         # The only initialization we can inherit from our ancestors is the
         # most basic stuff that happens in the NDDataBase class (which doesn't
