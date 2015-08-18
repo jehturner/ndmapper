@@ -12,7 +12,7 @@ from . import config
 from .data import DataFile, DataFileList
 
 
-def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
+def run_task(taskname, inputs, outputs=None, prefix=None, comb_in=False, \
              MEF_ext=True, logfile=None, **params):
     """
     Wrapper to run an IRAF task on one or more DataFile objects and collect
@@ -27,8 +27,8 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
 
     inputs : dict of str : (DataFile or DataFileList)
         Dictionary mapping task parameter names to one or more input DataFile
-        instances to pass one at a time to the task (combine=False) or all
-        together (combine=True). All the named files must already exist.
+        instances to pass one at a time to the task (comb_in=False) or all
+        together (comb_in=True). All the named files must already exist.
 
     outputs : (dict of str : (DataFile or DataFileList or str)) or None
         Specify output parameter name(s) and their filename value(s), if any.
@@ -45,10 +45,11 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
         A default prefix to add to the existing input name(s) if no output
         names are specified.
 
-    combine : bool
-        Pass all the inputs to the task in one call (eg. for stacking),
-        instead of calling it on them one at a time by default (since not
-        all tasks support input lists)?
+    comb_in : bool
+        Pass all the inputs to the task at once, in a single call (eg. for
+        stacking), instead of the default behaviour of calling the task on
+        each file in turn (per input parameter)? This parameter is named
+        obscurely to avoid conflicts with IRAF tasks (eg. imcombine.combine).
 
     MEF_ext : bool
         Specify and iterate over FITS image extensions, for tasks expecting
@@ -58,9 +59,9 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
         simple FITS. The extension names iterated over are defined by the
         package "config" dictionary.
 
-        The number of data_name extensions must be the same for every input file
-        or one (in which case that single extension will be re-used for each
-        iteration over the extensions of the other input files).
+        The number of data_name extensions must be the same for every input
+        file or one (in which case that single extension will be re-used for
+        each iteration over the extensions of the other input files).
 
     logfile : str or {str : str} or None
         Optional filename for logging output, which includes any IRAF log
@@ -90,10 +91,12 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
 
     There is no support for mixing MEF- and simple FITS files in a single call.
 
-    There is some possibility of the combine or extname parameters (possibly 
-    also prefix if it has a different meaning from the Gemini one) conflicting
-    with IRAF parameters, so these should perhaps be renamed more obscurely.
-
+    In principle, "prefix" could conflict with any like-named IRAF parameters
+    that have a different meaning from the Gemini convention (ie. a string
+    that is added to the front of the input filename to provide an output
+    name), but there appears to be only one such case in Ureka (sqiid.getcoo);
+    likewise for "MEF_ext", which has no known uses elsewhere. It is assumed
+    that the widely-used "logfile" will only ever have the usual meaning.
 
     Returns
     -------
@@ -198,19 +201,19 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
         # implicitly to the length of any input list(s) so we can iterate over
         # everything together, complaining if given lists of different lengths
         # (ie. whose correspondence cannot be determined unambiguously).
-        if not combine and nfiles > 1:
+        if not comb_in and nfiles > 1:
             for parset, parlens in [(inputs, inplen), (outputs, outplen)]:
                 for param, n in zip(parset, parlens):
                     if n == 1:
                         parset[param] *= nfiles
                     elif n != nfiles:
                         raise ValueError('input/output file lists have ' \
-                            'unmatched lengths and combine=False')
+                            'unmatched lengths and comb_in=False')
 
-        # Create a list of inputs and outputs for each set of files on which
-        # the task is run (just one if combine=True). At this point, the input
-        # & output lists should all have the same lengths if combine=False.
-        if combine:
+        # Create a list of inputs & outputs for each set of files on which the
+        # task is run (just one if comb_in=True). At this point, the input
+        # & output lists should all have the same lengths if comb_in=False.
+        if comb_in:
             inlist = [inputs]
             outlist = [outputs]
         else:
@@ -252,10 +255,10 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
         for inpset, outpset in zip(inlist, outlist):
 
             # When MEF_ext=True, we require all the inputs to have the same or
-            # unit length at each iteration (or overall if combine=True) and
+            # unit length at each iteration (or overall if comb_in=True) and
             # the same EXTVERs in order to match data extensions unambiguously
             # between the inputs. While one could envisage more intelligent
-            # expansion behaviour than this for special cases of combine=True
+            # expansion behaviour than this for special cases of comb_in=True
             # (such as requiring the lengths to match only between files at
             # the same list positions) it would be difficult to generalize
             # without unnecessarily imposing fixed relationships between sets
@@ -264,7 +267,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, combine=False, \
             # them in some way other than one operation over all the inputs
             # per list position). The most likely case of iterating implicitly
             # over MEF extensions for multiple groups of files that only match
-            # within each group can be handled using combine=False.
+            # within each group can be handled using comb_in=False.
             if MEF_ext:
                 # List EXTVERs for each input file (matching inpset dict):
                 extdict = {param : [{ndd._io.group_id : ndd._io.data_idx \
