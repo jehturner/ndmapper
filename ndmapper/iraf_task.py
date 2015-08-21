@@ -12,8 +12,9 @@ from . import config
 from .data import DataFile, DataFileList, FileName
 
 
-def run_task(taskname, inputs, outputs=None, prefix=None, comb_in=False, \
-             MEF_ext=True, path_param=None, logfile=None, **params):
+def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
+             comb_in=False, MEF_ext=True, path_param=None, logfile=None,
+             **params):
     """
     Wrapper to run an IRAF task on one or more DataFile objects and collect
     the results.
@@ -35,15 +36,19 @@ def run_task(taskname, inputs, outputs=None, prefix=None, comb_in=False, \
         The files named must not already exist. The same dictionary is
         returned as output after applying any automatic modifications.
 
-        If the "prefix" parameter is set, the value(s) may name a parameter
-        from the inputs dictionary, prefixed with '@' (eg. "@infiles"), to
-        create the output names based on the corresponding input names, or
-        prefixed with '!' to create a single output name based on the first
-        input name.
+        If the "prefix" and/or "suffix" parameter is set, the value(s) may
+        name a parameter from the inputs dictionary, prefixed with '@'
+        (eg. "@infiles"), to create the output names based on the
+        corresponding input names, or prefixed with '!' to create a single
+        output name based on the first input name.
 
     prefix : str or None
         A default prefix to add to the existing input name(s) if no output
         names are specified.
+
+    suffix : str or None
+        A suffix to add to the existing input name(s) if no output names are
+        specified.
 
     comb_in : bool
         Pass all the inputs to the task at once, in a single call (eg. for
@@ -102,12 +107,13 @@ def run_task(taskname, inputs, outputs=None, prefix=None, comb_in=False, \
 
     There is no support for mixing MEF- and simple FITS files in a single call.
 
-    In principle, "prefix" could conflict with any like-named IRAF parameters
-    that have a different meaning from the Gemini convention (ie. a string
-    that is added to the front of the input filename to provide an output
-    name), but there appears to be only one such case in Ureka (sqiid.getcoo);
-    likewise for "MEF_ext", which has no known uses elsewhere. It is assumed
-    that the widely-used "logfile" will only ever have the usual meaning.
+    In principle, "prefix" & "suffix" could conflict with any like-named IRAF
+    parameters that have a different meaning from the Gemini convention (ie. a
+    string that is added to the start/end of the input filename to provide an
+    output name), but there appears to be only one such case in Ureka
+    (sqiid.getcoo); likewise for "MEF_ext", which has no known uses elsewhere.
+    It is assumed that the widely-used "logfile" will only ever have the usual
+    meaning.
 
     Returns
     -------
@@ -200,9 +206,12 @@ def run_task(taskname, inputs, outputs=None, prefix=None, comb_in=False, \
 
         # Apply any specified prefix to the filenames of the reference input
         # parameter to form the corresponding output filenames:
-        if prefix is not None and outputs is not None:
+        if outputs is not None:
             for key, val in outputs.iteritems():
                 if isinstance(val, basestring) and val and val[0] in '!@':
+                    if prefix is None and suffix is None:
+                        raise ValueError('output \'%s\' requires missing '
+                            'suffix/prefix value' % key)
                     refpar = val[1:]
                     if val[0] == '!':
                         namerange = slice(0, 1)        # use first filename
@@ -213,8 +222,11 @@ def run_task(taskname, inputs, outputs=None, prefix=None, comb_in=False, \
                         for datafile in inputs[refpar][namerange]:
                             newfile = DataFile(filename=datafile.filename)
                             newfile.filename.dir=''  # output goes in CWD
-                            newfile.filename.prefix = \
-                                prefix + newfile.filename.prefix
+                            if prefix is not None:
+                                newfile.filename.prefix = \
+                                    prefix + newfile.filename.prefix
+                            if suffix is not None:
+                                newfile.filename.suffix.append(suffix)
                             preflist.append(newfile)
                     else:
                         raise ValueError('parameter name %s for prefix not '\
