@@ -9,11 +9,11 @@ import datetime
 import traceback
 from pyraf import iraf
 from . import config
-from .data import DataFile, DataFileList
+from .data import DataFile, DataFileList, FileName
 
 
 def run_task(taskname, inputs, outputs=None, prefix=None, comb_in=False, \
-             MEF_ext=True, logfile=None, **params):
+             MEF_ext=True, path_param=None, logfile=None, **params):
     """
     Wrapper to run an IRAF task on one or more DataFile objects and collect
     the results.
@@ -62,6 +62,17 @@ def run_task(taskname, inputs, outputs=None, prefix=None, comb_in=False, \
         The number of data_name extensions must be the same for every input
         file or one (in which case that single extension will be re-used for
         each iteration over the extensions of the other input files).
+
+    path_param : str or None
+        Name of a task parameter (eg. 'rawpath') used to specify the location
+        of the input files, instead of including the full path in each input
+        filename as usual. The paths are automatically stripped from the
+        inputs and supplied to the task via this parameter instead. Output
+        files are still assumed to reside in the current working directory
+        unless otherwise specified. To use this option, the inputs must all
+        reside in the same directory -- if this is not the case and the IRAF
+        task does not understand paths in filenames then the user will need
+        to copy the input files to the current directory before running it.
 
     logfile : str or {str : str} or None
         Optional filename for logging output, which includes any IRAF log
@@ -164,11 +175,28 @@ def run_task(taskname, inputs, outputs=None, prefix=None, comb_in=False, \
         nfiles = max(inplen)
 
         # Ensure that all the input files exist (otherwise most of the code
-        # below won't get run, including the check for output file creation):
+        # below won't get run, including the check for output file creation).
+        # Also, store unique directory paths when using path_param below.
+        paths=set()
         for dfl in inputs.values():
             for df in dfl:
                 if not os.access(str(df), os.R_OK):
                     raise IOError('cannot read %s' % str(df))
+                if path_param:
+                    paths.add(df.filename.dir)
+
+        # Set the task's path_param if specified (but not overridden by the
+        # user), after ensuring the path to the files is unique:
+        if path_param and path_param not in params:
+            ndirs = len(paths)
+            if ndirs == 0:
+                path = ''
+            elif ndirs == 1:
+                (path,) = paths
+            else:
+                raise ValueError('inputs must all have the same path when ' \
+                    '\'path_param\' is set')
+            params[path_param] = path
 
         # Apply any specified prefix to the filenames of the reference input
         # parameter to form the corresponding output filenames:
@@ -195,6 +223,19 @@ def run_task(taskname, inputs, outputs=None, prefix=None, comb_in=False, \
 
         # Make sure output parameters are filename lists, as for the input:
         outplen = conv_io_pars(outputs, mode='new')
+
+        # Consider adding a section here that enables comb_in automatically
+        # if the number of output files (for at least one output parameter?)
+        # is 1 (in which case the following check won't run). The parameter
+        # can't be eliminated entirely because we can't distinguish looping
+        # over N inputs with N outputs from running a task once that processes
+        # N inputs together and produces N outputs (eg. WCS updates onto a
+        # common system, scaling to a common sky level etc.). Could add
+        # comb_in="auto"/None option or make it into "force_comb" or
+        # "separate" etc.
+        # - At this point, the prefix parameter has already been applied to
+        #   generate one or more output filenames, if applicable.
+        # - Document decision in the log.
 
         # Now if we're iterating over the files and feeding them to the task
         # one at a time for each parameter, expand out any single filenames
@@ -231,10 +272,10 @@ def run_task(taskname, inputs, outputs=None, prefix=None, comb_in=False, \
         # avoid obscure failures (duplicates are allowed within an iteration
         # and if not legitimate should eventually be caught when the task
         # itself complains). We'll worry about other errors like file
-        # permissions later on, when checking that the files get created by
-        # IRAF. While we're at it, add the run_task delimiter to the DataFile
-        # log attributes (done separately from the IRAF log so it's still
-        # present when not using the latter).
+        # permissions later on, when checking that the files actually get
+        # created by IRAF. While we're at it, add the run_task delimiter to
+        # the DataFile log attributes (done separately from the IRAF log so
+        # it's still present when not using the latter).
         prevnames = []
         for outpset in outlist:
             iternames = []
@@ -306,8 +347,12 @@ def run_task(taskname, inputs, outputs=None, prefix=None, comb_in=False, \
                     # Iterate over files for this parameter & their ext maps:
                     for df, dfextmap in zip(inpset[param], extdict[param]):
 
-                        # OS filename, without any ext:
-                        fn = str(df)
+                        # OS filename, without any MEF ext (& without any path
+                        # if the task expects a separate path parameter):
+                        if path_param:
+                            fn = str(FileName(df.filename, dirname=''))
+                        else:
+                            fn = str(df)
 
                         # If iterating over FITS extensions, find the data
                         # extension number corresponding to this extver, or if
