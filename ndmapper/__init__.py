@@ -14,7 +14,9 @@ config = {'filename_regex' : '[NS][0-9]{8}S[0-9]{3,4}',
           'logfile' : None,
           'data_name' : 'SCI',
           'uncertainty_name' : 'VAR',
-          'flags_name' : 'DQ'
+          'flags_name' : 'DQ',
+          'use_uncert' : True,
+          'use_flags' : True
          }
 
 # For egg_info test builds to pass, put package imports here.
