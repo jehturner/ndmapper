@@ -1,15 +1,12 @@
-Before sketching out process
-
-o Add file access modes in DataFile.
-  - This is done but do we want to add a self._clobber attribute for later
-    use when writing to disk and/or set the _dirty attribute?
-o Implement NDLater.
+o Sketch out process & at some point split it out from ndmapper.
 
 Later
 
 o IRAF tests with additional files (inc. VAR/DQ).
-o Complete logging behaviour.
+o DataFile save functionality.
+o Complete IRAF logging behaviour.
 o Add auto .fits (and other known types) in DataFile?
 o Capture stdout/stderr?
-o Save functionality.
+  - Sometimes warnings go here that should end up in the log.
+  - How to deal with stdout/log duplication & asynchronous status output?
 
