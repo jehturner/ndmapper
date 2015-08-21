@@ -43,12 +43,13 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
         output name based on the first input name.
 
     prefix : str or None
-        A default prefix to add to the existing input name(s) if no output
-        names are specified.
+        A default prefix to add to existing input filename(s) to form the
+        output filename(s), if the output parameter value(s) specify this
+        behaviour.
 
     suffix : str or None
-        A suffix to add to the existing input name(s) if no output names are
-        specified.
+        A suffix to add to existing input filename(s) to form the output
+        filename(s), if the output parameter value(s) specify this behaviour.
 
     comb_in : bool
         Pass all the inputs to the task at once, in a single call (eg. for
