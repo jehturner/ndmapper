@@ -26,12 +26,71 @@ def make_bias(images, bias=None, bpm=None, ovs_function='chebyshev',
     Parameters
     ----------
 
+    images : DataFileList
+        Input raw bias images.
+
+    bias : DataFile, optional
+        Output combined bias image.
+
+    bpm : DataFile or DataFileList, optional
+        A bad pixel mask, used if 'use_uncert' and/or 'use_flags' is enabled.
+        This can be created with the Gemini IRAF task GBPM.
+
+    ovs_function : str
+        Function to use for fitting the overscan region in IRAF (default
+        'chebyshev'; may also be 'legendre', 'spline1' or 'spline3').
+
+    ovs_order : int
+        Order of the overscan fitting function (default 1).
+
+    ovs_lsigma : float
+        Negative sigma rejection threshold for overscan fitting (default 2.0).
+
+    ovs_hsigma : float
+        Positive sigma rejection threshold for overscan fitting (default 2.0).
+
+    ovs_niter : int
+        Number of rejection iterations for overscan fitting (default 11).
+
+    comb_lsigma : float
+        Negative sigma rejection threshold for averaging biases (default 2.0).
+
+    comb_hsigma : float
+        Positive sigma rejection threshold for averaging biases (default 2.0).
+
+    interact : bool
+        Fit the overscan region interactively in IRAF (default False)?
+
     See "help gbias" in IRAF for more detailed information.
+
 
     Returns
     -------
 
     outbias : DataFile
+        The combined bias image produced by gbias.
+
+
+    Package 'config' options
+    ------------------------
+
+    use_uncert : bool
+        Enable NDData 'uncertainty' (variance) propagation (default True)?
+
+    use_flags : bool
+        Enable NDData 'flags' (data quality) propagation (default True)?
+
+    data_name : str
+        Name identifying main NDData data (science) arrays within a file
+        (default 'SCI'; Gemini convention).
+
+    uncertainty_name : str
+        Name identifying NDData uncertainty (variance) arrays within a file
+        (default 'VAR'; Gemini convention).
+
+    flags_name : str
+        Name identifying NDData flags (data quality) arrays within a file
+        (default 'DQ'; Gemini convention).
 
     """
 
