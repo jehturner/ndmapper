@@ -20,7 +20,7 @@ from ndmapper.iraf_task import run_task
 
 def make_bias(images, bias=None, bpm=None, ovs_function='chebyshev',
     ovs_order=1, ovs_lsigma=2.0, ovs_hsigma=2.0, ovs_niter=11,
-    comb_lsigma=2.0, comb_hsigma=2.0, interact=False):
+    comb_lsigma=2.0, comb_hsigma=2.0, interact=None):
 
     """
     Parameters
@@ -30,7 +30,9 @@ def make_bias(images, bias=None, bpm=None, ovs_function='chebyshev',
         Input raw bias images.
 
     bias : DataFile, optional
-        Output combined bias image.
+        Output combined bias image. If None (default), a new DataFile will be
+        returned whose name is constructed from that of the first input file,
+        by appending '_bias'.
 
     bpm : DataFile or DataFileList, optional
         A bad pixel mask, used if 'use_uncert' and/or 'use_flags' is enabled.
@@ -58,8 +60,10 @@ def make_bias(images, bias=None, bpm=None, ovs_function='chebyshev',
     comb_hsigma : float
         Positive sigma rejection threshold for averaging biases (default 2.0).
 
-    interact : bool
-        Fit the overscan region interactively in IRAF (default False)?
+    interact : bool, None
+        Fit the overscan region interactively in IRAF? If None (default),
+        interactivity is instead controlled by the package configuration
+        dictionary (see below).
 
     See "help gbias" in IRAF for more detailed information.
 
@@ -82,15 +86,19 @@ def make_bias(images, bias=None, bpm=None, ovs_function='chebyshev',
 
     data_name : str
         Name identifying main NDData data (science) arrays within a file
-        (default 'SCI'; Gemini convention).
+        (default 'SCI' = Gemini convention).
 
     uncertainty_name : str
         Name identifying NDData uncertainty (variance) arrays within a file
-        (default 'VAR'; Gemini convention).
+        (default 'VAR' = Gemini convention).
 
     flags_name : str
         Name identifying NDData flags (data quality) arrays within a file
-        (default 'DQ'; Gemini convention).
+        (default 'DQ' = Gemini convention).
+
+    interact : bool
+        Enable interactive plotting (default False)? This may be overridden
+        by the task's own "interact" parameter.
 
     """
 
@@ -116,6 +124,11 @@ def make_bias(images, bias=None, bpm=None, ovs_function='chebyshev',
         vardq = True
     else:
         vardq = False
+
+    # If (non-)interactivity is not specified, default to using package-
+    # level configuration:
+    if interact is None:
+        interact = config['interact']
 
     # Wrap gbias, defining the parameters reproducibly (for a given version)
     # but omitting inapplicable parameters such as minmax options. Certain
