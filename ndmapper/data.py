@@ -1,9 +1,6 @@
 # Copyright(c) 2015 Association of Universities for Research in Astronomy, Inc.
 # by James E.H. Turner.
 
-# Code based on NDData: Copyright (c) 2011-2015, Astropy Developers. Licensed
-# under a 3-clause BSD style license - see ASTROPY.rst.
-
 # Describe as a list or collection or files/datasets/exposures/nddata/...?
 # Result/node/IO etc.??
 
