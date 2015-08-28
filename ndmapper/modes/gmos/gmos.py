@@ -2,7 +2,7 @@
 # by James E.H. Turner.
 
 from pyraf import iraf
-from ndmapper import config
+from ndmapper import config, ndprocess_defaults
 from ndmapper.iraf_task import run_task
 
 # These functions are intended to represent logical processing steps, rather
@@ -18,6 +18,7 @@ from ndmapper.iraf_task import run_task
 
 # NB. PyRAF accepts True/False, iraf.yes/iraf.no & 'yes'/'no' interchangeably.
 
+@ndprocess_defaults
 def make_bias(images, bias=None, bpm=None, ovs_function='chebyshev',
     ovs_order=1, ovs_lsigma=2.0, ovs_hsigma=2.0, ovs_niter=11,
     comb_lsigma=2.0, comb_hsigma=2.0, interact=None):
@@ -109,7 +110,7 @@ def make_bias(images, bias=None, bpm=None, ovs_function='chebyshev',
     if not bias:
         bias = '!inimages'
 
-    # Include a BPM in the task input files if supplied by the user
+    # Insert a BPM in the task inputs if supplied by the user
     # (NB. Use of this BPM parameter is untested at the time of writing; it
     # would need a multi-extension FITS BPM in place of the pixel list files
     # distributed with the package):
@@ -119,16 +120,12 @@ def make_bias(images, bias=None, bpm=None, ovs_function='chebyshev',
 
     # Most of the IRAF package tasks don't have the granularity to control
     # VAR & DQ propagation separately, so just turn them both on if either
-    # is enabled in the package config.:
+    # is specified. This isn't handled by ndprocess_defaults since the
+    # Python & IRAF APIs are different (two parameters vs one):
     if config['use_uncert'] or config['use_flags']:
         vardq = True
     else:
         vardq = False
-
-    # If (non-)interactivity is not specified, default to using package-
-    # level configuration:
-    if interact is None:
-        interact = config['interact']
 
     # Wrap gbias, defining the parameters reproducibly (for a given version)
     # but omitting inapplicable parameters such as minmax options. Certain
