@@ -131,7 +131,7 @@ def make_bias(images, bias=None, bpm=None, ovs_function='chebyshev',
     # but omitting inapplicable parameters such as minmax options. Certain
     # parameters, such as logfile & rawpath, are set directly by run_task.
     result = run_task('gemini.gmos.gbias', inputs=inputs,
-        outputs={'outbias' : '!inimages'}, suffix='_bias', comb_in=True,
+        outputs={'outbias' : bias}, suffix='_bias', comb_in=True,
         MEF_ext=False, path_param='rawpath', fl_over=True, fl_trim=True,
         key_biassec='BIASSEC', key_datasec='DATASEC', key_ron='RDNOISE',
         key_gain='GAIN', ron=3.5, gain=2.2, gaindb='default',
