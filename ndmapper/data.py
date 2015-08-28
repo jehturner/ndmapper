@@ -959,6 +959,28 @@ class NDLater(NDDataArray):
     def flags(self):
         self.flags = None
 
+def load_datafilelist(infile, path=None, mode='read'):
+    """
+    Open a text file containing a list of filenames as a DataFileList object.
+    """
+
+    f = open(infile, 'r')
+
+    dfl = DataFileList()
+
+    # Parse each filename, one per line, check it doesn't have a duplicate
+    # path and append it to the DataFileList:
+    for line in f:
+        line = line.strip()  # remove new lines & trailing/leading spaces
+        if path and os.path.dirname(line):
+            raise IOError('Specified \'path\' when file already has one:\n' \
+                          '  %s' % line)
+        dfl.append(DataFile(filename=line, mode=mode, dirname=path))
+
+    f.close()
+
+    return dfl
+
 # To do:
 # - Is the DataFile init logic needlessly re-reading any DataFile passed
 #   as an argument? More specifically, I think this will be triggered when
