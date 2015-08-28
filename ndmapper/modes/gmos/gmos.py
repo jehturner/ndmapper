@@ -19,7 +19,7 @@ from ndmapper.iraf_task import run_task
 # NB. PyRAF accepts True/False, iraf.yes/iraf.no & 'yes'/'no' interchangeably.
 
 @ndprocess_defaults
-def make_bias(images, bias=None, bpm=None, ovs_function='chebyshev',
+def make_bias(inputs, bias=None, bpm=None, ovs_function='spline3',
     ovs_order=1, ovs_lsigma=2.0, ovs_hsigma=2.0, ovs_niter=5,
     comb_lsigma=2.0, comb_hsigma=2.0, interact=None):
 
@@ -27,7 +27,7 @@ def make_bias(images, bias=None, bpm=None, ovs_function='chebyshev',
     Parameters
     ----------
 
-    images : DataFileList
+    inputs : DataFileList
         Input raw bias images.
 
     bias : DataFile, optional
@@ -53,7 +53,7 @@ def make_bias(images, bias=None, bpm=None, ovs_function='chebyshev',
         Positive sigma rejection threshold for overscan fitting (default 2.0).
 
     ovs_niter : int
-        Number of rejection iterations for overscan fitting (default 11).
+        Number of rejection iterations for overscan fitting (default 5).
 
     comb_lsigma : float
         Negative sigma rejection threshold for averaging biases (default 2.0).
@@ -114,7 +114,7 @@ def make_bias(images, bias=None, bpm=None, ovs_function='chebyshev',
     # (NB. Use of this BPM parameter is untested at the time of writing; it
     # would need a multi-extension FITS BPM in place of the pixel list files
     # distributed with the package):
-    inputs = {'inimages' : images}
+    inputs = {'inimages' : inputs}
     if bpm:
         inputs['bpm'] = bpm
 
