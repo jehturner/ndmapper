@@ -20,7 +20,7 @@ from ndmapper.iraf_task import run_task
 
 @ndprocess_defaults
 def make_bias(images, bias=None, bpm=None, ovs_function='chebyshev',
-    ovs_order=1, ovs_lsigma=2.0, ovs_hsigma=2.0, ovs_niter=11,
+    ovs_order=1, ovs_lsigma=2.0, ovs_hsigma=2.0, ovs_niter=5,
     comb_lsigma=2.0, comb_hsigma=2.0, interact=None):
 
     """
