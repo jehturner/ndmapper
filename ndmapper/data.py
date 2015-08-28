@@ -959,12 +959,35 @@ class NDLater(NDDataArray):
     def flags(self):
         self.flags = None
 
-def load_datafilelist(infile, path=None, mode='read'):
+
+def load_datafilelist(filename, dirname=None, mode='read'):
     """
     Open a text file containing a list of filenames as a DataFileList object.
+
+    Parameters
+    ----------
+
+    filename : str
+        Name of a plain-text file, containing one filename per line.
+
+    dirname : str, optional
+        Directory where the files to be read/written are located, to be
+        prefixed to each listed filename. This option cannot be used if any
+        filenames already include a (full or relative) path.
+
+    mode : str, optional
+        Access mode parameter to pass to each instantiated DataFile object.
+
+
+    Returns
+    -------
+
+    DataFileList
+        A DataFileList object, mapped to the listed files.
+
     """
 
-    f = open(infile, 'r')
+    f = open(filename, 'r')
 
     dfl = DataFileList()
 
@@ -973,10 +996,10 @@ def load_datafilelist(infile, path=None, mode='read'):
     for line in f:
         line = line.strip()         # remove new lines & trailing/leading space
         if line and line[0] != '#': # ignore empty lines & comments
-            if path and os.path.dirname(line):
-                raise IOError('Specified \'path\' when file already has '
+            if dirname and os.path.dirname(line):
+                raise IOError('Specified \'dirname\' when file already has '
                     'one:\n  %s' % line)
-            dfl.append(DataFile(filename=line, mode=mode, dirname=path))
+            dfl.append(DataFile(filename=line, mode=mode, dirname=dirname))
 
     f.close()
 
