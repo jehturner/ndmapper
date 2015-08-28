@@ -1,13 +1,6 @@
 # Copyright(c) 2015 Association of Universities for Research in Astronomy, Inc.
 # by James E.H. Turner.
 
-# Describe as a list or collection or files/datasets/exposures/nddata/...?
-# Result/node/IO etc.??
-
-# Need to figure out the overlap with Mark's nddata container object at some
-# point, but it seems to have no concept of file association and for now that
-# looks more work than getting started with something simple.
-
 # Need to understand the differences between AstroPy and Gemini Python
 # docstring conventions better, which are supposedly the same but one has
 # extra fields.
