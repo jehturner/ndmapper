@@ -971,11 +971,12 @@ def load_datafilelist(infile, path=None, mode='read'):
     # Parse each filename, one per line, check it doesn't have a duplicate
     # path and append it to the DataFileList:
     for line in f:
-        line = line.strip()  # remove new lines & trailing/leading spaces
-        if path and os.path.dirname(line):
-            raise IOError('Specified \'path\' when file already has one:\n' \
-                          '  %s' % line)
-        dfl.append(DataFile(filename=line, mode=mode, dirname=path))
+        line = line.strip()         # remove new lines & trailing/leading space
+        if line and line[0] != '#': # ignore empty lines & comments
+            if path and os.path.dirname(line):
+                raise IOError('Specified \'path\' when file already has '
+                    'one:\n  %s' % line)
+            dfl.append(DataFile(filename=line, mode=mode, dirname=path))
 
     f.close()
 
