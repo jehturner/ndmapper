@@ -72,13 +72,17 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
     path_param : str or None
         Name of a task parameter (eg. 'rawpath') used to specify the location
         of the input files, instead of including the full path in each input
-        filename as usual. The paths are automatically stripped from the
-        inputs and supplied to the task via this parameter instead. Output
+        filename as usual. The DataFile paths are automatically stripped from
+        the inputs and supplied to the task via this parameter instead. Output
         files are still assumed to reside in the current working directory
-        unless otherwise specified. To use this option, the inputs must all
-        reside in the same directory -- if this is not the case and the IRAF
-        task does not understand paths in filenames then the user will need
-        to copy the input files to the current directory before running it.
+        unless otherwise specified. To use this option, all inputs containing
+        a directory path (other than '') must reside in the same directory --
+        if this is not the case and the IRAF task does not understand paths in
+        filenames then the user will need to copy the input files to the
+        current directory before running it. The user must not supply filenames
+        in another directory to input parameters for which the IRAF task does
+        not apply the path_param prefix (usually input calibrations), or the
+        task will fail to find some or all of the inputs.
 
     logfile : str or {str : str} or None
         Optional filename for logging output, which includes any IRAF log
@@ -189,7 +193,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
             for df in dfl:
                 if not os.access(str(df), os.R_OK):
                     raise IOError('cannot read %s' % str(df))
-                if path_param:
+                if path_param and df.filename.dir:  # don't count CWD ('')
                     paths.add(df.filename.dir)
 
         # Set the task's path_param if specified (but not overridden by the
@@ -203,6 +207,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
             else:
                 raise ValueError('inputs must all have the same path when ' \
                     '\'path_param\' is set')
+            path = os.path.join(path, '')  # incl. trailing slash unless blank
             params[path_param] = path
 
         # Apply any specified prefix to the filenames of the reference input
