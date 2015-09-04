@@ -10,6 +10,7 @@ import string
 import re
 from copy import deepcopy
 import collections
+import hashlib
 
 import numpy as np
 
@@ -392,7 +393,7 @@ class DataFile(object):
     def __len__(self):
         return self._len
 
-    # Lazily-load? the (meta-)data from file. For the time being we assume
+    # Lazily-load the (meta-)data from file. For the time being we assume
     # the data live in a FITS file, since the NDData I/O functionality
     # (NDIOMixin & astropy.io.registry) is still being fleshed out and it's
     # unclear how it would handle mapping multiple NDData objects from a
@@ -643,7 +644,13 @@ def _compatible_data_obj(arg):
 class NDMapIO(object):
     """
     Propagate additional information needed for NDData instances to support
-    lazy loading & report which FITS extensions they came from for IRAF etc.
+    lazy loading, allow saving only arrays/header attributes that have changed
+    & report which FITS extensions they came from for IRAF etc.
+
+    For lazy-loading or saving operations to succeed, the corresponding file
+    must already exist. This class is intended to encapsulate bookkeeping
+    within NDLater (managed by a DataFile instance) rather than to provide a
+    robust API: for the user-level interface, see DataFile instead.
 
     Attributes
     ----------
@@ -663,6 +670,10 @@ class NDMapIO(object):
 
     """
 
+    _data_hash = None
+    _uncertainty_hash = None
+    _flags_hash = None
+
     def __init__(self, filename, group_id=None, data_idx=None, \
         uncertainty_idx=None, flags_idx=None):
 
@@ -681,30 +692,54 @@ class NDMapIO(object):
         # perhaps be made a bit more flexible. Also see note on load_flags().
         self._dloader = pyfits.getdata
         self._mloader = pyfits.getheader
+        # Added afterwards, with the API (filename, data, header, index):
+        self._saver = pyfits.update
 
         # Consider automatically determining group_id from the input here
         # (ie. setting it to hdu.ver == EXTVER) if None -- but this requires
         # a more sophisticated back-end reader than the above 2 functions.
 
     def load_data(self):
-        return self._dloader(self.filename, self.data_idx)
+        data = self._dloader(self.filename, self.data_idx)
+        # This array is hashable directly but tests indicate that hashlib
+        # fails to drop its reference to the array unless we cast to str
+        # first, causing a memory leak when deleting NDLater lazy attributes.
+        # This is just as fast anyway...
+        self._data_hash = hashlib.sha1(str(data)).hexdigest()
+        return data
+
+    def save_data(self, data, header, force=False):
+        newhash = hashlib.sha1(data).hexdigest()
+        if force or newhash != self._data_hash:
+            self._data_hash = newhash
+            self._saver(self.filename, data, header, self.data_idx)
 
     def load_uncertainty(self):
         if self.uncertainty_idx:
             uncert = self._dloader(self.filename, self.uncertainty_idx)
             # Presumably this kills any memory mapping? Worry about it later.
             # The sqrt is just a temporary hack until I write a Var subclass.
-            return StdDevUncertainty(np.sqrt(uncert))
+            # StdDevUncertainty isn't directly hashable so cast to str first
+            # (also see load_data above for another reason).
+            uncert = StdDevUncertainty(np.sqrt(uncert))
+            self._uncert_hash = hashlib.sha1(str(uncert)).hexdigest()
+            return uncert
 
     def load_flags(self):
         if self.flags_idx:
             # Here I had to add a PyFITS- and application-specific flag to
             # avoid scaling int16 data quality to float32, so the above API
             # of f(filename, index) is probably a bit oversimplified.
-            return self._dloader(self.filename, self.flags_idx, uint=True)
+            flags = self._dloader(self.filename, self.flags_idx, uint=True)
+            self._flags_hash = hashlib.sha1(str(flags)).hexdigest()
+            return flags
 
     def load_meta(self):
-        return self._mloader(self.filename, self.data_idx)
+        meta = self._mloader(self.filename, self.data_idx)
+        # This cast to str is a little bit slow, so let's see whether the hash
+        # here turns out to be premature optimization before reinstating it:
+        # self._meta_hash = hashlib.sha1(str(meta)).hexdigest()
+        return meta
 
 
 def _load_primary_header_from_FITS(filename):
