@@ -141,7 +141,7 @@ def test_DataFileList_nested_nddata_1():
 # Test our modified NDData init API & lazy loading behaviour:
 def test_NDLater_1():
 
-    ndd = NDLater(fn_mefnodq, 2, group_id=2)
+    ndd = NDLater(fn_mefnodq, data_idx=2, group_id=2)
     # For now, just check that the API works rather than trying to analyze
     # memory usage here (has been checked separately though).
     mean = np.mean(ndd.data)
