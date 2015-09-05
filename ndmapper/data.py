@@ -1,6 +1,9 @@
 # Copyright(c) 2015 Association of Universities for Research in Astronomy, Inc.
 # by James E.H. Turner.
 
+# Code & documentation based on NDData: Copyright (c) 2011-2015, Astropy
+# Developers. Licensed under a 3-clause BSD style license - see ASTROPY.rst.
+
 # Need to understand the differences between AstroPy and Gemini Python
 # docstring conventions better, which are supposedly the same but one has
 # extra fields.
@@ -866,13 +869,22 @@ class NDLater(NDDataArray):
     """
     A compatible variant of NDDataArray that facilitates lazy loading of
     pixel data, allowing code to work freely with NDData-like objects
-    (including headers) without using more memory than necessary.
+    (including just doing bookeeping with the headers) without using more
+    memory than necessary.
 
     The main API difference from NDDataArray is that NDLater is initialized
-    with a filename and extension numbers instead of ndarray objects. It is
-    also assumed that any meta-data, wcs & unit will be derived from the same
-    input file directly (once implemented) and can then be overridden after
-    instantiation if necessary.
+    with a file name & indices (eg. FITS extension numbers) for getting/
+    saving the data on demand. This very simple interface does not include
+    any safety checks and it's the caller's responsibility to take care of
+    managing the file structure, existence etc., which can be taken care of
+    by the higher-level DataFile class. A subset of NDData.__init__()
+    parameters are also accepted, allowing creation from an existing NDData
+    instance or ndarrays (eg. for writing to a new file); this will override
+    any existing data in the file at the specified indices.
+
+    Any mask, wcs & unit values will be derived (once implemented) directly
+    from the input meta-data, rather than specified here, and can then be
+    overridden after instantiation if necessary.
 
     Parameters
     ----------
@@ -880,15 +892,38 @@ class NDLater(NDDataArray):
     filename : str
         The path to the file from which the data are to be mapped.
 
+    data : `~numpy.ndarray` or `NDData`, optional.
+        The main data array contained in this object, overriding any existing
+        data in the specified file, if applicable. If the intention is to use
+        a new copy of the input object rather than a reference to it, the user
+        should make that copy beforehand.
+
+    uncertainty : `~astropy.nddata.NDUncertainty`, optional
+        Uncertainties on the data.
+
+    flags : `~numpy.ndarray`-like or `~astropy.nddata.FlagCollection`, optional
+        Flags giving information about each pixel. These can be specified
+        either as a Numpy array of any type (or an object which can be converted
+        to a Numpy array) with a shape matching that of the
+        data, or as a `~astropy.nddata.FlagCollection` instance which has a
+        shape matching that of the data.
+
+    meta : `dict`-like object, optional
+        Metadata for this object.  "Metadata" here means all information that
+        is included with this object but not part of any other attribute
+        of this particular object.  e.g., creation date, unique identifier,
+        simulation parameters, exposure time, telescope name, etc.
+
     group_id : int or str or None
         Group identifier appropriate for the file type (int EXTVER for FITS);
         labels this particular NDData instance within a DataFile.
 
-    data_idx : int
-    uncertainty_idx : int or None
-    flags_idx : int or None
+    data_idx : int, optional
+    uncertainty_idx : int or None, optional
+    flags_idx : int or None, optional
         The original index of each constituent data/uncertainty/flags array
-        within the host file (extension number for FITS).
+        within the host file (extension number for FITS). The default is 1
+        for data_idx and None for the others.
 
     (See NDDataArray doc string for methods & attributes.
      This is a Work in progress, to support DataFile.)
@@ -897,54 +932,67 @@ class NDLater(NDDataArray):
 
     # This is based on the NDData & NDDataArray __init__ but avoids referencing
     # array attributes here, instead storing an obj that knows how to get them.
-    def __init__(self, filename, data_idx, uncertainty_idx=None, \
-        flags_idx=None, group_id=None):
-
-        # The only initialization we can inherit from our ancestors is the
-        # most basic stuff that happens in the NDDataBase class (which doesn't
-        # do much at present but just in case it does later...):
-        super(NDData, self).__init__()
+    def __init__(self, filename, data=None, uncertainty=None, flags=None,
+                 meta=None, group_id=None, data_idx=1, uncertainty_idx=None,
+                 flags_idx=None):
 
         # Remember our "parent class", for later use in getters/setters, where
         # to be on the safe side, we invoke the NDDataArray getter/setter logic
         # after actually loading the data array(s).
         self._parent = super(NDLater, self)
 
-        # Do we need an option to instantiate with an existing NDLater object,
-        # eg. as "filename"? Probably not -- one would more likely instantiate
-        # an NDDataArray from NDLater to copy it?
+        if data is None:
+            # When starting from scratch, the only initialization we can
+            # inherit from our ancestors is the most basic stuff that happens
+            # in the NDDataBase class (which doesn't do much at present but
+            # just in case it does later...):
+            super(NDData, self).__init__()
 
-        # We'll add support for these later, when needed. Where possible, we
-        # initialize these via the upstream setter logic of the public API
-        # (which wcs doesn't have yet). Some of those setters expect the
-        # private attribute version to be set already, so do that first.
-        self._mask = None
-        self.mask = self._mask
-        self._wcs = None
-        self._unit = None
-        self.unit = self._unit
+            # Initialize attributes via the upstream setter logic of the public
+            # API where possible (wcs doesn't have one yet). Some of these
+            # setters expect the private attribute version to be defined first:
+
+            # Add support for deriving these properly later, when needed.
+            self._mask = None
+            self.mask = self._mask
+            self._wcs = None
+            self._unit = None
+            self.unit = self._unit
+
+            # Normally self._data, self._uncertainty are set by NDData and
+            # self._flags by NDDataArray. At present they are only used by the
+            # relevant attribute getters & setters upstream. Initializing them
+            # to None here indicates that the data haven't been loaded yet.
+            self._data = None
+            self._uncertainty = uncertainty
+            self._flags = flags
+
+            # If this is undefined, we'll load it from file below:
+            self._meta = meta
+
+        else:
+            # When passed data as well as a filename, let our parent class
+            # populate the class attributes and then we'll lazily load anything
+            # that wasn't provided. It's the caller's responsibility to avoid
+            # overriding inconsistent subsets of what's already in the file
+            # (eg. data without the corresponding uncertainty) but the DataFile
+            # class can help take care of that.
+            self._parent.__init__(data, uncertainty=uncertainty, mask=None,
+                flags=flags, wcs=None, meta=meta, unit=None)
 
         # Instantiate the object to which lazy loading is delegated (and
         # which tracks the mapping of attributes to extensions):
         self._io = NDMapIO(filename, group_id, data_idx, uncertainty_idx, \
                            flags_idx)
 
-        # Don't bother loading the header lazily, but still get it from
-        # NDMapIO, which knows how to delegate to the right back-end loader
-        # for the file format. May need the meta-data here anyway, eg. to
-        # determine things like units & WCS.
-        self._meta = self._io.load_meta()
+        # Don't bother loading the header lazily, but still get it via NDMapIO,
+        # to avoid adding I/O logic in more places than necessary. We may need
+        # the meta-data here, eg. to determine things like units & WCS.
         if self._meta is None:
-            self._meta = OrderedDict()
+            self._meta = self._io.load_meta()
 
-        # Normally self._data, self._uncertainty are set by NDData and
-        # self._flags by NDDataArray. At present they are only used by the
-        # relevant attribute getters & setters upstream. Initializing them
-        # to None here indicates that the data haven't been loaded yet.
-        self._data = None
-        self._uncertainty = None
+        # These setters only work after creating the _io attribute above.
         self.uncertainty = self._uncertainty
-        self._flags = None
         self.flags = self._flags
 
     @property
