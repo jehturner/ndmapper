@@ -936,10 +936,33 @@ class NDLater(NDDataArray):
                  meta=None, group_id=None, data_idx=1, uncertainty_idx=None,
                  flags_idx=None):
 
+        # TO DO: Add a less obscure error when filename is provided with data
+        # as in the original NDData API.
+
         # Remember our "parent class", for later use in getters/setters, where
         # to be on the safe side, we invoke the NDDataArray getter/setter logic
         # after actually loading the data array(s).
         self._parent = super(NDLater, self)
+
+        # Add support for deriving these properly later, when needed. The
+        # _unit must be set before the parent __init__ is called below (which
+        # looks like a bug in NDDataArray), as the latter calls the uncertainty
+        # setter, which uses the unit getter.
+        self._mask = None
+        self._wcs = None
+        self._unit = None
+
+        # Initializing the data (& uncertainty/flags) to None indicates that
+        # the data haven't been loaded yet:
+        self._data = None
+
+        # Instantiate the object to which lazy loading is delegated (and
+        # which tracks the mapping of attributes to extensions). This must be
+        # done before setting some of the other attributes, whose setters
+        # need to access the data (which may or may not be what we want for
+        # lazy loading but is what currently happens in nddata).
+        self._io = NDMapIO(filename, group_id, data_idx, uncertainty_idx, \
+                           flags_idx)
 
         if data is None:
             # When starting from scratch, the only initialization we can
@@ -948,27 +971,20 @@ class NDLater(NDDataArray):
             # just in case it does later...):
             super(NDData, self).__init__()
 
-            # Initialize attributes via the upstream setter logic of the public
-            # API where possible (wcs doesn't have one yet). Some of these
-            # setters expect the private attribute version to be defined first:
-
-            # Add support for deriving these properly later, when needed.
-            self._mask = None
-            self.mask = self._mask
-            self._wcs = None
-            self._unit = None
-            self.unit = self._unit
-
             # Normally self._data, self._uncertainty are set by NDData and
-            # self._flags by NDDataArray. At present they are only used by the
-            # relevant attribute getters & setters upstream. Initializing them
-            # to None here indicates that the data haven't been loaded yet.
-            self._data = None
+            # self._flags by NDDataArray. They are only used by the relevant
+            # attribute getters & setters upstream.
             self._uncertainty = uncertainty
             self._flags = flags
 
-            # If this is undefined, we'll load it from file below:
+            # If this remains undefined, we'll load it from file below:
             self._meta = meta
+
+            # Initialize attributes via the upstream setter logic of the public
+            # API where possible (wcs doesn't have one yet). Some of these
+            # setters expect the private attribute version to be defined first:
+            self.mask = self._mask
+            self.unit = self._unit
 
         else:
             # When passed data as well as a filename, let our parent class
@@ -980,16 +996,24 @@ class NDLater(NDDataArray):
             self._parent.__init__(data, uncertainty=uncertainty, mask=None,
                 flags=flags, wcs=None, meta=meta, unit=None)
 
-        # Instantiate the object to which lazy loading is delegated (and
-        # which tracks the mapping of attributes to extensions):
-        self._io = NDMapIO(filename, group_id, data_idx, uncertainty_idx, \
-                           flags_idx)
+            # NDDataArray doesn't copy flags from data when it should. We can't
+            # duck type this because numpy also has a different "flags".
+            if flags is None and isinstance(data, NDDataArray):
+                self._flags = data.flags
+
+            # Don't copy any existing NDLater _io attribute, since it's
+            # mandatory to specify the filename anyway and we probably want
+            # to write to new locations.
 
         # Don't bother loading the header lazily, but still get it via NDMapIO,
         # to avoid adding I/O logic in more places than necessary. We may need
         # the meta-data here, eg. to determine things like units & WCS.
         if self._meta is None:
             self._meta = self._io.load_meta()
+
+        # TO DO: Look for memory leak due to setters referencing data.
+        # Consider either overriding the setters or "del"ing it if it was
+        # none before the call.
 
         # These setters only work after creating the _io attribute above.
         self.uncertainty = self._uncertainty
