@@ -407,10 +407,10 @@ class DataFile(object):
     # in that we currently support only flat lists of NDData objects rather
     # than any arbitrary hierarchy supported by, say, HDF5.
     def _load_data(self):
-        self.data = list(_load_nddata_from_FITS(str(self.filename)))
+        self.data = list(_load_nddata_from_FITS(self.filename))
 
     def _load_meta(self):
-        self.meta = _load_primary_header_from_FITS(str(self.filename))
+        self.meta = _load_primary_header_from_FITS(self.filename)
 
     def reload(self):
         """
@@ -753,7 +753,7 @@ def _load_primary_header_from_FITS(filename):
     Open an existing FITS file and return the primary header as a dict-like
     (PyFITS header) object.
     """
-    return pyfits.getheader(filename)
+    return pyfits.getheader(str(filename))
 
 
 # After implementing lazy loading with NDLater instead of loading everything
@@ -767,7 +767,7 @@ def _load_nddata_from_FITS(filename):
     TO DO: populate the mask attribute from flags, wcs & units.
     """
 
-    hdulist = pyfits.open(filename, mode='readonly')
+    hdulist = pyfits.open(str(filename), mode='readonly')
 
     # A dict of empty lists to sort recognized extensions into:
     idx_dict = {'data' : [], 'uncertainty' : [], 'flags' : [], 'undef' : []}
