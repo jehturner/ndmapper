@@ -36,6 +36,18 @@ def test_FileName_nonconforming_1():
            str(fn) == '/home/fred/blah.fits'
 
 
+def test_FileName_multiple_ext():
+
+    fn = FileName('some.dir/rgS20120827S0066.fits.gz')
+
+    assert fn.dir == 'some.dir' and \
+           fn.prefix == 'rg' and \
+           fn.base == 'S20120827S0066' and \
+           fn.suffix == [] and \
+           fn.ext == 'fits.gz' and \
+           fn.standard == True and \
+           str(fn) == 'some.dir/rgS20120827S0066.fits.gz'
+
 def test_DataFile_gemini_IRAF_new_1():
 
     # Use a filename that can't exist, just to be sure it doesn't...

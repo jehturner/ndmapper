@@ -78,11 +78,11 @@ class FileName(object):
         List of one or more suffixes following the base name, including any
         separator character (eg. _forStack). 
 
-    ext : list
-        File extension, eg. "fits".
+    ext : str
+        File extension(s), eg. "fits" or "fits.gz".
 
     sep : str, None
-        One or more characters specified as a separator.
+        One or more characters specified as a suffix separator.
 
     """
 
@@ -127,11 +127,13 @@ class FileName(object):
         else:
             # Separate directory, filename root & file extension:
             self.dir = os.path.dirname(path)
-            froot, fext = os.path.splitext(os.path.basename(path))
-            if fext:
-                self.ext = fext.lstrip('.')
-            else:
+            # This splits at the first dot, unlike os.path.splitext:
+            fncmp = os.path.basename(path).split(os.extsep, 1)
+            froot = fncmp[0]  # split always produces a root/base name
+            if len(fncmp) == 1:
                 self.ext = None   # distinguish no ext at all from a dot
+            else:
+                self.ext = fncmp[1]
 
             # # Separate base filename into a prefix+base & a final suffix:
             # elements = froot.rsplit('_', 1)
@@ -195,7 +197,7 @@ class FileName(object):
         if self.ext is None:
             dotext = ''
         else:
-            dotext = '.'+self.ext
+            dotext = os.extsep+self.ext
         return (os.path.join(self.dir, (self.prefix+self.base+ \
                 string.join(self.suffix, '')+dotext)))
 
