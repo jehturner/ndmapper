@@ -1040,7 +1040,6 @@ class NDLater(NDDataArray):
         self.uncertainty = self._uncertainty
         self.flags = self._flags
 
-
     @property
     def data(self):
         if self._data is None:
