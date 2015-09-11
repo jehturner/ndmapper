@@ -108,6 +108,9 @@ class FileName(object):
         # the regex or separator can differ (and it's simpler to do).
         if isinstance(path, FileName):
             path = str(path)
+        elif path is not None and not isinstance(path, str):
+            raise ValueError('path must be a str or %s instance' % \
+                             str(self.__class__.__name__))
 
         # Actually parse the path or use placeholder attributes if it's None:
         if path is None:
@@ -658,7 +661,7 @@ class NDMapIO(object):
     Attributes
     ----------
 
-    filename : str
+    filename : FileName
         The path to the file from which the data are to be mapped.
 
     group_id : int or str or None
@@ -703,7 +706,7 @@ class NDMapIO(object):
         # a more sophisticated back-end reader than the above 2 functions.
 
     def load_data(self):
-        data = self._dloader(self.filename, self.data_idx)
+        data = self._dloader(str(self.filename), self.data_idx)
         # This array is hashable directly but tests indicate that hashlib
         # fails to drop its reference to the array unless we cast to str
         # first, causing a memory leak when deleting NDLater lazy attributes.
@@ -715,11 +718,11 @@ class NDMapIO(object):
         newhash = hashlib.sha1(data).hexdigest()
         if force or newhash != self._data_hash:
             self._data_hash = newhash
-            self._saver(self.filename, data, header, self.data_idx)
+            self._saver(str(self.filename), data, header, self.data_idx)
 
     def load_uncertainty(self):
         if self.uncertainty_idx:
-            uncert = self._dloader(self.filename, self.uncertainty_idx)
+            uncert = self._dloader(str(self.filename), self.uncertainty_idx)
             # Presumably this kills any memory mapping? Worry about it later.
             # The sqrt is just a temporary hack until I write a Var subclass.
             # StdDevUncertainty isn't directly hashable so cast to str first
@@ -733,12 +736,12 @@ class NDMapIO(object):
             # Here I had to add a PyFITS- and application-specific flag to
             # avoid scaling int16 data quality to float32, so the above API
             # of f(filename, index) is probably a bit oversimplified.
-            flags = self._dloader(self.filename, self.flags_idx, uint=True)
+            flags = self._dloader(str(self.filename), self.flags_idx, uint=True)
             self._flags_hash = hashlib.sha1(str(flags)).hexdigest()
             return flags
 
     def load_meta(self):
-        meta = self._mloader(self.filename, self.data_idx)
+        meta = self._mloader(str(self.filename), self.data_idx)
         # This cast to str is a little bit slow, so let's see whether the hash
         # here turns out to be premature optimization before reinstating it:
         # self._meta_hash = hashlib.sha1(str(meta)).hexdigest()
@@ -889,7 +892,7 @@ class NDLater(NDDataArray):
     Parameters
     ----------
 
-    filename : str
+    filename : str or FileName
         The path to the file from which the data are to be mapped.
 
     data : `~numpy.ndarray` or `NDData`, optional.
@@ -936,8 +939,15 @@ class NDLater(NDDataArray):
                  meta=None, group_id=None, data_idx=1, uncertainty_idx=None,
                  flags_idx=None):
 
-        # TO DO: Add a less obscure error when filename is provided with data
-        # as in the original NDData API.
+        # If given a FileName instance, use it directly to allow sharing &
+        # synchronization with DataFile, otherwise validate the filename and
+        # cast to a new FileName object:
+        if not isinstance(filename, FileName):
+            try:
+                filename = FileName(filename)
+            except ValueError:
+                raise ValueError('must define filename as a str or FileName '
+                                 'object or None')
 
         # Remember our "parent class", for later use in getters/setters, where
         # to be on the safe side, we invoke the NDDataArray getter/setter logic
