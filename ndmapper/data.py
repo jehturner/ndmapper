@@ -289,7 +289,7 @@ class DataFile(object):
 
     """
 
-    filename = None
+    _filename = None
     meta = None
     log = ''
 
@@ -302,7 +302,7 @@ class DataFile(object):
         if isinstance(data, DataFile):  # create new copy of existing obj
             self.data = data.data
             self.meta = deepcopy(data.meta)
-            self.filename = deepcopy(data.filename)
+            self._filename = deepcopy(data.filename)
         elif isinstance(data, NDDataBase):
             self.data = [data]
         elif hasattr(data, '__iter__') and \
@@ -317,12 +317,12 @@ class DataFile(object):
         # Use any filename & meta-data inherited from input DataFile unless
         # specified:
         if not filename:
-            filename = self.filename
+            filename = self._filename
         if meta is not None:
             self.meta = meta
 
         # Parse any filename into a FileName object:
-        self.filename = FileName(filename, strip=strip, prefix=prefix,
+        self._filename = FileName(filename, strip=strip, prefix=prefix,
             suffix=suffix, dirname=dirname)
 
         # Load the file if requested and it contents haven't been overridden
@@ -353,6 +353,12 @@ class DataFile(object):
         if self.meta is None:
             self.meta = {}
         self._len = len(self.data)
+
+    # Make the filename attribute (not its component values) read-only, as the
+    # object is shared between DataFile & NDLater to keep things in sync:
+    @property
+    def filename(self):
+        return self._filename
 
     # Specify that class manages its own iteration with next() method:
     def __iter__(self):
