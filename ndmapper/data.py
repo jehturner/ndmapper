@@ -1021,13 +1021,17 @@ class NDLater(NDDataArray):
         if self._meta is None:
             self._meta = self._io.load_meta()
 
-        # TO DO: Look for memory leak due to setters referencing data.
-        # Consider either overriding the setters or "del"ing it if it was
-        # none before the call.
+        # Because NDDataArray's mask & flags setters refer to data.shape,
+        # they will unintentionally trigger lazy loading if we're provided
+        # explicitly with a flags argument. Consider overriding the shape
+        # getter (etc.) to avoid this, using the metadata directly (with the
+        # help of the io library?) or checking for _data==None and doing
+        # del _data afterwards if necessary as a temporary workaround.
 
         # These setters only work after creating the _io attribute above.
         self.uncertainty = self._uncertainty
         self.flags = self._flags
+
 
     @property
     def data(self):
