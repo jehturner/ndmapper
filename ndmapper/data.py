@@ -136,14 +136,6 @@ class FileName(object):
             else:
                 self.ext = fncmp[1]
 
-            # # Separate base filename into a prefix+base & a final suffix:
-            # elements = froot.rsplit('_', 1)
-            # froot = elements[0]
-            # if len(elements) > 1:
-            #     self.suffix=elements[1]
-            # else:
-            #     self.suffix=''
-
             # Separate any prefix and/or suffixes from the base name:
             match = self._re.search(froot)
             if match:
@@ -755,14 +747,6 @@ class NDMapIO(object):
         # here turns out to be premature optimization before reinstating it:
         # self._meta_hash = hashlib.sha1(str(meta)).hexdigest()
         return meta
-
-
-def _load_primary_header_from_FITS(filename):
-    """
-    Open an existing FITS file and return the primary header as a dict-like
-    (PyFITS header) object.
-    """
-    return pyfits.getheader(str(filename))
 
 
 # After implementing lazy loading with NDLater instead of loading everything
