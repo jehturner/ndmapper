@@ -24,6 +24,7 @@ from astropy.utils.compat.odict import OrderedDict
 import astropy.io.fits as pyfits
 
 from . import config
+from . import io as ndmio
 
 
 class FileName(object):
@@ -418,7 +419,7 @@ class DataFile(object):
         self.data = list(_load_nddata_from_FITS(self.filename))
 
     def _load_meta(self):
-        self.meta = _load_primary_header_from_FITS(self.filename)
+        self.meta = ndmio.load_common_meta(self.filename)
 
     def reload(self):
         """
