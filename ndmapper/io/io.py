@@ -6,9 +6,10 @@
 # delegated. Back-end look-up is done automatically by the _get_loader
 # decorator, such that these can be minimal definitions.
 
+from .mapio import *
 from .formats import formats
 from ._util import _get_loader  # since private attributes get excluded from *
-from ._util import *            # these go into the public io namespace
+from ._util import *
 
 
 @_get_loader
@@ -30,6 +31,13 @@ def load_common_meta(loader, filename):
     dict-like
         A meta-data dictionary or compatible object.
 
+    """
+    return loader(filename)
+
+
+@_get_loader
+def map_file(loader, filename):
+    """
     """
     return loader(filename)
 

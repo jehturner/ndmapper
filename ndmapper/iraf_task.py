@@ -7,9 +7,12 @@ import os.path
 import tempfile
 import datetime
 import traceback
+
 from pyraf import iraf
+
 from . import config
-from .data import DataFile, DataFileList, FileName
+from .io import FileName
+from .data import DataFile, DataFileList
 
 
 def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
