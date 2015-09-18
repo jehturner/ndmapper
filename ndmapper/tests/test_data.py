@@ -3,7 +3,8 @@ import os.path
 import numpy as np
 from astropy.utils.data import get_pkg_data_filename
 from astropy.nddata import NDDataArray
-from ..data import FileName, DataFile, DataFileList, NDLater
+from ..io import FileName, NDMapIO
+from ..data import DataFile, DataFileList, NDLater
 
 
 # Data in common to some of the tests below:
@@ -153,7 +154,7 @@ def test_DataFileList_nested_nddata_1():
 # Test our modified NDData init API & lazy loading behaviour:
 def test_NDLater_1():
 
-    ndd = NDLater(fn_mefnodq, data_idx=2, group_id=2)
+    ndd = NDLater(iomap=NDMapIO(fn_mefnodq, data_idx=2, group_id=2))
     # For now, just check that the API works rather than trying to analyze
     # memory usage here (has been checked separately though).
     mean = np.mean(ndd.data)

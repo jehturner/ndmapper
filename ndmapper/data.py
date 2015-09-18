@@ -15,6 +15,7 @@ import numpy as np
 
 #from astropy.units import Unit, Quantity
 from astropy.nddata import NDDataBase, NDData, NDDataArray
+from astropy.utils.compat.odict import OrderedDict
 import astropy.io.fits as pyfits
 
 from . import config
@@ -569,9 +570,9 @@ def _load_nddata_from_FITS(filename):
 
         # Instantiate the NDData instance, recording the original FITS
         # extension indices and the group extver (== data extver).
-        ndlist.append(NDLater(filename, data_idx=data_idx, \
+        ndlist.append(NDLater(iomap=NDMapIO(filename, data_idx=data_idx, \
             uncertainty_idx=uncert_idx, flags_idx=flags_idx, \
-            group_id=data_hdu.ver))
+            group_id=data_hdu.ver)))
 
     # We don't keep the file open continually, since it may get updated later
     # by IRAF or whatever (this means some trickery later on to keep io.fits
@@ -605,13 +606,10 @@ class NDLater(NDDataArray):
     Parameters
     ----------
 
-    filename : str or FileName
-        The path to the file from which the data are to be mapped.
-
     data : `~numpy.ndarray` or `NDData`, optional.
         The main data array contained in this object, overriding any existing
-        data in the specified file, if applicable. If the intention is to use
-        a new copy of the input object rather than a reference to it, the user
+        data in the mapped file, if applicable. If the intention is to use a
+        new copy of the input object rather than a reference to it, the user
         should make that copy beforehand.
 
     uncertainty : `~astropy.nddata.NDUncertainty`, optional
@@ -620,26 +618,20 @@ class NDLater(NDDataArray):
     flags : `~numpy.ndarray`-like or `~astropy.nddata.FlagCollection`, optional
         Flags giving information about each pixel. These can be specified
         either as a Numpy array of any type (or an object which can be converted
-        to a Numpy array) with a shape matching that of the
-        data, or as a `~astropy.nddata.FlagCollection` instance which has a
-        shape matching that of the data.
+        to a Numpy array) with a shape matching that of the data, or as a
+        `~astropy.nddata.FlagCollection` instance which has a shape matching
+        that of the data.
 
     meta : `dict`-like object, optional
         Metadata for this object.  "Metadata" here means all information that
         is included with this object but not part of any other attribute
-        of this particular object.  e.g., creation date, unique identifier,
+        of this particular object. e.g., creation date, unique identifier,
         simulation parameters, exposure time, telescope name, etc.
 
-    group_id : int or str or None
-        Group identifier appropriate for the file type (int EXTVER for FITS);
-        labels this particular NDData instance within a DataFile.
-
-    data_idx : int, optional
-    uncertainty_idx : int or None, optional
-    flags_idx : int or None, optional
-        The original index of each constituent data/uncertainty/flags array
-        within the host file (extension number for FITS). The default is 1
-        for data_idx and None for the others.
+    iomap : NDMapIO, optional
+        An object that maps the data, uncertainty & flags attributes to a file
+        name and indices within that file, enabling those attribute values to
+        be lazily loaded or saved.
 
     (See NDDataArray doc string for methods & attributes.
      This is a Work in progress, to support DataFile.)
@@ -648,19 +640,11 @@ class NDLater(NDDataArray):
 
     # This is based on the NDData & NDDataArray __init__ but avoids referencing
     # array attributes here, instead storing an obj that knows how to get them.
-    def __init__(self, filename, data=None, uncertainty=None, flags=None,
-                 meta=None, group_id=None, data_idx=1, uncertainty_idx=None,
-                 flags_idx=None):
+    def __init__(self, data=None, uncertainty=None, flags=None, meta=None,
+                 iomap=None):
 
-        # If given a FileName instance, use it directly to allow sharing &
-        # synchronization with DataFile, otherwise validate the filename and
-        # cast to a new FileName object:
-        if not isinstance(filename, FileName):
-            try:
-                filename = FileName(filename)
-            except ValueError:
-                raise ValueError('must define filename as a str or FileName '
-                                 'object or None')
+        if iomap and not isinstance(iomap, NDMapIO):
+            raise TypeError('iomap must be an NDMapIO instance')
 
         # Remember our "parent class", for later use in getters/setters, where
         # to be on the safe side, we invoke the NDDataArray getter/setter logic
@@ -679,13 +663,12 @@ class NDLater(NDDataArray):
         # the data haven't been loaded yet:
         self._data = None
 
-        # Instantiate the object to which lazy loading is delegated (and
-        # which tracks the mapping of attributes to extensions). This must be
-        # done before setting some of the other attributes, whose setters
-        # need to access the data (which may or may not be what we want for
-        # lazy loading but is what currently happens in nddata).
-        self._io = NDMapIO(filename, group_id, data_idx, uncertainty_idx, \
-                           flags_idx)
+        # Attach the object to which lazy loading is delegated (and which
+        # tracks the mapping of attributes to extensions). This must be done
+        # before setting some of the other attributes, whose setters need to
+        # access the data (which may or may not be what we want for lazy
+        # loading but is what currently happens in nddata).
+        self._io = iomap
 
         if data is None:
             # When starting from scratch, the only initialization we can
@@ -724,15 +707,19 @@ class NDLater(NDDataArray):
             if flags is None and isinstance(data, NDDataArray):
                 self._flags = data.flags
 
-            # Don't copy any existing NDLater _io attribute, since it's
-            # mandatory to specify the filename anyway and we probably want
-            # to write to new locations.
+            # Don't copy any existing NDLater _io attribute, require it to be
+            # specified explicitly. If we're making a copy we probably want to
+            # write somewhere different from the original and DataFile can
+            # take care of this.
 
         # Don't bother loading the header lazily, but still get it via NDMapIO,
-        # to avoid adding I/O logic in more places than necessary. We may need
-        # the meta-data here, eg. to determine things like units & WCS.
+        # to avoid adding I/O logic in more places than necessary. We may also
+        # need the meta-data here, eg. to determine things like units & WCS.
         if self._meta is None:
-            self._meta = self._io.load_meta()
+            if self._io:
+                self._meta = self._io.load_meta()
+            else:
+                self._meta = OrderedDict()
 
         # Because NDDataArray's mask & flags setters refer to data.shape,
         # they will unintentionally trigger lazy loading if we're provided
@@ -747,7 +734,7 @@ class NDLater(NDDataArray):
 
     @property
     def data(self):
-        if self._data is None:
+        if self._data is None and self._io:
             self._data = self._io.load_data()
         return self._data
 
@@ -761,7 +748,7 @@ class NDLater(NDDataArray):
     @property
     def uncertainty(self):
         # This prevents resetting the value to None; use del instead
-        if self._parent.uncertainty is None:
+        if self._parent.uncertainty is None and self._io:
             self.uncertainty = self._io.load_uncertainty()
         return self._parent.uncertainty
 
@@ -780,7 +767,7 @@ class NDLater(NDDataArray):
     @property
     def flags(self):
         # This prevents resetting the value to None; use del instead
-        if self._parent.flags is None:
+        if self._parent.flags is None and self._io:
             self.flags = self._io.load_flags()
         return self._parent.flags
 

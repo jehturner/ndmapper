@@ -226,6 +226,16 @@ class NDMapIO(object):
     def __init__(self, filename, group_id=None, data_idx=None, \
         uncertainty_idx=None, flags_idx=None):
 
+        # If given a FileName instance, use it directly to allow sharing &
+        # synchronization with DataFile, otherwise validate the filename and
+        # cast to a new FileName object:
+        if not isinstance(filename, FileName):
+            try:
+                filename = FileName(filename)
+            except ValueError:
+                raise ValueError('must define filename as a str or FileName '
+                                 'object')
+
         self.filename = filename
         self.group_id = group_id
         self.data_idx = data_idx
