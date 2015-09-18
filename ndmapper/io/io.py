@@ -38,6 +38,7 @@ def load_common_meta(loader, filename):
 @_get_loader
 def map_file(loader, filename):
     """
+    Open an existing file and return a list of corresponding NDMapIO instances.
     """
     return loader(filename)
 
