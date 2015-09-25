@@ -12,6 +12,42 @@ def load_common_meta(filename):
     return pyfits.getheader(str(filename))
 
 
+def load_array_meta(filename, index):
+
+    # This should probably have an optional header
+    return pyfits.getheader(str(filename), index)
+
+
+def load_array(filename, index):
+
+    # Treat any int (flags) array as unsigned for the appropriate BZERO/BSCALE
+    # (to avoid scaling int16 DQ to float32).
+    return pyfits.getdata(str(filename), index, uint=True)
+
+
+def save_array(filename, index, data, meta=None):
+
+    # Convert the inputs to a PyFITS HDU:
+    hdr = pyfits.Header(meta) if meta else None
+    hdu = pyfits.ImageHDU(data=data, header=hdr, uint=True)
+
+    # Open & parse the existing file:
+    hdulist = pyfits.open(str(filename), mode='update', memmap=True, uint=True)
+
+    # Overwrite or append our new HDU at the specified index, producing an
+    # error if it doesn't already exist and isn't the next one.
+    narr = len(hdulist)
+    if index == narr:
+        hdulist.append(hdu)
+    elif index < narr:
+        hdulist[index] = hdu
+    else:
+        raise IndexError('index %d is out of range for %s' % \
+                         (index, str(filename)))
+
+    hdulist.close()
+
+
 def map_file(filename):
 
     hdulist = pyfits.open(str(filename), mode='readonly')

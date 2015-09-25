@@ -12,12 +12,17 @@ from astropy.nddata import StdDevUncertainty
 import astropy.io.fits as pyfits
 
 from .. import config
+from ._util import get_backend_fn
+
 
 __all__ = ['FileName', 'NDMapIO']
 
 
 class FileName(object):
     """
+    A class for parsing filenames into components, reconstructing them &
+    storing/sharing that information amongst interested parties.
+
     Parameters
     ----------
 
@@ -192,14 +197,15 @@ class FileName(object):
 
 class NDMapIO(object):
     """
-    Propagate additional information needed for NDData instances to support
-    lazy loading, allow saving only arrays/header attributes that have changed
-    & report which FITS extensions they came from for IRAF etc.
+    Propagate additional information needed for NDData instances (or user code)
+    to support lazy loading, allow saving only arrays/header attributes that
+    have changed & report which FITS extensions they came from for IRAF etc.
 
     For lazy-loading or saving operations to succeed, the corresponding file
     must already exist. This class is intended to encapsulate bookkeeping
-    within NDLater (managed by a DataFile instance) rather than to provide a
-    robust API: for the user-level interface, see DataFile instead.
+    within NDLater (managed by a DataFile instance) with reasonable overheads,
+    rather than to provide a robust API: for the user-level interface, see
+    DataFile instead.
 
     Attributes
     ----------
@@ -242,24 +248,15 @@ class NDMapIO(object):
         self.uncertainty_idx = uncertainty_idx
         self.flags_idx = flags_idx
 
-        # These functions must take a filename and some kind of index argument
-        # and return an ndarray-like or dict-like object, respectively. I'll
-        # flesh out how to provide alternative loaders for other file types
-        # after gauging any interest from AstroPy people on how this might
-        # all fit with their existing io registry. This current scheme makes
-        # no allowance for telling PyFITS to use memory mapping etc. so should
-        # perhaps be made a bit more flexible. Also see note on load_flags().
-        self._dloader = pyfits.getdata
-        self._mloader = pyfits.getheader
-        # Added afterwards, with the API (filename, data, header, index):
-        self._saver = pyfits.update
+        self._dloader = get_backend_fn('load_array', self.filename)
+        self._mloader = get_backend_fn('load_array_meta', self.filename)
+        self._saver = get_backend_fn('save_array', self.filename)
 
         # Consider automatically determining group_id from the input here
-        # (ie. setting it to hdu.ver == EXTVER) if None -- but this requires
-        # a more sophisticated back-end reader than the above 2 functions.
+        # (ie. setting it to hdu.ver == EXTVER) if None.
 
     def load_data(self):
-        data = self._dloader(str(self.filename), self.data_idx)
+        data = self._dloader(self.filename, self.data_idx)
         # This array is hashable directly but tests indicate that hashlib
         # fails to drop its reference to the array unless we cast to str
         # first, causing a memory leak when deleting NDLater lazy attributes.
@@ -268,14 +265,16 @@ class NDMapIO(object):
         return data
 
     def save_data(self, data, header, force=False):
-        newhash = hashlib.sha1(data).hexdigest()
+        # Should hash meta-data as well here, or else we'll lose changes that
+        # aren't associated with changes to data.
+        newhash = hashlib.sha1(str(data)).hexdigest()
         if force or newhash != self._data_hash:
             self._data_hash = newhash
-            self._saver(str(self.filename), data, header, self.data_idx)
+            self._saver(self.filename, self.data_idx, data, header)
 
     def load_uncertainty(self):
         if self.uncertainty_idx:
-            uncert = self._dloader(str(self.filename), self.uncertainty_idx)
+            uncert = self._dloader(self.filename, self.uncertainty_idx)
             # Presumably this kills any memory mapping? Worry about it later.
             # The sqrt is just a temporary hack until I write a Var subclass.
             # StdDevUncertainty isn't directly hashable so cast to str first
@@ -286,15 +285,12 @@ class NDMapIO(object):
 
     def load_flags(self):
         if self.flags_idx:
-            # Here I had to add a PyFITS- and application-specific flag to
-            # avoid scaling int16 data quality to float32, so the above API
-            # of f(filename, index) is probably a bit oversimplified.
-            flags = self._dloader(str(self.filename), self.flags_idx, uint=True)
+            flags = self._dloader(self.filename, self.flags_idx)
             self._flags_hash = hashlib.sha1(str(flags)).hexdigest()
             return flags
 
     def load_meta(self):
-        meta = self._mloader(str(self.filename), self.data_idx)
+        meta = self._mloader(self.filename, self.data_idx)
         # This cast to str is a little bit slow, so let's see whether the hash
         # here turns out to be premature optimization before reinstating it:
         # self._meta_hash = hashlib.sha1(str(meta)).hexdigest()
