@@ -535,6 +535,9 @@ class NDLater(NDDataArray):
         if iomap and not isinstance(iomap, NDMapIO):
             raise TypeError('iomap must be an NDMapIO instance')
 
+        if data is None and iomap is None:
+            raise ValueError('must provide either data or iomap')
+
         # Remember our "parent class", for later use in getters/setters, where
         # to be on the safe side, we invoke the NDDataArray getter/setter logic
         # after actually loading the data array(s).
