@@ -627,6 +627,10 @@ class NDLater(NDDataArray):
             self._data = self._io.load_data()
         return self._data
 
+    @data.setter
+    def data(self, value):
+        self._data = value
+
     @data.deleter
     def data(self):
         # This doesn't always free memory in practice, probably due to PyFITS's
