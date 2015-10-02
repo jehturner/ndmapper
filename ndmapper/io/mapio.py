@@ -257,17 +257,17 @@ class NDMapIO(object):
 
     def load_data(self):
         data = self._dloader(self.filename, self.data_idx)
-        # This array is hashable directly but tests indicate that hashlib
-        # fails to drop its reference to the array unless we cast to str
-        # first, causing a memory leak when deleting NDLater lazy attributes.
-        # This is just as fast anyway...
-        self._data_hash = hashlib.sha1(str(data)).hexdigest()
+        # A NumPy array is directly hashable -- but doing so pulls memory-
+        # mapped data entirely into memory, where they stay until unloaded
+        # with "del ndd.data". This seems acceptable for now, given that we're
+        # lazily-loading each separate array as needed anyway, but isn't ideal.
+        self._data_hash = hashlib.sha1(data).hexdigest()
         return data
 
     def save_data(self, data, header, force=False):
         # Should hash meta-data as well here, or else we'll lose changes that
         # aren't associated with changes to data.
-        newhash = hashlib.sha1(str(data)).hexdigest()
+        newhash = hashlib.sha1(data).hexdigest()
         if force or newhash != self._data_hash:
             self._data_hash = newhash
             self._saver(self.filename, self.data_idx, data, header)
@@ -280,13 +280,13 @@ class NDMapIO(object):
             # StdDevUncertainty isn't directly hashable so cast to str first
             # (also see load_data above for another reason).
             uncert = StdDevUncertainty(np.sqrt(uncert))
-            self._uncert_hash = hashlib.sha1(str(uncert)).hexdigest()
+            self._uncert_hash = hashlib.sha1(uncert).hexdigest()
             return uncert
 
     def load_flags(self):
         if self.flags_idx:
             flags = self._dloader(self.filename, self.flags_idx)
-            self._flags_hash = hashlib.sha1(str(flags)).hexdigest()
+            self._flags_hash = hashlib.sha1(flags).hexdigest()
             return flags
 
     def load_meta(self):
