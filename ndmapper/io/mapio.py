@@ -259,18 +259,23 @@ class NDMapIO(object):
         data = self._dloader(self.filename, self.data_idx)
         # A NumPy array is directly hashable -- but doing so pulls memory-
         # mapped data entirely into memory, where they stay until unloaded
-        # with "del ndd.data". This seems acceptable for now, given that we're
-        # lazily-loading each separate array as needed anyway, but isn't ideal.
-        self._data_hash = hashlib.sha1(data).hexdigest()
+        # with "del ndd.data". A workaround of reading the file twice would
+        # negate the intended benefit of being able to save intelligently, so
+        # just disable hashing in the first instance and ask Erik B. about it
+        # later. It might be better to determine whether the copy is dirty
+        # using object ids (weakref) and memory mapping, like PyFITS, instead
+        # of hashes, but that might mean re-reading the file after saving, to
+        # establish memory mapping before we can mark the buffer clean.
+        # self._data_hash = hashlib.sha1(data).hexdigest()
         return data
 
-    def save_data(self, data, header, force=False):
-        # Should hash meta-data as well here, or else we'll lose changes that
-        # aren't associated with changes to data.
-        newhash = hashlib.sha1(data).hexdigest()
-        if force or newhash != self._data_hash:
-            self._data_hash = newhash
-            self._saver(self.filename, self.data_idx, data, header)
+    # def save_data(self, data, header, force=False):
+    #     # Should hash meta-data as well here, or else we'll lose changes that
+    #     # aren't associated with changes to data.
+    #     newhash = hashlib.sha1(data).hexdigest()
+    #     if force or newhash != self._data_hash:
+    #         self._data_hash = newhash
+    #         self._saver(self.filename, self.data_idx, data, header)
 
     def load_uncertainty(self):
         if self.uncertainty_idx:
@@ -280,13 +285,13 @@ class NDMapIO(object):
             # StdDevUncertainty isn't directly hashable so cast to str first
             # (also see load_data above for another reason).
             uncert = StdDevUncertainty(np.sqrt(uncert))
-            self._uncert_hash = hashlib.sha1(uncert).hexdigest()
+            # self._uncert_hash = hashlib.sha1(uncert).hexdigest()
             return uncert
 
     def load_flags(self):
         if self.flags_idx:
             flags = self._dloader(self.filename, self.flags_idx)
-            self._flags_hash = hashlib.sha1(flags).hexdigest()
+            # self._flags_hash = hashlib.sha1(flags).hexdigest()
             return flags
 
     def load_meta(self):
