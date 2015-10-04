@@ -260,12 +260,12 @@ class NDMapIO(object):
         # A NumPy array is directly hashable -- but doing so pulls memory-
         # mapped data entirely into memory, where they stay until unloaded
         # with "del ndd.data". A workaround of reading the file twice would
-        # negate the intended benefit of being able to save intelligently, so
-        # just disable hashing in the first instance and ask Erik B. about it
-        # later. It might be better to determine whether the copy is dirty
-        # using object ids (weakref) and memory mapping, like PyFITS, instead
-        # of hashes, but that might mean re-reading the file after saving, to
-        # establish memory mapping before we can mark the buffer clean.
+        # negate the intended benefit of being able to save it intelligently,
+        # so just disable hashing in the first instance and ask Erik B. about
+        # it later. It might be better to determine whether the copy is dirty
+        # using object ids (weakref) and memory mapping instead, like PyFITS,
+        # but that might mean re-reading the file after saving, to establish
+        # memory mapping before we can mark the buffer clean.
         # self._data_hash = hashlib.sha1(data).hexdigest()
         return data
 
