@@ -86,7 +86,6 @@ def save_list(filename, data, array_meta, identifiers, common_meta):
         # been provided; otherwise it's understood that the caller wants to
         # re-use whatever is already in the file (if applicable), to minimize
         # unnecessary writes (which io.fits does automatically).
-
         if arr is not None or meta is not None or n > oldlen:
 
             hdr = pyfits.Header(meta) if meta else None

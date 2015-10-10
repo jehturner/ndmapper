@@ -277,10 +277,12 @@ class DataFile(object):
         flags_name = config['flags_name']
 
         # Construct flat lists for the array, meta & (name, group_id) tuple,
-        # to pass to the save_list function:
+        # to pass to the save_list function. Also record the file location
+        # index for each saved attribute, to allow remapping to the new file.
 
-        data_list, meta_list, identifiers = [], [], []
+        data_list, meta_list, identifiers, mapidx = [], [], [], []
 
+        idx = 0
         for ndd in self.data:
 
             group_id = ndd._io.group_id
@@ -300,16 +302,25 @@ class DataFile(object):
             # applicable location in the file, which isn't what we want).
             for arr, meta, ident in zip(arr_group, meta_group, id_group):
                 if arr is not None or ident[0] == data_name:
+                    idx += 1
                     data_list.append(arr)
                     meta_list.append(meta)
                     identifiers.append(ident)
+                    mapidx.append(idx)
+                else:
+                    mapidx.append(None)
 
         ndmio.save_list(self.filename, data_list, meta_list, identifiers,
                         self.meta)
 
-        # Here we should re-index NDLater iomaps to reflect the actual order
-        # in which the arrays got saved (as determined above) and update the
-        # filename to switch lazy-loading to the recently-saved file.
+        # If the save succeeded without raising an exception, remap each
+        # NDLater's _io attribute to the newly-saved file:
+        for ndd, data_idx, uncertainty_idx, flags_idx in \
+            zip(self.data, *[iter(mapidx)]*3):
+            ndd._io.filename = FileName(self.filename)
+            ndd._io.data_idx = data_idx
+            ndd._io.uncertainty_idx = uncertainty_idx
+            ndd._io.flags = flags_idx
 
 
 class DataFileList(list):
