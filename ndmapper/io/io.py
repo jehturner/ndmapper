@@ -41,7 +41,7 @@ def load_array_meta(loader, filename, index):
     Load the meta-data data associated with an array from the specified index
     within a file.
     """
-    return loader(filename)
+    return loader(filename, index)
 
 
 @_get_loader
@@ -49,7 +49,7 @@ def load_array(loader, filename, index):
     """
     Load a data array from the specified index within a file.
     """
-    return loader(filename)
+    return loader(filename, index)
 
 
 # This exists for completeness & experimentation but in practice we want to
@@ -68,6 +68,42 @@ def save_array(loader, filename, index, data, meta=None):
     one available (for appending).
     """
     return loader(filename, index, data, meta)
+
+
+@_get_loader
+def save_list(loader, filename, data, array_meta=None, identifiers=None,
+              common_meta=None):
+    """
+    Save a list of data arrays and associated meta-data to a file (overwriting
+    any existing data).
+
+    Where data and array_meta are both None at a given list index, any data
+    already present at the corresponding location within the file will be
+    preserved, avoiding redundant writes where possible (it is the caller's
+    responsibility to determine what needs re-writing and what can be kept).
+
+    Parameters
+    ----------
+
+    filename : FileName or str
+        Name of the (new or existing) file to which the data should be saved.
+
+    data : list of ndarray or None
+        Ndarray instances to be saved to each location within the file.
+
+    array_meta : list of dict-like or None, optional
+        Header/meta-data dictionaries associated with each data array.
+
+    identifiers : list of (str or None, int or str or None), optional
+        Name and group identifier for each array within the file (eg. FITS
+        EXTNAME & EXTVER), where applicable overriding any such information
+        in array_meta.
+
+    common_meta : dict-like, optional
+        Header/meta-data dictionary common to all the arrays within the file.
+
+    """
+    return loader(filename, data, array_meta, identifiers, common_meta)
 
 
 @_get_loader

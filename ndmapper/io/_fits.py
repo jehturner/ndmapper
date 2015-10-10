@@ -1,7 +1,8 @@
 # Copyright(c) 2015 Association of Universities for Research in Astronomy, Inc.
 # by James E.H. Turner.
 
-import pyfits
+import os
+import astropy.io.fits as pyfits
 
 from .. import config
 from .mapio import NDMapIO
@@ -44,6 +45,62 @@ def save_array(filename, index, data, meta=None):
     else:
         raise IndexError('index %d is out of range for %s' % \
                          (index, str(filename)))
+
+    hdulist.close()
+
+
+def save_list(filename, data, array_meta, identifiers, common_meta):
+
+    filename = str(filename)
+
+    narr = len(data)
+
+    if array_meta is None:
+        array_meta = [None for arr in data]
+    if identifiers is None:
+        identifiers = [(None, None) for arr in data]
+
+    if len(array_meta) != narr or len(identifiers) != narr:
+        raise ValueError('lengths of array_meta & identifiers must match data')
+
+    phu = pyfits.PrimaryHDU(header=common_meta)
+    phu.header['EXTEND'] = True  # required when adding MEF extensions
+
+    exists = os.path.exists(filename)
+    mode = 'update' if exists else 'append'
+
+    hdulist = pyfits.open(filename, mode=mode, uint=True)
+
+    oldlen = len(hdulist)-1
+
+    if oldlen == -1:
+        hdulist.append(phu)  # file either new or just empty/corrupt (no PHU)
+    else:
+        hdulist[0] = phu
+
+    # Loop over the image extensions/inputs:
+    for n, (arr, meta, (name, ver)) in \
+        enumerate(zip(data, array_meta, identifiers), start=1):
+
+        # Update only those extensions for which data and/or a header have
+        # been provided; otherwise it's understood that the caller wants to
+        # re-use whatever is already in the file (if applicable), to minimize
+        # unnecessary writes (which io.fits does automatically).
+
+        if arr is not None or meta is not None or n > oldlen:
+
+            hdr = pyfits.Header(meta) if meta else None
+            hdu = pyfits.ImageHDU(arr, hdr, name=name, uint=True)
+            hdu.ver = ver
+
+            if n <= oldlen:
+                hdulist[n] = hdu
+            else:
+                hdulist.append(hdu)
+
+    # Remove any unused extensions remaining at the end of an existing file
+    # (unless explicitly given None values for those indices):
+    del hdulist[n+1:]
 
     hdulist.close()
 

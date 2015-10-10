@@ -16,7 +16,6 @@ import numpy as np
 #from astropy.units import Unit, Quantity
 from astropy.nddata import NDDataBase, NDData, NDDataArray
 from astropy.utils.compat.odict import OrderedDict
-import astropy.io.fits as pyfits
 
 from . import config
 from . import io as ndmio
@@ -235,8 +234,8 @@ class DataFile(object):
     def reload(self):
         """
         Re-load NDData instances & shared meta-data from the associated file
-        on disk, to synchronize the DataFile instance with any changes made by
-        external programs such as IRAF.
+        on disk (to synchronize the DataFile instance with any changes made by
+        external programs such as IRAF).
 
         When instantiating a new DataFile object, it is unnecessary to run
         reload() afterwards if the associated file already exists; it will be
@@ -254,6 +253,63 @@ class DataFile(object):
         self._load_meta()
         self._load_data()
         self._len = len(self.data)
+
+    def save(self):
+        """
+        Save NDData instances & common meta-data to the associated file,
+        creating it if it doesn't already exist. There should be no issue with
+        clobbering existing files (unless they happen to be created by another
+        program during execution) if the DataFile has been instantiated with
+        the right mode, which involves a check for pre-existence.
+
+        """
+        # Consider saving the mode in self so we can re-check here that the
+        # file (non-)existence is still as expected.
+
+        # This code should be made to append None values for data groups that
+        # have not changed since last loaded or saved, which the back-end will
+        # then skip re-writing if it can. However, there are various ways for
+        # this to backfire if not done very carefully (aka. premature
+        # optimization) so this is left as an exercise for later.
+
+        data_name = config['data_name']
+        uncertainty_name = config['uncertainty_name']
+        flags_name = config['flags_name']
+
+        # Construct flat lists for the array, meta & (name, group_id) tuple,
+        # to pass to the save_list function:
+
+        data_list, meta_list, identifiers = [], [], []
+
+        for ndd in self.data:
+
+            group_id = ndd._io.group_id
+
+            arr_group = (ndd.data,
+                         ndd.uncertainty.array**2 if ndd.uncertainty else None,
+                         ndd.flags)
+
+            meta_group = (ndd.meta, None, None)
+
+            id_group = ((data_name, group_id), (uncertainty_name, group_id),
+                        (flags_name, group_id))
+
+            # Include list entries for the main data array and only non-empty
+            # uncertainty/flags (passing None values to save_list for those
+            # would cause any existing information to be preserved at the
+            # applicable location in the file, which isn't what we want).
+            for arr, meta, ident in zip(arr_group, meta_group, id_group):
+                if arr is not None or ident[0] == data_name:
+                    data_list.append(arr)
+                    meta_list.append(meta)
+                    identifiers.append(ident)
+
+        ndmio.save_list(self.filename, data_list, meta_list, identifiers,
+                        self.meta)
+
+        # Here we should re-index NDLater iomaps to reflect the actual order
+        # in which the arrays got saved (as determined above) and update the
+        # filename to switch lazy-loading to the recently-saved file.
 
 
 class DataFileList(list):
