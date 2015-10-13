@@ -195,7 +195,7 @@ class FileName(object):
         return FileName(path=str(self), sep=self.sep, regex=self._re)
 
     def __eq__(self, other):
-        return str(self) == str(other)
+        return os.path.abspath(str(self)) == os.path.abspath(str(other))
 
     def __ne__(self, other):
         return not self == other
