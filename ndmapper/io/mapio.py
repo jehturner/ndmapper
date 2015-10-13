@@ -194,6 +194,12 @@ class FileName(object):
         # for strings:
         return FileName(path=str(self), sep=self.sep, regex=self._re)
 
+    def __eq__(self, other):
+        return str(self) == str(other)
+
+    def __ne__(self, other):
+        return not self == other
+
 
 class NDMapIO(object):
     """
