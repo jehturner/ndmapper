@@ -118,11 +118,11 @@ class DataFile(object):
             self.meta = deepcopy(data.meta)
             self._filename = deepcopy(data.filename)
         elif isinstance(data, NDDataBase):
-            self.data = [data]
+            self.data = [NDLater(data=data)]
         elif hasattr(data, '__iter__') and \
             all([isinstance(d, (NDDataBase)) for d in data]):  # True for []
             # Sequence of NDData (or empty to ignore existing file data):
-            self.data = data
+            self.data = [NDLater(data=d) for d in data]
         elif data is None:
             self.data = None
         else:
