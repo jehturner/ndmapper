@@ -119,7 +119,7 @@ def test_DataFileList_broadcast_data_1():
 
     # Produces 2 separate DataFiles referring to the same data array.
     assert len(dfl) == 2 and dfl[0] is not dfl[1] \
-        and dfl[0].data is dfl[1].data
+        and dfl[0]._data is dfl[1]._data
 
 
 def test_DataFileList_copy_self_1():

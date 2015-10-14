@@ -98,13 +98,13 @@ class DataFile(object):
         The header/meta-data associated with the file as a whole (eg. the
         primary FITS header) rather than an individual nddata instance.
 
-    data : list of NDData or None
-        NDData instance(s) associated with the DataFile.
+    The NDData instance(s) associated with the DataFile are accessed by
+    iterating over or subscripting it like a list.
 
     """
 
     _filename = None
-    meta = None
+    _meta = None
     log = ''
 
     _dirty = True    # has the file been modified since saved/loaded?
@@ -114,17 +114,17 @@ class DataFile(object):
         strip=False, prefix=None, suffix=None, dirname=None):
 
         if isinstance(data, DataFile):  # create new copy of existing obj
-            self.data = data.data
-            self.meta = deepcopy(data.meta)
+            self._data = data._data
+            self._meta = deepcopy(data.meta)
             self._filename = deepcopy(data.filename)
         elif isinstance(data, NDDataBase):
-            self.data = [NDLater(data=data)]
+            self._data = [NDLater(data=data)]
         elif hasattr(data, '__iter__') and \
             all([isinstance(d, (NDDataBase)) for d in data]):  # True for []
             # Sequence of NDData (or empty to ignore existing file data):
-            self.data = [NDLater(data=d) for d in data]
+            self._data = [NDLater(data=d) for d in data]
         elif data is None:
-            self.data = None
+            self._data = None
         else:
             raise TypeError('DataFile: data parameter has an unexpected type')
 
@@ -133,7 +133,7 @@ class DataFile(object):
         if not filename:
             filename = self._filename
         if meta is not None:
-            self.meta = meta
+            self._meta = meta
 
         # Parse any filename into a FileName object:
         self._filename = FileName(filename, strip=strip, prefix=prefix,
@@ -162,17 +162,26 @@ class DataFile(object):
         # Ensure (meta-)data attributes have the right types & track how many
         # NDData objects this instance contains. An empty DataFile has length
         # zero.
-        if self.data is None:
-            self.data = []
+        if self._data is None:
+            self._data = []
         if self.meta is None:
-            self.meta = {}
-        self._len = len(self.data)
+            self._meta = {}
+        self._len = len(self._data)
 
-    # Make the filename attribute (not its component values) read-only, as the
-    # object is shared between DataFile & NDLater to keep things in sync:
+        # Has the user overridden or accessed the file contents since
+        # instantiation (if not, we can avoid saving without checking hashes
+        # when supplying a DataFileList to an external program such as an
+        # IRAF task via run_task?
+        self._unloaded = meta is None and data is None
+
     @property
     def filename(self):
         return self._filename
+
+    @property
+    def meta(self):
+        self._unloaded = False
+        return self._meta
 
     # Specify that class manages its own iteration with next() method:
     def __iter__(self):
@@ -185,17 +194,18 @@ class DataFile(object):
         if self._n > self._len:
             raise StopIteration
         else:
-            return self.data[self._n-1]
+            return self._data[self._n-1]
 
     # Allow subscripting this instance to get ~NDData:
     def __getitem__(self, key):
-        return self.data[key]
+        return self._data[key]
 
     # Deletion of an item from the DataFile:
     # This is a simplistic implementation for now; it will probably need to
     # handle some cleaning up etc.
     def __delitem__(self, key):
-        del self.data[key]
+        del self._data[key]  # this can also be passed a slice
+        self._len = len(self._data)
 
     # When printing the instance, show the filename:
     def __str__(self):
@@ -211,12 +221,13 @@ class DataFile(object):
     def append(self, elements):
         if not isinstance(elements, DataFile):
             elements = DataFile(elements)
-        if elements.data:
-            if self.data is None:
-                self.data = []
-            self.data += elements.data
-        if self.data is not None:
-            self._len = len(self.data)
+        if elements._data:
+            if self._data is None:
+                self._data = []
+            self._data += elements._data
+        if self._data is not None:
+            self._len = len(self._data)
+        self._unloaded = False
 
     def __len__(self):
         return self._len
@@ -225,11 +236,11 @@ class DataFile(object):
     # flat lists of NDData objects are supported, rather than any arbitrary
     # hierarchy supported by, say, HDF5.
     def _load_data(self):
-        self.data = [NDLater(iomap=iomap) for iomap \
+        self._data = [NDLater(iomap=iomap) for iomap \
                      in ndmio.map_file(self.filename)]
 
     def _load_meta(self):
-        self.meta = ndmio.load_common_meta(self.filename)
+        self._meta = ndmio.load_common_meta(self.filename)
 
     def reload(self):
         """
@@ -252,7 +263,12 @@ class DataFile(object):
         # PyFITS, without masking the origin of any more obscure errors:
         self._load_meta()
         self._load_data()
-        self._len = len(self.data)
+        self._len = len(self._data)
+
+        # Since everything has been re-mapped from file here, we can reset
+        # the unloaded flag (unlike when saving, where the user may still hold
+        # a reference to the thing that was saved):
+        self._unloaded = True
 
     def save(self):
         """
@@ -283,7 +299,7 @@ class DataFile(object):
         data_list, meta_list, identifiers, mapidx = [], [], [], []
 
         idx = 0
-        for ndd in self.data:
+        for ndd in self._data:
 
             group_id = ndd._io.group_id
 
@@ -316,11 +332,19 @@ class DataFile(object):
         # If the save succeeded without raising an exception, remap each
         # NDLater's _io attribute to the newly-saved file:
         for ndd, data_idx, uncertainty_idx, flags_idx in \
-            zip(self.data, *[iter(mapidx)]*3):
+            zip(self._data, *[iter(mapidx)]*3):
             ndd._io.filename = FileName(self.filename)
             ndd._io.data_idx = data_idx
             ndd._io.uncertainty_idx = uncertainty_idx
             ndd._io.flags = flags_idx
+
+    @property
+    def unloaded(self):
+        # To qualify as unloaded, the DataFile itself (ie. meta) has not to
+        # have been touched, nor each constituent NDLater instance nor the
+        # filename (WRT what NDLater is lazy-loading):
+        return self._unloaded and all([ndd.unloaded and \
+            ndd._io.filename == self.filename for ndd in self])
 
 
 class DataFileList(list):
@@ -691,10 +715,21 @@ class NDLater(NDDataArray):
         self.uncertainty = self._uncertainty
         self.flags = self._flags
 
+        # Where the file is mapped from disk but data & meta aren't loaded/
+        # accessed yet, this flag remains false and we can avoid having to save
+        # again prior to running some external program (ie. IRAF/run_task) on a
+        # DataFileList, without first checking hashes. This is a one-time
+        # optimization, as we don't know later (even after saving) whether the
+        # user/app could modify a prior ref to the data, but it supports the
+        # common case where DataFileList is only used to list input filenames.
+        self._unloaded = data is None and uncertainty is None and \
+                         flags is None and meta is None
+
     @property
     def data(self):
         if self._data is None and self._io:
             self._data = self._io.load_data()
+            self._unloaded = False
         return self._data
 
     @data.setter
@@ -713,6 +748,7 @@ class NDLater(NDDataArray):
         # This prevents resetting the value to None; use del instead
         if self._parent.uncertainty is None and self._io:
             self.uncertainty = self._io.load_uncertainty()
+            self._unloaded = False
         return self._parent.uncertainty
 
     # Parent class setters seem not to get called automatically once a getter
@@ -732,6 +768,7 @@ class NDLater(NDDataArray):
         # This prevents resetting the value to None; use del instead
         if self._parent.flags is None and self._io:
             self.flags = self._io.load_flags()
+            self._unloaded = False
         return self._parent.flags
 
     @flags.setter
@@ -741,6 +778,15 @@ class NDLater(NDDataArray):
     @flags.deleter
     def flags(self):
         self.flags = None
+
+    @property
+    def meta(self):
+        self._unloaded = False
+        return self._meta
+
+    @property
+    def unloaded(self):
+        return self._unloaded
 
 
 def load_datafilelist(filename, dirname=None, mode='read'):
