@@ -263,8 +263,8 @@ class DataFile(object):
     def reload(self):
         """
         Re-load NDData instances & shared meta-data from the associated file
-        on disk (to synchronize the DataFile instance with any changes made by
-        external programs such as IRAF).
+        on disk (eg. to synchronize the DataFile instance with any changes made
+        by external programs such as IRAF).
 
         When instantiating a new DataFile object, it is unnecessary to run
         reload() afterwards if the associated file already exists; it will be
@@ -302,10 +302,7 @@ class DataFile(object):
     def save(self):
         """
         Save NDData instances & common meta-data to the associated file,
-        creating it if it doesn't already exist. There should be no issue with
-        clobbering existing files (unless they happen to be created by another
-        program during execution) if the DataFile has been instantiated with
-        the right mode, which involves a check for pre-existence.
+        creating it if it doesn't already exist.
 
         """
         # Consider saving the mode in self so we can re-check here that the
