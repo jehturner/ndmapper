@@ -509,6 +509,9 @@ class DataFileList(list):
         # Do whatever initialization a list object normally does:
         list.__init__(self, initlist)
 
+        # Record the specified mode, to apply to any DataFiles added later:
+        self._mode = mode
+
     # Wrap the normal list append in the same way as __init__:
     def append(self, data=None, meta=None, filename=None, strip=False, \
         prefix=None, suffix=None, dirname=None):
@@ -518,7 +521,7 @@ class DataFileList(list):
             list.append(self, data)
         else:
             list.append(self, DataFile(filename=filename, data=data, meta=meta,
-                mode=mode, strip=strip, prefix=prefix, suffix=suffix,
+                mode=self._mode, strip=strip, prefix=prefix, suffix=suffix,
                 dirname=dirname))
 
     # Wrap the normal list extend in the same way as __init__:
@@ -528,7 +531,7 @@ class DataFileList(list):
         filenames = [] if filenames is None else filenames
 
         list.extend(self, DataFileList(filenames=filenames, data=data,
-            meta=meta, mode=mode, strip=strip, prefix=prefix,
+            meta=meta, mode=self._mode, strip=strip, prefix=prefix,
             suffix=suffix, dirname=dirname))
 
 
