@@ -178,6 +178,10 @@ class FileName(object):
     def re(self):
         return self._re
 
+    # Show something meaningful when inspecting an instance:
+    def __repr__(self):
+        return 'FileName \'{0}\''.format(str(self))
+
     # Reconstruct the filename when printing the instance value (after any
     # user modifications to the individual components):
     def __str__(self):

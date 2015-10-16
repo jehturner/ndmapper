@@ -178,6 +178,12 @@ class DataFile(object):
     def filename(self):
         return self._filename
 
+    # Re-parse any change of filename after instantiation. To override prefixes
+    # etc., the user can supply a FileName instance as the argument.
+    @filename.setter
+    def filename(self, value):
+        self._filename = FileName(value)
+
     @property
     def meta(self):
         self._unloaded = False
