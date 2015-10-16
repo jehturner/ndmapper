@@ -375,8 +375,10 @@ class DataFile(object):
             ndd._io.flags = flags_idx
 
         # If the file mode was 'new', it needs changing to 'update' now it
-        # has been saved, to allow saving further changes:
-        if self.mode == 'new':
+        # has been saved, to allow saving further changes; likewise for
+        # 'overwrite', to reflect any subsequent saves being based on the
+        # existing file:
+        if self.mode in ['new', 'overwrite']:
             self._mode = 'update'
 
     @property
