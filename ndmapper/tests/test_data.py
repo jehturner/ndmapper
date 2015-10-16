@@ -52,7 +52,7 @@ def test_FileName_multiple_ext():
 def test_DataFile_gemini_IRAF_new_1():
 
     # Use a filename that can't exist, just to be sure it doesn't...
-    df = DataFile(filename='rgS20120827S9999.fits', mode='new')
+    df = DataFile('rgS20120827S9999.fits', mode='new')
 
     assert df.filename.dir == '' and \
            df.filename.prefix == 'rg' and \
@@ -82,7 +82,7 @@ def test_DataFile_gemini_IRAF_existing_1():
 
 def test_DataFileList_gemini_IRAF_existing_1():
 
-    dfl = DataFileList(filenames=fn_mefnodq)
+    dfl = DataFileList(fn_mefnodq)
 
     assert len(dfl) == 1 and \
            dfl[0].filename.prefix == 'eqbprg' and \
@@ -99,7 +99,7 @@ def test_DataFileList_gemini_IRAF_existing_1():
 def test_DataFileList_replacing_data_1():
 
     # Replace the data & header from file with blank ones:
-    dfl = DataFileList(data=[], meta={}, filenames=fn_mefnodq)
+    dfl = DataFileList(filenames=fn_mefnodq, data=[], meta={})
 
     assert len(dfl) == 1 and len(dfl[0]) == 0 and len(dfl[0].meta) == 0
 
@@ -108,13 +108,13 @@ def test_DataFileList_len_mismatch_1():
 
     # Cannot have multiple data objects per filename:
     with pytest.raises(ValueError):
-        dfl = DataFileList(data=[DataFile(), DataFile()], filenames=fn_mefnodq)
+        dfl = DataFileList(filenames=fn_mefnodq, data=[DataFile(), DataFile()])
 
 
 def test_DataFileList_broadcast_data_1():
 
     # But we can map the same dataset to multiple files:
-    dfl = DataFileList(data=DataFile(), filenames=[fn_mefnodq, 'test_name'],
+    dfl = DataFileList([fn_mefnodq, 'test_name'], data=DataFile(),
         mode='overwrite')
 
     # Produces 2 separate DataFiles referring to the same data array.
@@ -124,8 +124,8 @@ def test_DataFileList_broadcast_data_1():
 
 def test_DataFileList_copy_self_1():
 
-    dfl1 = DataFileList(filenames=fn_mefnodq)
-    dfl2 = DataFileList(dfl1)
+    dfl1 = DataFileList(fn_mefnodq)
+    dfl2 = DataFileList(data=dfl1)
 
     assert dfl1 is not dfl2 and dfl1 == dfl2
 
@@ -144,9 +144,9 @@ def test_DataFileList_nested_nddata_1():
     # Here the outer list maps to DataFiles and the inner one (if applicable)
     # to data extensions/groups within a file. The inner list can be omitted
     # where the file only contains a single NDData instance.
-    dfl = DataFileList(data=[[NDDataArray([1,2,3]), NDDataArray([4])], \
-                             NDDataArray([5,6])], \
-                       filenames=['test_name_1', 'test_name_2'], mode='new')
+    dfl = DataFileList(filenames=['test_name_1', 'test_name_2'],
+                       data=[[NDDataArray([1,2,3]), NDDataArray([4])], \
+                             NDDataArray([5,6])], mode='new')
 
     assert len(dfl[0]) == 2 and len(dfl[1]) == 1
 

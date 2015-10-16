@@ -40,6 +40,9 @@ class DataFile(object):
     Parameters
     ----------
 
+    filename : str or FileName, optional
+        The filename on disk of the dataset(s) to be represented.
+
     data : NDData or list of NDData or DataFile or None
         NDData instance(s) for the dataset(s) to be represented, or an
         existing DataFile instance (in which case the result will be a new
@@ -55,9 +58,6 @@ class DataFile(object):
         A meta-data dictionary / header describing the file as a whole
         (rather than any individual nddata object), replacing any existing
         meta-data if the file already exists on disk.
-
-    filename : str or FileName, optional
-        The filename on disk of the dataset(s) to be represented.
 
     mode : str
         'read' (default), 'new' or 'overwrite'
@@ -110,7 +110,7 @@ class DataFile(object):
     _dirty = True    # has the file been modified since saved/loaded?
 
 
-    def __init__(self, data=None, meta=None, filename=None, mode='read',
+    def __init__(self, filename=None, data=None, meta=None, mode='read',
         strip=False, prefix=None, suffix=None, dirname=None):
 
         if isinstance(data, DataFile):  # create new copy of existing obj
@@ -226,7 +226,7 @@ class DataFile(object):
     # input is another DataFile instance, any existing filename is dropped.
     def append(self, elements):
         if not isinstance(elements, DataFile):
-            elements = DataFile(elements)
+            elements = DataFile(data=elements)
         if elements._data:
             if self._data is None:
                 self._data = []
@@ -364,6 +364,11 @@ class DataFileList(list):
     Parameters
     ----------
 
+    filenames : str or list of str, optional
+        The filename(s) on disk of the dataset(s) to be represented. There
+        should either be as many filenames as data or None (but lists of
+        NDData can be nested to associate subsets with fewer filenames).
+
     data : NDData or list of NDData or list of lists of NDData or DataFile
            or DataFileList, optional
         NDData/DataFile instance(s) for the dataset(s) to be represented (or
@@ -377,11 +382,6 @@ class DataFileList(list):
         primary FITS header) rather than with individual nddata instances.
         There should be one instance per file or None (which preserves any
         information from an existing file).
-
-    filenames : str or list of str, optional
-        The filename(s) on disk of the dataset(s) to be represented. There
-        should either be as many filenames as data or None (but lists of
-        NDData can be nested to associate subsets with fewer filenames).
 
     mode : str
         'read', 'new' or 'overwrite'
@@ -409,9 +409,7 @@ class DataFileList(list):
 
     """
 
-    filenames = []
-
-    def __init__(self, data=None, meta=None, filenames=[], mode='read',
+    def __init__(self, filenames=None, data=None, meta=None, mode='read',
         strip=False, prefix=None, suffix=None, dirname=None):
 
         # This is a little fiddly (not too much considering) but handling
@@ -438,7 +436,9 @@ class DataFileList(list):
                             'type')
         len_data = seqlen(data)
 
-        if isinstance(filenames, basestring):
+        if filenames is None:
+            filenames = []
+        elif isinstance(filenames, basestring):
             filenames = [filenames]
         elif filenames is not None and not hasattr(filenames, '__iter__'):
             raise TypeError('DataFileList: filenames parameter has an ' \
@@ -501,7 +501,7 @@ class DataFileList(list):
             if len(meta) != len(filenames):
                 raise ValueError('DataFileList: meta does not match ' \
                     'data/filenames in length')
-            initlist = [DataFile(data=obj, meta=mdict, filename=fn,
+            initlist = [DataFile(filename=fn, data=obj, meta=mdict,
                 mode=mode, strip=strip, prefix=prefix, suffix=suffix,
                 dirname=dirname) for obj, mdict, fn in \
                 zip(data, meta, filenames)]
@@ -517,16 +517,18 @@ class DataFileList(list):
             prefix or suffix or dirname is not None):
             list.append(self, data)
         else:
-            list.append(self, DataFile(data=data, meta=meta, filename=filename,
+            list.append(self, DataFile(filename=filename, data=data, meta=meta,
                 mode=mode, strip=strip, prefix=prefix, suffix=suffix,
                 dirname=dirname))
 
     # Wrap the normal list extend in the same way as __init__:
-    def extend(self, data=None, meta=None, filenames=[], strip=False, \
+    def extend(self, data=None, meta=None, filenames=None, strip=False, \
         prefix=None, suffix=None, dirname=None):
 
-        list.extend(self, DataFileList(data=data, meta=meta, \
-            filenames=filenames, mode=mode, strip=strip, prefix=prefix,
+        filenames = [] if filenames is None else filenames
+
+        list.extend(self, DataFileList(filenames=filenames, data=data,
+            meta=meta, mode=mode, strip=strip, prefix=prefix,
             suffix=suffix, dirname=dirname))
 
 

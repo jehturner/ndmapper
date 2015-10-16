@@ -279,9 +279,9 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
             inlist = [inputs]
             outlist = [outputs]
         else:
-            inlist = [{key : DataFileList(inputs[key][n]) for key in \
+            inlist = [{key : DataFileList(data=inputs[key][n]) for key in \
                        inputs.keys()} for n in range(nfiles)]
-            outlist = [{key : DataFileList(outputs[key][n]) for key in \
+            outlist = [{key : DataFileList(data=outputs[key][n]) for key in \
                        outputs.keys()} for n in range(nfiles)]
 
         # Define IRAF string format for any extension FITS extension numbers:
@@ -516,7 +516,7 @@ def conv_io_pars(pardict, mode):
         if isinstance(parval, basestring):
             parval = DataFile(filename=parval, mode=mode)
         try:
-            pardict[param] = DataFileList(parval, mode=mode)
+            pardict[param] = DataFileList(data=parval, mode=mode)
         except TypeError:
             raise TypeError('could not convert %s to DataFileList' \
                             % type(parval))
