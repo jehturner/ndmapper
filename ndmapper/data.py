@@ -60,19 +60,17 @@ class DataFile(object):
         meta-data if the file already exists on disk.
 
     mode : str
-        'read' (default), 'new' or 'overwrite'
-        Specifies whether the file is expected to exist on disk already and be
-        read into this DataFile (only if a filename is provided). Since
-        ndmapper performs reads and writes on request (rather than keeping the
-        corresponding files open), DataFile instances can be read or written
-        later irrespective of the mode, but "mode" controls whether to create
-        this instance from an existing file and whether existence or
-        non-existence are allowed (largely to avoid unexpected results, eg.
-        when working in the wrong directory). With 'read', the specified file
-        must already exist, with 'new', it must not exist and with 'overwrite',
-        any existing file is ignored and will be replaced when writing to disk.
-        The 'data' and 'filename' parameters always override whatever would
-        otherwise be read from disk.
+        'read' (default), 'new', 'update' or 'overwrite'
+        Specifies whether the file should exist on disk already and be used to
+        initialize this DataFile (if a filename is provided) and whether it can
+        later be written to disk. Although ndmapper does not hold file handles
+        open with a fixed access mode, these options enforce the user's
+        declared intention, to avoid mishaps (such as inadvertently overwriting
+        input files or failures when working in the wrong directory). With
+        'read' and 'update', the specified file must already exist, with 'new',
+        it must not exist and with 'overwrite', any existing file is ignored
+        and will be replaced when writing to disk. The 'data' and 'filename'
+        parameters always override whatever would otherwise be read from disk.
 
     strip : bool
         Remove any existing prefix and suffixes from the supplied filename
@@ -93,6 +91,11 @@ class DataFile(object):
 
     filename : FileName or None
         A filename-parsing object representing the path on disk.
+
+    mode : str
+        File access mode (see parameters). This initially reflects the
+        corresponding parameter value / default and can change implicitly in
+        certain circumstances when loading, saving or changing the filename.
 
     meta : dict-like
         The header/meta-data associated with the file as a whole (eg. the
@@ -144,7 +147,7 @@ class DataFile(object):
         exists = os.path.exists(str(self.filename))
         read_file = False
         if str(self.filename):  # Ignore mode=='read' if there's no filename
-            if mode == 'read':
+            if mode in ['read', 'update']:
                 read_file = True
                 if not exists:
                     raise IOError('%s not found' % str(self.filename))
@@ -153,6 +156,7 @@ class DataFile(object):
                     raise IOError('%s already exists' % str(self.filename))
             elif mode != 'overwrite':
                 raise ValueError('unrecognized file mode, \'%s\'' % mode)
+        self._mode = mode
 
         if read_file and self.meta is None:
             self._load_meta()
@@ -179,10 +183,18 @@ class DataFile(object):
         return self._filename
 
     # Re-parse any change of filename after instantiation. To override prefixes
-    # etc., the user can supply a FileName instance as the argument.
+    # etc., the user can supply a FileName instance as the argument. Also
+    # update the mode to 'new' so that previously-read-only files may now be
+    # saved if appropriate, without inadvertently clobbering any existing copy.
     @filename.setter
     def filename(self, value):
-        self._filename = FileName(value)
+        if value != self._filename:
+            self._filename = FileName(value)
+            self._mode = 'new'
+
+    @property
+    def mode(self):
+        return self._mode
 
     @property
     def meta(self):
@@ -265,11 +277,22 @@ class DataFile(object):
             raise IOError('Attempt to re-load DataFile object with no ' \
                           'associated file')
 
+        # Currently if the user overwrites data in memory by reloading the
+        # file, that's tough luck; safeguarding volatile memory is considered
+        # less critical than data on disk.
+
         # If the file doesn't exist etc., just pass through the IOError from
         # PyFITS, without masking the origin of any more obscure errors:
         self._load_meta()
         self._load_data()
         self._len = len(self._data)
+
+        # If an unsaved file with 'new' or 'overwrite' mode is reloaded after
+        # some external process (IRAF) creates it, change the mode to 'update',
+        # to reflect our copy now being based on the "hard" copy, just as at
+        # instantiation:
+        if self.mode in ['new', 'overwrite']:
+            self._mode = 'update'
 
         # Since everything has been re-mapped from file here, we can reset
         # the unloaded flag (unlike when saving, where the user may still hold
@@ -287,6 +310,16 @@ class DataFile(object):
         """
         # Consider saving the mode in self so we can re-check here that the
         # file (non-)existence is still as expected.
+
+        # Disallow overwriting stuff that the user didn't originally expect to.
+        # This can be circumvented by changing the filename or casting to a
+        # new DataFile copy with a different mode.
+        if self.mode == 'read':
+            raise IOError('attempted to save {0} with mode \'read\''\
+                          .format(str(self.filename)))
+        elif self.mode == 'new' and os.path.exists(str(self.filename)):
+            raise IOError('file {0} with mode \'new\' would now overwrite an '\
+                          'existing copy'.format(str(self.filename)))
 
         # This code should be made to append None values for data groups that
         # have not changed since last loaded or saved, which the back-end will
@@ -344,6 +377,11 @@ class DataFile(object):
             ndd._io.uncertainty_idx = uncertainty_idx
             ndd._io.flags = flags_idx
 
+        # If the file mode was 'new', it needs changing to 'update' now it
+        # has been saved, to allow saving further changes:
+        if self.mode == 'new':
+            self._mode = 'update'
+
     @property
     def unloaded(self):
         # To qualify as unloaded, the DataFile itself (ie. meta) has not to
@@ -384,14 +422,14 @@ class DataFileList(list):
         information from an existing file).
 
     mode : str
-        'read', 'new' or 'overwrite'
-        Specifies whether the files are expected to exist on disk already and
-        be read into the corresponding DataFile instances (only if filenames
-        are provided; also see DataFile). With 'read', the specified files must
-        already exist, with 'new', they must not exist and with 'overwrite',
-        any existing files are ignored and will be replaced when writing to
-        disk. The 'data' and 'filename' parameters always override whatever
-        would otherwise be read from disk.
+        'read' (default), 'new', 'update' or 'overwrite'
+        Specifies whether the file should exist on disk already and be used to
+        initialize this DataFile (if a filename is provided) and whether it can
+        later be written to disk (also see DataFile). With 'read' and 'update',
+        the specified file must already exist, with 'new', it must not exist
+        and with 'overwrite', any existing file is ignored and will be replaced
+        when writing to disk. The 'data' and 'filename' parameters always
+        override whatever would otherwise be read from disk.
 
     strip : bool
         Remove any existing prefix and suffixes from the supplied filename
