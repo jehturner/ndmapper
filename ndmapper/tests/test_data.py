@@ -132,8 +132,8 @@ def test_DataFileList_copy_self_1():
 
 def test_DataFileList_append_1():
 
-    dfl = DataFileList(filenames=fn_mefnodq)
-    dfl.append(DataFile(filename='some_file', mode='new'))
+    dfl = DataFileList(filenames=fn_mefnodq, mode='overwrite')
+    dfl.append(DataFile('some_file', mode='new'))
 
     assert len(dfl) == 2 and str(dfl[0].filename) == fn_mefnodq \
         and str(dfl[1].filename) == 'some_file'

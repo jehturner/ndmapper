@@ -281,8 +281,8 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
         else:
             inlist = [{key : DataFileList(data=inputs[key][n]) for key in \
                        inputs.keys()} for n in range(nfiles)]
-            outlist = [{key : DataFileList(data=outputs[key][n]) for key in \
-                       outputs.keys()} for n in range(nfiles)]
+            outlist = [{key : DataFileList(data=outputs[key][n], mode='new') \
+                        for key in outputs.keys()} for n in range(nfiles)]
 
         # Define IRAF string format for any extension FITS extension numbers:
         in_extfmt = '[%s]'

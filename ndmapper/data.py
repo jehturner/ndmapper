@@ -449,95 +449,16 @@ class DataFileList(list):
     def __init__(self, filenames=None, data=None, meta=None, mode='read',
         strip=False, prefix=None, suffix=None, dirname=None):
 
-        # This is a little fiddly (not too much considering) but handling
-        # these cases here should make things conceptually simpler and/or
-        # more readable from a user perspective...
+        # Check our args & if needed expand them out to match:
+        filenames, data, meta = self._expand_args(filenames=filenames,
+            data=data, meta=meta, mode=mode, strip=strip, prefix=prefix,
+            suffix=suffix, dirname=dirname)
 
-        # First convert arguments to lists if they aren't already. There isn't
-        # really a simple way of doing this with a function because for some
-        # arguments we want to distinguish specific list-like objects from a
-        # list of those objects, for others, we want to distinguish duck-typed
-        # sequence objects from a list etc. -- ie. the criteria vary. Also, it
-        # seems safer to require specific input types in some cases and warn
-        # the user if something unexpected is received.
-
-        # Deal with special cases of single objects that we accept for
-        # convenience, although we are instantiating a list of things. These
-        # cases are enumerated to distinguish them from container lists.
-        if _compatible_data_obj(data):
-            data = [data]
-        elif data is not None and not hasattr(data, '__iter__'):
-            # If the constituent elements of the list don't have the right
-            # type, let DataFile complain rather than checking here.
-            raise TypeError('DataFileList: data parameter has an unexpected ' \
-                            'type')
-        len_data = seqlen(data)
-
+        # If no mods are specified to the input DataFiles, use them directly:
         if filenames is None:
-            filenames = []
-        elif isinstance(filenames, basestring):
-            filenames = [filenames]
-        elif filenames is not None and not hasattr(filenames, '__iter__'):
-            raise TypeError('DataFileList: filenames parameter has an ' \
-                            ' unexpected type')
-        len_fn = seqlen(filenames)
-
-        if hasattr(meta, 'keys'):  # dict-like (incl. PyFITS headers).
-            meta = [meta]
-        len_meta = seqlen(meta)
-
-        # Determine whether the filename is being modified, to help decide
-        # below whether a new copy of the input is needed:
-        fn_modified = filenames or strip or prefix or suffix \
-            or dirname is not None
-
-        # If instantiating with a list or DataFileList of unmodified
-        # DataFiles (no filename prefix changes etc.), just reference
-        # the existing instances by default, instead of creating copies,
-        # to allow making new lists of existing DataFile instances:
-        if isinstance(data, list) \
-           and all([isinstance(item, DataFile) for item in data]) \
-           and meta is None and not fn_modified:
             initlist = data
-
-        # Otherwise create a new copy of each DataFile to hold mods. Here
-        # we should have an existing DataFileList instance, a list of DataFile
-        # objects, list of NDData or list of lists of NDData.
+        # Otherwise, cast each data input to new DataFile with requested mods:
         else:
-            # Expand out both data & filenames to lists of the same length,
-            # to avoid repetition below.
-            if len_data < 2:
-                # This can produce either [None] or [[]], the latter of which
-                # overrides any existing data when instantiating DataFile.
-                if not data:
-                    data = [data]
-                # Only if both data & filenames are 0/None, expand them to
-                # match meta:
-                if meta and not filenames:
-                    filenames = [None for mdict in meta]
-                data = [data[0] for fn in filenames]
-            # Filenames need to be unique so there must be None or as many
-            # as there are items in data (but data can include singly-
-            # nested lists of NDData, with each sub-list associated with
-            # one filename and one resulting DataFile).
-            elif not filenames:
-                filenames = [None for obj in data]
-            # Should we also be expanding out a single data object to the
-            # number of filenames?
-            elif len_fn != len_data:
-                raise ValueError('DataFileList: data & filenames differ ' \
-                    'in length')
-            # If meta is None or a single dict, expand it to match the
-            # length of data & filenames, which are by now the same. Meta
-            # only determines the number of data files produced (above)
-            # if both filenames and data are None.
-            if len_meta < 2:
-                if not meta:
-                    meta = [None]
-                meta = [meta[0] for fn in filenames]
-            if len(meta) != len(filenames):
-                raise ValueError('DataFileList: meta does not match ' \
-                    'data/filenames in length')
             initlist = [DataFile(filename=fn, data=obj, meta=mdict,
                 mode=mode, strip=strip, prefix=prefix, suffix=suffix,
                 dirname=dirname) for obj, mdict, fn in \
@@ -549,27 +470,179 @@ class DataFileList(list):
         # Record the specified mode, to apply to any DataFiles added later:
         self._mode = mode
 
-    # Wrap the normal list append in the same way as __init__:
+    def _expand_args(self, filenames, data, meta, mode, strip, prefix,
+        suffix, dirname):
+
+        # First convert filenames/data/meta to lists (if they aren't already)
+        # or None. Although instantiating a list of things, single objects are
+        # accepted for convenience and are expanded to match the lengths of
+        # the other arguments if needed (except filenames). There isn't really
+        # a simple way of doing this with a function because for some arguments
+        # we want to distinguish specific list-like objects from a list of
+        # those objects, for others, we want to distinguish duck-typed sequence
+        # objects from a list etc. -- ie. the criteria vary. Also, it seems
+        # safer to require specific input types in some cases and warn the user
+        # if something unexpected is received. Handling all this is a little
+        # fiddly but should make things conceptually simpler and/or more
+        # readable from a user perspective.
+
+        # Data can be a singly-nested list, with one sub-list per DataFile.
+        # These cases are enumerated to distinguish them from container lists.
+        if _compatible_data_obj(data) or data == []:
+            data = [data]
+        elif data is not None and not hasattr(data, '__iter__'):
+            # If the constituent elements of the list don't have the right
+            # type, let DataFile complain rather than checking here.
+            raise TypeError('data parameter has an unexpected type')
+        # How many data items do we have (None or 1 or length of list >=0)?
+        len_data = seqlen(data)
+
+        if isinstance(filenames, basestring):
+            filenames = [filenames]
+        elif filenames is not None and not hasattr(filenames, '__iter__'):
+            raise TypeError('filenames parameter has an unexpected type')
+        len_fn = seqlen(filenames)
+
+        if hasattr(meta, 'keys'):  # dict-like (inc. PyFITS headers)
+            meta = [meta]
+        elif meta is not None and not hasattr(meta, '__iter__'):
+            raise TypeError('meta parameter has an unexpected type')
+        len_meta = seqlen(meta)
+
+        # Determine whether the filename is being modified, to help decide
+        # below whether a new copy of the input is needed:
+        fn_modified = filenames or strip or prefix or suffix \
+            or dirname is not None
+
+        # If there are any modifiers to the input filename, meta or mode or
+        # the data aren't already DataFiles, create a new copy of each DataFile
+        # to hold those modifications without affecting existing objects
+        # (otherwise, use what we were given directly, to allow making new
+        # lists of existing DataFile instances):
+        if not (isinstance(data, list) and meta is None and not fn_modified \
+           and all([isinstance(item, DataFile) and item.mode == mode \
+                    for item in data])):
+
+            # Here we should have an existing DataFileList instance, a list of
+            # DataFile objects, list of NDData or list of lists of NDData:
+
+            # Expand out data, filenames & meta to lists of the same length,
+            # to avoid repetition below.
+            listlen = max(len_fn, len_data, len_meta)
+
+            if listlen is None:
+                filenames, data, meta = [], [], []
+            else:
+                listrange = range(listlen)
+                # In the special case of filenames, we don't expand out a
+                # single value to match the other lists, as any filenames are
+                # expected to be unique within any given list:
+                filenames = filenames if filenames else \
+                            [None for item in listrange]
+                data = data if len_data > 1 \
+                       else [data[0] for item in listrange] if data \
+                       else [data for item in listrange]
+                       # This last line can produce [None] or [[]], the latter
+                       # of which overrides any existing data in the DataFile.
+                meta = meta if len_meta > 1 \
+                       else [meta[0] for item in listrange] if meta \
+                       else [meta for item in listrange]
+
+            if not len(filenames) == len(data) == len(meta):
+                raise ValueError('filenames, data & meta args are unmatched ' \
+                    'in length')
+
+        return filenames, data, meta
+
+    # Ensure the data to be added have a compatible mode. These rules might
+    # still need a bit of tweaking but should be reasonable.
+    def _check_mode(self, filename, data, strip, prefix, suffix, dirname):
+
+        is_datafile = isinstance(data, DataFile)
+        orig_mode = data.mode if is_datafile else self._mode
+
+        if orig_mode == self._mode:
+            return True
+
+        # Disallow appending as-yet-unwritten files when the files in the list
+        # are also expected to be on disk (eg. by IRAF):
+        if self._mode in ['read', 'update'] and \
+           orig_mode in ['new', 'overwrite']:
+            raise ValueError('can\'t add unsaved file to DataFileList '\
+                             'whose mode=\'{0}\''.format(self._mode))
+
+        # When listing 'new' files, figure out the filename that would be added
+        # and ensure it doesn't already exist on disk (simply instantiating
+        # DataFile would produce a less clear error for this scenario).
+        elif self._mode == 'new':
+            fn = FileName(filename if filename else data.filename \
+                          if is_datafile else None, strip=strip, prefix=prefix,
+                          suffix=suffix, dirname=dirname)
+            if os.path.exists(fn):
+                raise ValueError('can\'t add already-existing file(s) to '\
+                                 'DataFileList whose mode=\'new\'')
+
+        # Disallow overwriting files previously declared read-only by
+        # accidentally appending them to a writeable list:
+        elif orig_mode == 'read':  # list mode 'update'/'overwrite'
+            raise ValueError('can\'t add read-only data to DataFileList '\
+                             'whose mode=\'{0}\''.format(self._mode))
+
+        return False
+
+    # Wrap the normal list append:
     def append(self, data=None, meta=None, filename=None, strip=False, \
         prefix=None, suffix=None, dirname=None):
 
-        if isinstance(data, DataFile) and not (meta or filename or strip or \
-            prefix or suffix or dirname is not None):
-            list.append(self, data)
-        else:
-            list.append(self, DataFile(filename=filename, data=data, meta=meta,
-                mode=self._mode, strip=strip, prefix=prefix, suffix=suffix,
-                dirname=dirname))
+        # If the filename of the DataSet being appended is unmodified and its
+        # existing mode is the same as the list's, we append that instance to
+        # allow keeping the same DataFiles in multiple lists, otherwise we cast
+        # to a new instance with the appropriate attributes modified. All
+        # DataFiles inherit the file mode of the DataFileList. To avoid
+        # surprises, the modes of existing DataFiles can only be overridden
+        # arbitrarily at instantiation, when done explicitly, whereas here
+        # certain combinations are disallowed.
 
-    # Wrap the normal list extend in the same way as __init__:
+        same_mode = self._check_mode(filename=filename, data=data, strip=strip,
+            prefix=prefix, suffix=suffix, dirname=dirname)
+
+        if isinstance(data, DataFile) and same_mode and not (meta or filename \
+            or strip or prefix or suffix or dirname is not None):
+            newdf = data
+        else:
+            newdf = DataFile(filename=filename, data=data, meta=meta,
+                mode=self._mode, strip=strip, prefix=prefix, suffix=suffix,
+                dirname=dirname)
+
+        list.append(self, newdf)
+
     def extend(self, data=None, meta=None, filenames=None, strip=False, \
         prefix=None, suffix=None, dirname=None):
 
-        filenames = [] if filenames is None else filenames
+        # Check & if needed expand the argument lists, as in init.
+        filenames, data, meta = self._expand_args(filenames=filenames,
+            data=data, meta=meta, mode=self._mode, strip=strip, prefix=prefix,
+            suffix=suffix, dirname=dirname)
 
-        list.extend(self, DataFileList(filenames=filenames, data=data,
-            meta=meta, mode=self._mode, strip=strip, prefix=prefix,
-            suffix=suffix, dirname=dirname))
+        # If no mods are specified to the input DataFiles, use them directly:
+        if filenames is None:
+            initlist = data
+
+        # Otherwise, cast each data input to new DataFile with requested mods:
+        else:
+            # This is a bit of a hack to run _check_mode as part of a list
+            # comprehension; we only really care whether it raises an exception
+            # but comparing its return value with None (which never happens)
+            # conforms with the applicable syntax:
+            initlist = [DataFile(filename=fn, data=obj, meta=mdict,
+                mode=self._mode, strip=strip, prefix=prefix, suffix=suffix,
+                dirname=dirname) for obj, mdict, fn in \
+                zip(data, meta, filenames) \
+                if self._check_mode(filename=fn, data=obj, strip=strip,
+                    prefix=prefix, suffix=suffix, dirname=dirname) is not None]
+
+        # Call the usual list.extend() method to finish the job:
+        list.extend(self, initlist)
 
 
 def seqlen(arg, convert_empty=False):
