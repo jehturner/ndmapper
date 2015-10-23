@@ -332,12 +332,12 @@ class DataFile(object):
         # to pass to the save_list function. Also record the file location
         # index for each saved attribute, to allow remapping to the new file.
 
-        data_list, meta_list, identifiers, mapidx, idents = [], [], [], [], []
+        data_list, meta_list, identifiers, mapidx = [], [], [], []
 
         idx = 0
         for ndd in self._data:
 
-            ident = ndd._io.ident if ndd._io else None
+            ident = ndd.ident
 
             arr_group = (ndd.data,
                          ndd.uncertainty.array**2 if ndd.uncertainty else None,
@@ -352,29 +352,27 @@ class DataFile(object):
             # uncertainty/flags (passing None values to save_list for those
             # would cause any existing information to be preserved at the
             # applicable location in the file, which isn't what we want).
-            for arr, meta, ident in zip(arr_group, meta_group, id_group):
-                if arr is not None or ident[0] == data_name:
+            for arr, meta, arr_id in zip(arr_group, meta_group, id_group):
+                if arr is not None or arr_id[0] == data_name:
                     idx += 1
                     data_list.append(arr)
                     meta_list.append(meta)
-                    identifiers.append(ident)
+                    identifiers.append(arr_id)
                     mapidx.append(idx)
                 else:
                     mapidx.append(None)
-
-            idents.append(ident)  # used again below when re-mapping
 
         ndmio.save_list(self.filename, data_list, meta_list, identifiers,
                         self.meta)
 
         # If the save succeeded without raising an exception, remap each
         # NDLater's _io attribute to the newly-saved file:
-        for ndd, ident, data_idx, uncertainty_idx, flags_idx in \
-            zip(self._data, idents, *[iter(mapidx)]*3):
+        for ndd, data_idx, uncertainty_idx, flags_idx in \
+            zip(self._data, *[iter(mapidx)]*3):
 
             # Initialize a new _io instance in case it doesn't exist already:
             ndd._io = NDMapIO(FileName(self.filename),
-                              ident=ident, data_idx=data_idx,
+                              ident=ndd.ident, data_idx=data_idx,
                               uncertainty_idx=uncertainty_idx,
                               flags_idx=flags_idx)
 
@@ -735,7 +733,8 @@ class NDLater(NDDataArray):
         determine the correspondence of NDLater instances across multiple
         DataFile objects. [The use of string identifiers would currently
         cause incompatibility with IRAF run_task, until more bookkeeping is
-        added to map them to numeric EXTVERs for the FITS kernel.]
+        added to map them to numeric EXTVERs for the FITS kernel; also, the
+        back-end loader/saver would also need modifications to handle them.]
 
     iomap : `NDMapIO`, optional
         An object that maps the data, uncertainty & flags attributes to a file
@@ -760,6 +759,8 @@ class NDLater(NDDataArray):
      This is a Work in progress, to support DataFile.)
 
     """
+
+    _id_key = 'NDM_ID'
 
     # After implementing lazy loading with NDLater instead of loading
     # everything in _load_nddata_from_FITS, 11 tests now take ~2.3s total to
@@ -843,8 +844,8 @@ class NDLater(NDDataArray):
             # take care of this.
 
         # Don't bother loading the header lazily, but still get it via NDMapIO,
-        # to avoid adding I/O logic in more places than necessary. We may also
-        # need the meta-data here, eg. to determine things like units & WCS.
+        # to avoid adding I/O logic in more places than necessary. We also need
+        # the meta-data here, to determine things like ident, units & WCS.
         if self._meta is None:
             if self._io:
                 self._meta = self._io.load_meta()
@@ -872,8 +873,11 @@ class NDLater(NDDataArray):
         self._unloaded = data is None and uncertainty is None and \
                          flags is None and meta is None
 
-        # Set or override identifier if supplied by the user (if used, this
-        # resets the above unloaded flag as it's a persistent modification):
+        # Set or override identifier in order of precedence: 1. user parameter,
+        # 2. value persisted in meta-data, 3. format-native iomap value.
+        # Changing the value read from disk resets the above unloaded flag:
+        if self.ident is None and self._io:
+            self._meta[self._id_key] = self._io.ident
         if ident is not None:
             self.ident = ident
 
@@ -938,13 +942,13 @@ class NDLater(NDDataArray):
 
     @property
     def ident(self):
-        return self._meta.get('NDM_ID', None)
+        return self._meta.get(self._id_key, None)
 
     @ident.setter
     def ident(self, value):
         if value != self.ident:
             self._unloaded = False
-        self._meta['NDM_ID'] = value
+        self._meta[self._id_key] = value
 
     @property
     def unloaded(self):
