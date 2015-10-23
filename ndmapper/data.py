@@ -729,12 +729,34 @@ class NDLater(NDDataArray):
         of this particular object. e.g., creation date, unique identifier,
         simulation parameters, exposure time, telescope name, etc.
 
-    iomap : NDMapIO, optional
+    ident : `int` (`str` to be supported later), optional
+        File-independent identifier for this NDLater instance (eg. MOS slit
+        number, CCD/amplifier number or object name). This is used to
+        determine the correspondence of NDLater instances across multiple
+        DataFile objects. [The use of string identifiers would currently
+        cause incompatibility with IRAF run_task, until more bookkeeping is
+        added to map them to numeric EXTVERs for the FITS kernel.]
+
+    iomap : `NDMapIO`, optional
         An object that maps the data, uncertainty & flags attributes to a file
         name and indices within that file, enabling those attribute values to
-        be lazily loaded or saved.
+        be lazily loaded. Internally, this iomap remains pointing to the
+        existing file location with which the NDLater instance was last
+        synchronized (loaded/saved), independently of whether the host DataFile
+        (if any) changes, ensuring that the expected data are loaded on demand
+        (as long as the original file still exists). The iomap.ident attribute
+        is therefore independent of NDLater.ident, to allow renaming/numbering.
 
-    (See NDDataArray doc string for methods & attributes.
+    Attributes
+    ----------
+
+    ident : `int` (`str` to be supported later)
+        As described above. When the NDLater instance is read from a FITS file
+        via DataFile, this value defaults to EXTVER (unless the file was saved
+        from a previous instance with the value overridden). This attribute is
+        an API short cut to meta['NDM_ID'], where the value persists.
+
+    (See NDDataArray doc string for other methods & attributes.
      This is a Work in progress, to support DataFile.)
 
     """
@@ -746,7 +768,7 @@ class NDLater(NDDataArray):
     # This is based on the NDData & NDDataArray __init__ but avoids referencing
     # array attributes here, instead storing an obj that knows how to get them.
     def __init__(self, data=None, uncertainty=None, flags=None, meta=None,
-                 iomap=None):
+                 ident=None, iomap=None):
 
         if iomap and not isinstance(iomap, NDMapIO):
             raise TypeError('iomap must be an NDMapIO instance')
@@ -850,6 +872,11 @@ class NDLater(NDDataArray):
         self._unloaded = data is None and uncertainty is None and \
                          flags is None and meta is None
 
+        # Set or override identifier if supplied by the user (if used, this
+        # resets the above unloaded flag as it's a persistent modification):
+        if ident is not None:
+            self.ident = ident
+
     @property
     def data(self):
         if self._data is None and self._io:
@@ -908,6 +935,16 @@ class NDLater(NDDataArray):
     def meta(self):
         self._unloaded = False
         return self._meta
+
+    @property
+    def ident(self):
+        return self._meta.get('NDM_ID', None)
+
+    @ident.setter
+    def ident(self, value):
+        if value != self.ident:
+            self._unloaded = False
+        self._meta['NDM_ID'] = value
 
     @property
     def unloaded(self):
