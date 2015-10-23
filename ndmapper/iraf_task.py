@@ -332,7 +332,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
             # within each group can be handled using comb_in=False.
             if MEF_ext:
                 # List EXTVERs for each input file (matching inpset dict):
-                extdict = {param : [{ndd._io.ident : ndd._io.data_idx \
+                extdict = {param : [{ndd.ident : ndd._io.data_idx \
                                      for ndd in df} for df in inpset[param]] \
                            for param in inpset}
                 # Also derive a flat list of all sorted EXTVER lists, so we
