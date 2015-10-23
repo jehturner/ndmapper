@@ -29,8 +29,7 @@ def load_array(filename, index):
 def save_array(filename, index, data, meta=None):
 
     # Convert the inputs to a PyFITS HDU:
-    hdr = pyfits.Header(meta) if meta else None
-    hdu = pyfits.ImageHDU(data=data, header=hdr, uint=True)
+    hdu = pyfits.ImageHDU(data=data, header=_convert_meta(meta), uint=True)
 
     # Open & parse the existing file:
     hdulist = pyfits.open(str(filename), mode='update', memmap=True, uint=True)
@@ -63,7 +62,7 @@ def save_list(filename, data, array_meta, identifiers, common_meta):
     if len(array_meta) != narr or len(identifiers) != narr:
         raise ValueError('lengths of array_meta & identifiers must match data')
 
-    phu = pyfits.PrimaryHDU(header=pyfits.Header(common_meta))
+    phu = pyfits.PrimaryHDU(header=_convert_meta(common_meta))
     phu.header['EXTEND'] = True  # required when adding MEF extensions
 
     exists = os.path.exists(filename)
@@ -88,8 +87,9 @@ def save_list(filename, data, array_meta, identifiers, common_meta):
         # unnecessary writes (which io.fits does automatically).
         if arr is not None or meta is not None or n > oldlen:
 
-            hdr = pyfits.Header(meta) if meta else None  # set INHERIT=F ?
-            hdu = pyfits.ImageHDU(arr, hdr, name=name, uint=True)
+            hdu = pyfits.ImageHDU(data=arr, header=_convert_meta(meta),
+                                  name=name, uint=True)
+            # Set INHERIT = F here?
             hdu.ver = -1 if ver is None else ver
 
             if n <= oldlen:
@@ -102,6 +102,17 @@ def save_list(filename, data, array_meta, identifiers, common_meta):
     del hdulist[n+1:]
 
     hdulist.close()
+
+
+def _convert_meta(meta):
+    if meta:
+        if isinstance(meta, pyfits.Header):  # should use hasttr 'cards'?
+            hdr = meta  # preserve comments
+        else:
+            hdr = pyfits.Header([pyfits.Card(key, val) for key, val in \
+                                 meta.iteritems()])
+        return hdr
+    # (Return None by default if meta is None)
 
 
 def map_file(filename):

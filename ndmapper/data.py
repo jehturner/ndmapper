@@ -169,7 +169,7 @@ class DataFile(object):
         if self._data is None:
             self._data = []
         if self.meta is None:
-            self._meta = {}
+            self._meta = OrderedDict()
         self._len = len(self._data)
 
         # Has the user overridden or accessed the file contents since
