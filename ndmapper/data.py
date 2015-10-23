@@ -328,17 +328,16 @@ class DataFile(object):
         uncertainty_name = config['uncertainty_name']
         flags_name = config['flags_name']
 
-        # Construct flat lists for the array, meta & (name, group_id) tuple,
+        # Construct flat lists for the array, meta & (name, ident) tuple,
         # to pass to the save_list function. Also record the file location
         # index for each saved attribute, to allow remapping to the new file.
 
-        data_list, meta_list, identifiers, mapidx = [], [], [], []
-        group_ids = []
+        data_list, meta_list, identifiers, mapidx, idents = [], [], [], [], []
 
         idx = 0
         for ndd in self._data:
 
-            group_id = ndd._io.group_id if ndd._io else None
+            ident = ndd._io.ident if ndd._io else None
 
             arr_group = (ndd.data,
                          ndd.uncertainty.array**2 if ndd.uncertainty else None,
@@ -346,8 +345,8 @@ class DataFile(object):
 
             meta_group = (ndd.meta, None, None)
 
-            id_group = ((data_name, group_id), (uncertainty_name, group_id),
-                        (flags_name, group_id))
+            id_group = ((data_name, ident), (uncertainty_name, ident),
+                        (flags_name, ident))
 
             # Include list entries for the main data array and only non-empty
             # uncertainty/flags (passing None values to save_list for those
@@ -363,19 +362,19 @@ class DataFile(object):
                 else:
                     mapidx.append(None)
 
-            group_ids.append(group_id)  # used again below when re-mapping
+            idents.append(ident)  # used again below when re-mapping
 
         ndmio.save_list(self.filename, data_list, meta_list, identifiers,
                         self.meta)
 
         # If the save succeeded without raising an exception, remap each
         # NDLater's _io attribute to the newly-saved file:
-        for ndd, group_id, data_idx, uncertainty_idx, flags_idx in \
-            zip(self._data, group_ids, *[iter(mapidx)]*3):
+        for ndd, ident, data_idx, uncertainty_idx, flags_idx in \
+            zip(self._data, idents, *[iter(mapidx)]*3):
 
             # Initialize a new _io instance in case it doesn't exist already:
             ndd._io = NDMapIO(FileName(self.filename),
-                              group_id=group_id, data_idx=data_idx,
+                              ident=ident, data_idx=data_idx,
                               uncertainty_idx=uncertainty_idx,
                               flags_idx=flags_idx)
 

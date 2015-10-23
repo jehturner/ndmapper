@@ -206,7 +206,7 @@ def map_file(filename):
 
         # Instantiate the NDMapIO instance, recording the original FITS
         # extension indices and the group extver (== data extver).
-        maplist.append(NDMapIO(filename, group_id=data_hdu.ver,
+        maplist.append(NDMapIO(filename, ident=data_hdu.ver,
             data_idx=data_idx, uncertainty_idx=uncert_idx, \
             flags_idx=flags_idx))
 

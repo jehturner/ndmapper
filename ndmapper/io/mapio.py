@@ -223,7 +223,7 @@ class NDMapIO(object):
     filename : FileName
         The path to the file from which the data are to be mapped.
 
-    group_id : int or str or None
+    ident : int or str or None
         Group identifier appropriate for the file type (int EXTVER for FITS),
         which labels this particular NDData instance within a DataFile.
 
@@ -239,7 +239,7 @@ class NDMapIO(object):
     _uncertainty_hash = None
     _flags_hash = None
 
-    def __init__(self, filename, group_id=None, data_idx=None, \
+    def __init__(self, filename, ident=None, data_idx=None, \
         uncertainty_idx=None, flags_idx=None):
 
         # Cast the filename to a new FileName instance whether or not it is
@@ -253,7 +253,7 @@ class NDMapIO(object):
                              'object')
 
         self.filename = filename
-        self.group_id = group_id
+        self.ident = ident
         self.data_idx = data_idx
         self.uncertainty_idx = uncertainty_idx
         self.flags_idx = flags_idx
@@ -262,7 +262,7 @@ class NDMapIO(object):
         self._mloader = get_backend_fn('load_array_meta', self.filename)
         self._saver = get_backend_fn('save_array', self.filename)
 
-        # Consider automatically determining group_id from the input here
+        # Consider automatically determining ident from the input here
         # (ie. setting it to hdu.ver == EXTVER) if None.
 
     def load_data(self):
