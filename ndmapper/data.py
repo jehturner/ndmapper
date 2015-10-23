@@ -391,6 +391,33 @@ class DataFile(object):
         return self._unloaded and all([ndd.unloaded and \
             ndd._io.filename == self.filename for ndd in self])
 
+    def renumber(self, idents=None):
+        """
+        Re-number/name the (ident attributes of) member NDData instances,
+        either with user-supplied values or sequentially.
+
+        Parameters
+        ----------
+
+        idents : list of int, optional
+            The identifiers to use, if not numbering sequentially from 1.
+            The intention is also to allow a list of str later (see NDLater).
+
+        """
+
+        if idents:
+            if not isinstance(idents, list) or len(idents) != len(self):
+                raise ValueError('idents must be a list matching the '\
+                                 'DataFile length')
+            pairs = zip(idents, self)
+        else:
+            pairs = enumerate(self, start=1)
+
+        for ident, ndd in pairs:
+            ndd.ident = ident
+
+        self._unloaded = False
+
 
 class DataFileList(list):
     """
