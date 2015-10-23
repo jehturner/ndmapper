@@ -333,11 +333,12 @@ class DataFile(object):
         # index for each saved attribute, to allow remapping to the new file.
 
         data_list, meta_list, identifiers, mapidx = [], [], [], []
+        group_ids = []
 
         idx = 0
         for ndd in self._data:
 
-            group_id = ndd._io.group_id
+            group_id = ndd._io.group_id if ndd._io else None
 
             arr_group = (ndd.data,
                          ndd.uncertainty.array**2 if ndd.uncertainty else None,
@@ -362,17 +363,21 @@ class DataFile(object):
                 else:
                     mapidx.append(None)
 
+            group_ids.append(group_id)  # used again below when re-mapping
+
         ndmio.save_list(self.filename, data_list, meta_list, identifiers,
                         self.meta)
 
         # If the save succeeded without raising an exception, remap each
         # NDLater's _io attribute to the newly-saved file:
-        for ndd, data_idx, uncertainty_idx, flags_idx in \
-            zip(self._data, *[iter(mapidx)]*3):
-            ndd._io.filename = FileName(self.filename)
-            ndd._io.data_idx = data_idx
-            ndd._io.uncertainty_idx = uncertainty_idx
-            ndd._io.flags = flags_idx
+        for ndd, group_id, data_idx, uncertainty_idx, flags_idx in \
+            zip(self._data, group_ids, *[iter(mapidx)]*3):
+
+            # Initialize a new _io instance in case it doesn't exist already:
+            ndd._io = NDMapIO(FileName(self.filename),
+                              group_id=group_id, data_idx=data_idx,
+                              uncertainty_idx=uncertainty_idx,
+                              flags_idx=flags_idx)
 
         # If the file mode was 'new', it needs changing to 'update' now it
         # has been saved, to allow saving further changes; likewise for

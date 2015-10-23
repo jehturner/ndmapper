@@ -63,7 +63,7 @@ def save_list(filename, data, array_meta, identifiers, common_meta):
     if len(array_meta) != narr or len(identifiers) != narr:
         raise ValueError('lengths of array_meta & identifiers must match data')
 
-    phu = pyfits.PrimaryHDU(header=common_meta)
+    phu = pyfits.PrimaryHDU(header=pyfits.Header(common_meta))
     phu.header['EXTEND'] = True  # required when adding MEF extensions
 
     exists = os.path.exists(filename)
@@ -88,9 +88,9 @@ def save_list(filename, data, array_meta, identifiers, common_meta):
         # unnecessary writes (which io.fits does automatically).
         if arr is not None or meta is not None or n > oldlen:
 
-            hdr = pyfits.Header(meta) if meta else None
+            hdr = pyfits.Header(meta) if meta else None  # set INHERIT=F ?
             hdu = pyfits.ImageHDU(arr, hdr, name=name, uint=True)
-            hdu.ver = ver
+            hdu.ver = -1 if ver is None else ver
 
             if n <= oldlen:
                 hdulist[n] = hdu
