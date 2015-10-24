@@ -234,17 +234,24 @@ class DataFile(object):
     def __repr__(self):
         return 'DataFile \'%s\' (len %d)' % (self.__str__(), self._len)
 
-    # Facilitate appending new NDData instances to the DataFile, If the
-    # input is another DataFile instance, any existing filename is dropped.
-    def append(self, elements):
-        if not isinstance(elements, DataFile):
-            elements = DataFile(data=elements)
-        if elements._data:
-            if self._data is None:
-                self._data = []
-            self._data += elements._data
-        if self._data is not None:
-            self._len = len(self._data)
+    # Append a new NDData instance to the DataFile:
+    def append(self, item):
+        # For the time being, restrict the items to append to NDData sub-
+        # classes, otherwise quite strange types of arrays can result:
+        if not isinstance(item, NDDataBase):
+            raise ValueError('append argument should be NDData compatible')
+        self._data.append(NDLater(data=item))
+        self._len += 1
+        self._unloaded = False
+
+    # Extend the DataFile with the contents of another DataFile or list of
+    # NDData-derived objects (or single object, like append). If the input is
+    # another DataFile instance, any existing filename is dropped.
+    def extend(self, items):
+        if not isinstance(items, DataFile):
+            items = DataFile(data=items)
+        self._data += items._data
+        self._len = len(self._data)
         self._unloaded = False
 
     def __len__(self):
