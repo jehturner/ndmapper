@@ -240,7 +240,13 @@ class DataFile(object):
         # classes, otherwise quite strange types of arrays can result:
         if not isinstance(item, NDDataBase):
             raise ValueError('append argument should be NDData compatible')
-        self._data.append(NDLater(data=item))
+        item = NDLater(data=item)
+        # We pretty much have to recalculate the largest numeric identifier
+        # here, since it would be fiddly to track when the user changes one.
+        # Only auto-number new NDData if they don't already have identifiers.
+        if item.ident is None:
+            item.ident = self.next_ident
+        self._data.append(item)
         self._len += 1
         self._unloaded = False
 
@@ -250,6 +256,10 @@ class DataFile(object):
     def extend(self, items):
         if not isinstance(items, DataFile):
             items = DataFile(data=items)
+        # Only auto-number new NDData if they don't already have identifiers.
+        if all([ndd.ident is None for ndd in items]):
+            for ident, item in enumerate(items, start=self.next_ident):
+                item.ident = ident
         self._data += items._data
         self._len = len(self._data)
         self._unloaded = False
@@ -398,6 +408,22 @@ class DataFile(object):
         return self._unloaded and all([ndd.unloaded and \
             ndd._io.filename == self.filename for ndd in self])
 
+    @property
+    def next_ident(self):
+        """
+        Return the next integer identifier greater than any existing integer
+        identifier(s) or None if one or more existing identifier is undefined.
+        """
+        idents = [as_int_or_none(ndd.ident) for ndd in self]
+        if not idents:
+            ident = 1
+        elif any([val is None for val in idents]):
+            ident = None  # don't try to set ids if they're incomplete anyway
+        else:
+            ident = max(idents)
+            ident = ident + 1 if ident else 1  # don't rely on False==0 FWIW
+        return ident
+
     def renumber(self, idents=None):
         """
         Re-number/name the (ident attributes of) member NDData instances,
@@ -424,6 +450,23 @@ class DataFile(object):
             ndd.ident = ident
 
         self._unloaded = False
+
+
+def as_int_or_none(val):
+    """
+    Convert int or str(int) to an integer, preserving None values and returning
+    False for other types.
+    """
+    if val is None or isinstance(val, (int, long)):
+        result = val
+    elif isinstance(val, basestring):
+        try:
+            result = int(val)
+        except ValueError, TypeError:
+            result = False
+    else:
+        result = False
+    return result
 
 
 class DataFileList(list):
@@ -976,7 +1019,8 @@ class NDLater(NDDataArray):
 
     @property
     def ident(self):
-        return self._meta.get(self._id_key, None)
+        val = self._meta.get(self._id_key, None)
+        return val or None  # PyFITS encodes None as ''; no need to distinguish
 
     @ident.setter
     def ident(self, value):
