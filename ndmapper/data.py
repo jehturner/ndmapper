@@ -681,7 +681,7 @@ class DataFileList(list):
             fn = FileName(filename if filename else data.filename \
                           if is_datafile else None, strip=strip, prefix=prefix,
                           suffix=suffix, dirname=dirname)
-            if os.path.exists(fn):
+            if os.path.exists(str(fn)):
                 raise ValueError('can\'t add already-existing file(s) to '\
                                  'DataFileList whose mode=\'new\'')
 
