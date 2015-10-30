@@ -10,6 +10,7 @@
 
 import os.path
 from copy import deepcopy
+import tempfile
 
 import numpy as np
 
@@ -194,6 +195,9 @@ class DataFile(object):
 
     @property
     def mode(self):
+        # TO DO: make this update mode first if the filename attributes have
+        # changed, eg. by storing a string of whatever it was last, otherwise
+        # the mode doesn't change to 'new' as when replacing the filename.
         return self._mode
 
     @property
@@ -1077,6 +1081,36 @@ def load_datafilelist(filename, dirname=None, mode='read'):
     f.close()
 
     return dfl
+
+
+def temp_saved_datafile(datafile):
+    """
+    Save a copy of a DataFile instance using a temporary filename, eg. for
+    use by an external program, and return the copy. It is the caller's
+    responsibility to delete the file once it is no longer needed.
+
+    Although mapped to different files, both objects share the same pixel data
+    until reloaded.
+    """
+    # Python doesn't provide a (non-deprecated) way to produce a temporary
+    # filename without actually creating and opening the file (to avoid
+    # possible race conditions & exploits). One can, however, let Python close
+    # the file again and then recycle its name, saving the corresponding
+    # DataFile immediately to avoid possible collisions.
+    with tempfile.NamedTemporaryFile(
+        prefix='tmp_{0}_'.format(datafile.filename.base),
+        suffix='.'+datafile.filename.ext, dir='') as tmpfile:
+
+        # Construct the new DataFile in memory from the old one:
+        tdf = DataFile(data=datafile, filename=tmpfile.name, dirname='', \
+                       mode='overwrite')
+
+    # As soon as Python has closed its file handle, re-create the file by
+    # saving the new DataFile object:
+    tdf.save()
+
+    # Pass the new temporary DataFile back to the caller:
+    return tdf
 
 # To do:
 # - Is the DataFile init logic needlessly re-reading any DataFile passed

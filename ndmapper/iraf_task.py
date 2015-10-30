@@ -3,6 +3,7 @@
 
 # Draft module to execute IRAF tasks with PyRAF.
 
+import os
 import os.path
 import tempfile
 import datetime
@@ -12,7 +13,7 @@ from pyraf import iraf
 
 from . import config
 from .io import FileName
-from .data import DataFile, DataFileList
+from .data import DataFile, DataFileList, temp_saved_datafile
 
 
 def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
@@ -149,7 +150,10 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
     else:
         # Dict, to be implemented:
         raise NotImplementedError('logfile must currently be str or None')
- 
+
+    # Keep a list of any temporary files that need cleaning up when finished:
+    tmplist = []
+
     # This giant try-except block just exists to log any tracebacks before
     # re-raising the exception:
     try:
@@ -192,7 +196,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
         # below won't get run, including the check for output file creation).
         # Also, store unique directory paths when using path_param below.
         paths=set()
-        for dfl in inputs.values():
+        for dfl in inputs.itervalues():
             for df in dfl:
                 if not os.access(str(df), os.R_OK):
                     raise IOError('cannot read %s' % str(df))
@@ -244,6 +248,36 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
 
         # Make sure output parameters are filename lists, as for the input:
         outplen = conv_io_pars(outputs, mode='new')
+
+        # Save temporary copies (to the current directory) of any input files
+        # that could have changed in memory, having done what's needed with
+        # the original input filenames above. Creating copies can slow things
+        # down by a factor of ~2-3 (eg. from 2.3s to 5.7s when adding two 270M
+        # FITS files with 3 SCI extensions each on an SSD) but avoids
+        # unexpected results due to unsaved changes. Disk space usage could be
+        # improved by copying only those files needed at each iteration but
+        # that would complicate expansion of lists to the same length below etc.
+
+        # When path_param is set and *any* of the inputs needs saving, copies
+        # must be made of all the files, since they must reside in the same
+        # directory (and the original location may not be writeable).
+        if path_param and not all([df.unloaded for dfl in inputs.itervalues() \
+                                   for df in dfl]):
+            copyall = True
+            params[path_param] = ''
+        else:
+            copyall = False
+
+        # Substitute original DataFiles for temporary copies only where needed.
+        # The method for deciding this is currently a bit primitive (optimizing
+        # it is a bit of a minefield) but avoids routine copies in the common
+        # case where DataFileList is simply used as a list of files for IRAF.
+        for dfl in inputs.itervalues():
+            for n, df in enumerate(dfl):
+                if copyall or not df.unloaded:
+                    tdf = temp_saved_datafile(df)
+                    tmplist.append(tdf)
+                    dfl[n] = tdf
 
         # Consider adding a section here that enables comb_in automatically
         # if the number of output files (for at least one output parameter?)
@@ -300,7 +334,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
         prevnames = []
         for outpset in outlist:
             iternames = []
-            for dfl in outpset.values():
+            for dfl in outpset.itervalues():
                 for df in dfl:
                     df.log += '\n%s\n' % logstart
                     # (This comparison should also deal automatically with any
@@ -433,7 +467,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
                         # Attach log text to all output DataFile objects since,
                         # where there's more than one, we don't know which if
                         # any is the main one and it may apply to them all:
-                        for dfl in outpset.values():
+                        for dfl in outpset.itervalues():
                             for df in dfl:
                                 df.log += logtext
                         templog.close()
@@ -446,6 +480,10 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
                             raise RuntimeError('No file %s after running %s' % \
                                 (namestr, taskname))
 
+            # Here we would clean up any temporary copies of input files from
+            # this iteration over a given set of files, if and when the copies
+            # are made per iteration instead of all at the start.
+
         # Print final run_task() delimiter:
         dt = datetime.datetime.now()
         logend='END   run_task(%s)  %s\n-----\n' % \
@@ -454,7 +492,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
         print logend
 
         # Add delimiter to individual DataFile log attributes as well:
-        for dfl in outputs.values():
+        for dfl in outputs.itervalues():
             for df in dfl:
                 df.log += '\n%s\n' % logend
                 # print 'dfl', df.log
@@ -467,6 +505,8 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
     finally:
         if userlog:
             userlog.close()
+        for df in tmplist:
+            os.remove(str(df))
 
     # Map data from files listed in the outputs after their creation by IRAF:
     for param in outputs:
@@ -478,9 +518,6 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
     return outputs
 
     # TO DO:
-    # - Flesh out the model of passing a non-existent file object to a task
-    #   or Python function as a filename spec. and having the function add
-    #   the data etc.
     # - Finish logging behaviour as per the docstring(?).
     #   - Also send record of inputs/outputs to the log only in case the
     #     IRAF task doesn't do it?
@@ -493,21 +530,18 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
     #       - Only when the file mode corresponds to input files(?). Otherwise
     #         there's no way to know which is the right implicit extension.
     #         Unless there's a package-configurable default?
-    # - Copy files with path prefixes into the CWD under temporary filenames
-    #   (to avoid conflicts) and log their correspondence to temporary names
-    #   so the filenames aren't obfuscated too much in the log.
-    #   - Don't cd to the data because it might break user & IRAF expectations
-    #     about login.cl, database directories etc.
     # - Capture any stdout or stderr as well as the log?
     # - Consider allowing params other than input & output to be DataFileLists
     #   and converting them to strings as needed, for convenience.
     # - Add IRAF tests with another 2 FITS files: with VAR/DQ, unnumbered.
     # - Improve error trapping further??
-        
+
+
 def conv_io_pars(pardict, mode):
     """
     Convert dict of input or output Python file lists/names to dict of
     type DataFileList and return a list of the list lengths (private).
+
     """
     for param in pardict:
         # First cast any strings to a DataFile and then any DataFiles
@@ -520,6 +554,6 @@ def conv_io_pars(pardict, mode):
         except TypeError:
             raise TypeError('could not convert %s to DataFileList' \
                             % type(parval))
-    parlen = [len(val) for val in pardict.values()]
+    parlen = [len(val) for val in pardict.itervalues()]
     return parlen
 
