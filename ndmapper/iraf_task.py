@@ -195,20 +195,18 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
         inplen = conv_io_pars(inputs, mode=None)  # defaults to mode='read'
         nfiles = max(inplen)
 
-        # Ensure that all the input files exist (otherwise most of the code
-        # below won't get run, including the check for output file creation).
-        # Also, store unique directory paths when using path_param below.
-        paths=set()
-        for dfl in inputs.itervalues():
-            for df in dfl:
-                if not os.access(str(df), os.R_OK):
-                    raise IOError('cannot read %s' % str(df))
-                if path_param and df.filename.dir:  # don't count CWD ('')
-                    paths.add(df.filename.dir)
+        # Input files are no longer required already to exist on disk here, as
+        # the unloaded flag will be False otherwise, which now causes temporary
+        # copies to get saved below, at temp_saved_datafile().
 
         # Set the task's path_param if specified (but not overridden by the
         # user), after ensuring the path to the files is unique:
         if path_param and path_param not in params:
+            paths=set()
+            for dfl in inputs.itervalues():
+                for df in dfl:
+                    if df.filename.dir:  # don't count CWD ('')
+                        paths.add(df.filename.dir)
             ndirs = len(paths)
             if ndirs == 0:
                 path = ''
@@ -272,10 +270,11 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
         else:
             copyall = False
 
-        # Substitute original DataFiles for temporary copies only where needed.
-        # The method for deciding this is currently a bit primitive (optimizing
-        # it is a bit of a minefield) but avoids routine copies in the common
-        # case where DataFileList is simply used as a list of files for IRAF.
+        # Substitute original DataFiles for temporary copies only where needed
+        # (if we're not sure there's an up-to-date copy on disk already). The
+        # method for deciding this is currently a bit primitive (optimizing it
+        # is a bit of a minefield) but avoids routine copies in the common case
+        # where DataFileList is simply used as a list of files for IRAF.
         for dfl in inputs.itervalues():
             for n, df in enumerate(dfl):
                 if copyall or not df.unloaded:
