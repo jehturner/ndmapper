@@ -503,7 +503,7 @@ class DataFileList(list):
         There should be one instance per file or None (which preserves any
         information from an existing file).
 
-    mode : str
+    mode : str, optional
         'read' (default), 'new', 'update' or 'overwrite'
         Specifies whether the file should exist on disk already and be used to
         initialize this DataFile (if a filename is provided) and whether it can
@@ -511,7 +511,10 @@ class DataFileList(list):
         the specified file must already exist, with 'new', it must not exist
         and with 'overwrite', any existing file is ignored and will be replaced
         when writing to disk. The 'data' and 'filename' parameters always
-        override whatever would otherwise be read from disk.
+        override whatever would otherwise be read from disk. If mode is None,
+        it will be taken from any DataFile instances given as data, as long as
+        they are all the same (raising an exception if not), defaulting to
+        'read' if no DataFile instances are provided.
 
     strip : bool
         Remove any existing prefix and suffixes from the supplied filename
@@ -529,16 +532,16 @@ class DataFileList(list):
 
     """
 
-    def __init__(self, filenames=None, data=None, meta=None, mode='read',
+    def __init__(self, filenames=None, data=None, meta=None, mode=None,
         strip=False, prefix=None, suffix=None, dirname=None):
 
         # Check our args & if needed expand them out to match:
-        filenames, data, meta = self._expand_args(filenames=filenames,
+        filenames, data, meta, mode = self._expand_args(filenames=filenames,
             data=data, meta=meta, mode=mode, strip=strip, prefix=prefix,
             suffix=suffix, dirname=dirname)
 
         # If no mods are specified to the input DataFiles, use them directly:
-        if filenames is None:
+        if filenames is None:  # means _expand_args just passed through data
             initlist = data
         # Otherwise, cast each data input to new DataFile with requested mods:
         else:
@@ -592,6 +595,23 @@ class DataFileList(list):
             raise TypeError('meta parameter has an unexpected type')
         len_meta = seqlen(meta)
 
+        # If the mode is undefined, use any existing DataFile modes if they're
+        # all the same, otherwise default to 'read' as for DataFile.
+        if mode is None:
+            if isinstance(data, list):
+                dfmodes = list(set([item.mode for item in data \
+                                    if isinstance(item, DataFile)]))
+                nmodes = len(dfmodes)
+                if nmodes == 0:
+                    mode = 'read'
+                elif nmodes == 1:
+                    mode = dfmodes[0]
+                else:
+                    raise ValueError('must specify DataFileList mode when ' \
+                        'provided mixed DataFile modes')
+            else:
+                mode = 'read'
+
         # Determine whether the filename is being modified, to help decide
         # below whether a new copy of the input is needed:
         fn_modified = filenames or strip or prefix or suffix \
@@ -635,7 +655,7 @@ class DataFileList(list):
                 raise ValueError('filenames, data & meta args are unmatched ' \
                     'in length')
 
-        return filenames, data, meta
+        return filenames, data, meta, mode
 
     # Ensure the data to be added have a compatible mode. These rules might
     # still need a bit of tweaking but should be reasonable.
