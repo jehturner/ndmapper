@@ -16,6 +16,9 @@ from .io import FileName
 from .data import DataFile, DataFileList, temp_saved_datafile
 
 
+__all__ = ['run_task']
+
+
 def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
              comb_in=False, MEF_ext=True, path_param=None, logfile=None,
              **params):
@@ -218,7 +221,8 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
             params[path_param] = path
 
         # Apply any specified prefix to the filenames of the reference input
-        # parameter to form the corresponding output filenames:
+        # parameter to form the corresponding output filenames (this usage is
+        # a bit dodgy after re-doing DataFile modes but still works):
         if outputs is not None:
             for key, val in outputs.iteritems():
                 if isinstance(val, basestring) and val and val[0] in '!@':
