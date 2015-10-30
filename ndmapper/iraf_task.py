@@ -189,7 +189,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
         # Make sure each input parameter is expressed as a filename list and
         # determine how many sets of input files there are to iterate over
         # (should be as many as the length of the longest list).
-        inplen = conv_io_pars(inputs, mode='read')
+        inplen = conv_io_pars(inputs, mode=None)  # defaults to mode='read'
         nfiles = max(inplen)
 
         # Ensure that all the input files exist (otherwise most of the code
@@ -548,7 +548,8 @@ def conv_io_pars(pardict, mode):
         # to a DataFileList:
         parval = pardict[param]
         if isinstance(parval, basestring):
-            parval = DataFile(filename=parval, mode=mode)
+            dfmode = 'read' if mode is None else mode
+            parval = DataFile(filename=parval, mode=dfmode)
         try:
             pardict[param] = DataFileList(data=parval, mode=mode)
         except TypeError:
