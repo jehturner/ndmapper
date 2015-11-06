@@ -72,9 +72,10 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
         simple FITS. The extension names iterated over are defined by the
         package "config" dictionary.
 
-        The number of data_name extensions must be the same for every input
-        file or one (in which case that single extension will be re-used for
-        each iteration over the extensions of the other input files).
+        The number of extensions named config['labels']['data'] must be the
+        same for every input file or one (in which case that single extension
+        will be re-used for each iteration over the extensions of the other
+        input files).
 
     path_param : str or None
         Name of a task parameter (eg. 'rawpath') used to specify the location
@@ -323,7 +324,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
 
         # Define IRAF string format for any extension FITS extension numbers:
         in_extfmt = '[%s]'
-        out_extfmt = '[%s,%s,append]' % (config['data_name'], '%s')
+        out_extfmt = '[%s,%s,append]'
 
         # Do a pre-iteration over output parameter set(s) to ensure the files
         # don't already exist and are not duplicated between iterations, to
@@ -431,8 +432,8 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
                 # we just give IRAF the extname/ver to use instead of the ext.
                 for param in outpset:
                     params[param] = ','.join( \
-                        [str(df)+(out_extfmt % ver) if ver else str(df) \
-                         for df in outpset[param]])
+                        [str(df)+(out_extfmt % (df._labels['data'], ver)) \
+                         if ver else str(df) for df in outpset[param]])
 
                 # Specify log file for IRAF. Even if the user specifies a name,
                 # use a temporary file and capture its contents before

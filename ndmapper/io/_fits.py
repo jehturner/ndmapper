@@ -115,9 +115,14 @@ def _convert_meta(meta):
     # (Return None by default if meta is None)
 
 
-def map_file(filename):
+def map_file(filename, labels):
 
     hdulist = pyfits.open(str(filename), mode='readonly')
+
+    if not labels:
+        labels = {'data' : config['data_name'],
+                  'uncertainty' : config['uncertainty_name'],
+                  'flags' : config['flags_name']}
 
     # A dict of empty lists to sort recognized extensions into:
     idx_dict = {'data' : [], 'uncertainty' : [], 'flags' : [], 'undef' : []}
@@ -138,13 +143,13 @@ def map_file(filename):
             if hdu.name and idx > 0:  # ignore 'PRIMARY'
                 have_names = True
 
-            if hdu.name == config['data_name']:
+            if hdu.name == labels['data']:
                 idx_dict['data'].append(idx)
 
-            elif hdu.name == config['uncertainty_name']:
+            elif hdu.name == labels['uncertainty']:
                 idx_dict['uncertainty'].append(idx)
 
-            elif hdu.name == config['flags_name']:
+            elif hdu.name == labels['flags']:
                 idx_dict['flags'].append(idx)
 
             elif not hdu.name or idx == 0:  # ignore 'PRIMARY'

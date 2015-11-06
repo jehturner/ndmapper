@@ -4,7 +4,9 @@
 # The functions defined in this file determine the API & doc-string for their
 # format-specific counterparts, to which the work of loading/saving/etc. is
 # delegated. Back-end look-up is done automatically by the _get_loader
-# decorator, such that these can be minimal definitions.
+# decorator, such that these can be minimal definitions, or can be cached by
+# calling get_backend_fn() directly. Note that no common processing can be done
+# here if the same behaviour is expected via either look-up method.
 
 from .mapio import *            # want these in the public namespace
 from .formats import formats
@@ -107,9 +109,9 @@ def save_list(loader, filename, data, array_meta=None, identifiers=None,
 
 
 @_get_loader
-def map_file(loader, filename):
+def map_file(loader, filename, labels=None):
     """
     Open an existing file and return a list of corresponding NDMapIO instances.
     """
-    return loader(filename)
+    return loader(filename, labels)
 

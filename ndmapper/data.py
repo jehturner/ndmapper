@@ -9,7 +9,7 @@
 # extra fields.
 
 import os.path
-from copy import deepcopy
+from copy import copy, deepcopy
 import tempfile
 
 import numpy as np
@@ -109,18 +109,19 @@ class DataFile(object):
 
     _filename = None
     _meta = None
-    log = ''
+    _labels = None
 
-    _dirty = True    # has the file been modified since saved/loaded?
+    log = ''
 
 
     def __init__(self, filename=None, data=None, meta=None, mode='read',
-        strip=False, prefix=None, suffix=None, dirname=None):
+        strip=False, prefix=None, suffix=None, dirname=None, labels=None):
 
         if isinstance(data, DataFile):  # create new copy of existing obj
             self._data = data._data
             self._meta = deepcopy(data.meta)
             self._filename = deepcopy(data.filename)
+            self._labels = copy(data._labels)
         elif isinstance(data, NDDataBase):
             self._data = [NDLater(data=data)]
         elif hasattr(data, '__iter__') and \
@@ -130,7 +131,7 @@ class DataFile(object):
         elif data is None:
             self._data = None
         else:
-            raise TypeError('DataFile: data parameter has an unexpected type')
+            raise TypeError('data parameter has an unexpected type')
 
         # Use any filename & meta-data inherited from input DataFile unless
         # specified:
@@ -138,6 +139,22 @@ class DataFile(object):
             filename = self._filename
         if meta is not None:
             self._meta = meta
+
+        # Do likewise for component array labels, defaulting to the package
+        # config values if unspecified and not copying another DataFile. Any
+        # defaults not overridden still apply, to allow specifying a subset
+        # without leaving things unlabelled.
+        if not self._labels:
+            self._labels = {'data' : config['data_name'],
+                            'uncertainty' : config['uncertainty_name'],
+                            'flags' : config['flags_name']}
+        if labels:
+            if isinstance(labels, basestring):
+                self._labels['data'] = labels
+            elif hasattr(labels, 'keys'):
+                self._labels.update(labels)
+            else:
+                raise TypeError('labels parameter has an unexpected type')
 
         # Parse any filename into a FileName object:
         self._filename = FileName(filename, strip=strip, prefix=prefix,
@@ -275,8 +292,8 @@ class DataFile(object):
     # flat lists of NDData objects are supported, rather than any arbitrary
     # hierarchy supported by, say, HDF5.
     def _load_data(self):
-        self._data = [NDLater(iomap=iomap) for iomap \
-                     in ndmio.map_file(self.filename)]
+        self._data = [NDLater(iomap=iomap) for iomap in \
+                      ndmio.map_file(self.filename, labels=self._labels)]
 
     def _load_meta(self):
         self._meta = ndmio.load_common_meta(self.filename)
@@ -345,9 +362,9 @@ class DataFile(object):
         # this to backfire if not done very carefully (aka. premature
         # optimization) so this is left as an exercise for later.
 
-        data_name = config['data_name']
-        uncertainty_name = config['uncertainty_name']
-        flags_name = config['flags_name']
+        data_label = self._labels['data']
+        uncertainty_label = self._labels['uncertainty']
+        flags_label = self._labels['flags']
 
         # Construct flat lists for the array, meta & (name, ident) tuple,
         # to pass to the save_list function. Also record the file location
@@ -366,15 +383,15 @@ class DataFile(object):
 
             meta_group = (ndd.meta, None, None)
 
-            id_group = ((data_name, ident), (uncertainty_name, ident),
-                        (flags_name, ident))
+            id_group = ((data_label, ident), (uncertainty_label, ident),
+                        (flags_label, ident))
 
             # Include list entries for the main data array and only non-empty
             # uncertainty/flags (passing None values to save_list for those
             # would cause any existing information to be preserved at the
             # applicable location in the file, which isn't what we want).
             for arr, meta, arr_id in zip(arr_group, meta_group, id_group):
-                if arr is not None or arr_id[0] == data_name:
+                if arr is not None or arr_id[0] == data_label:
                     idx += 1
                     data_list.append(arr)
                     meta_list.append(meta)
