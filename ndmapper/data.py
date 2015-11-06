@@ -87,6 +87,12 @@ class DataFile(object):
     dirname : str, None
         Directory name to add to the filename (replacing any existing dir).
 
+    labels : dict or str, optional
+        Naming of each component array in the corresponding file on disk,
+        overriding the package default values in config['labels']. Where a
+        string is given, it overrides only the label of the main data array
+        (config['labels']['data']).
+
     Attributes
     ----------
 
