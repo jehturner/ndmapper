@@ -16,7 +16,7 @@ from .io import FileName
 from .data import DataFile, DataFileList, temp_saved_datafile
 
 
-__all__ = ['run_task']
+__all__ = ['run_task', 'component_labels']
 
 
 def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
@@ -562,4 +562,26 @@ def conv_io_pars(pardict, mode):
                             % type(parval))
     parlen = [len(val) for val in pardict.itervalues()]
     return parlen
+
+
+def component_labels(datafiles):
+    """
+    Ensure that all DataFile instances in datafiles use the same convention
+    for labelling NDData component arrays (eg. 'SCI', 'VAR', 'DQ') and return
+    the corresponding labels dictionary. The dictionary values can then be
+    used to specify the EXTNAME conventions for IRAF tasks that operate on
+    multi-extension FITS files (which is unnecessary in Python, where NDData
+    defines which array is which). An empty dictionary is returned if the input
+    list is empty.
+
+    Raises ValueError if the constituent label dictionaries differ.
+    """
+
+    unique_items = set([tuple(df._labels.iteritems()) for df in datafiles])
+    if len(unique_items) > 1:
+        raise ValueError('datafiles must all have the same "labels" convention')
+
+    labels = dict(unique_items.pop()) if unique_items else {}
+
+    return labels
 
