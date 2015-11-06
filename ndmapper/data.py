@@ -88,9 +88,9 @@ class DataFile(object):
         Directory name to add to the filename (replacing any existing dir).
 
     labels : str or dict of str : str, optional
-        Naming of each component array in the corresponding file on disk,
-        overriding the package default values in config['labels']. Where a
-        string is given, it overrides only the label of the main data array
+        Naming of each NDData component array in the corresponding file on
+        disk, overriding the package default values in config['labels']. Where
+        a string is given, it overrides only the label of the main data array
         (ie. config['labels']['data']).
 
     Attributes
@@ -151,7 +151,7 @@ class DataFile(object):
         # defaults not overridden still apply, to allow specifying a subset
         # without leaving things unlabelled.
         if not self._labels:
-            self._labels = config['labels']
+            self._labels = copy(config['labels'])
         if labels:
             if isinstance(labels, basestring):
                 self._labels['data'] = labels
