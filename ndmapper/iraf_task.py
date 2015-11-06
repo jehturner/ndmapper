@@ -564,7 +564,7 @@ def conv_io_pars(pardict, mode):
     return parlen
 
 
-def component_labels(datafiles):
+def get_extname_labels(datafiles):
     """
     Ensure that all DataFile instances in datafiles use the same convention
     for labelling NDData component arrays (eg. 'SCI', 'VAR', 'DQ') and return

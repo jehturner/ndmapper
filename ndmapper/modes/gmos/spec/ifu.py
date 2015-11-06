@@ -3,7 +3,7 @@
 
 from pyraf import iraf
 from ndmapper import config, ndprocess_defaults
-from ndmapper.iraf_task import run_task, component_labels
+from ndmapper.iraf_task import run_task, get_extname_labels
 from ndmapper.modes.gemini import gemini_iraf_helper
 
 @ndprocess_defaults
@@ -46,7 +46,7 @@ def prepare(inputs, outputs=None, mdf=None):
     gemvars = gemini_iraf_helper()
 
     # Determine input DataFile EXTNAME convention, to pass to the task:
-    labels = component_labels(inputs)
+    labels = get_extname_labels(inputs)
 
     # Get MDF from gmos$data by default or, if specified, from the CWD:
     if mdf is None:
@@ -176,7 +176,7 @@ def subtract_bias(inputs, bias, outputs=None, ovs_function='spline3',
     gemvars = gemini_iraf_helper()
 
     # Determine input DataFile EXTNAME convention, to pass to the task:
-    labels = component_labels(inputs)
+    labels = get_extname_labels(inputs)
 
     # Need to add QE correction parameters when copying this, once available.
 

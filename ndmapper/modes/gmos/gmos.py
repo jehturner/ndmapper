@@ -3,7 +3,7 @@
 
 from pyraf import iraf
 from ndmapper import config, ndprocess_defaults
-from ndmapper.iraf_task import run_task, component_labels
+from ndmapper.iraf_task import run_task, get_extname_labels
 
 # These functions are intended to represent logical processing steps, rather
 # than strict one-to-one wrappers for existing IRAF tasks; the aim is not to
@@ -99,7 +99,7 @@ def make_bias(inputs, bias=None, bpm=None, ovs_function='spline3',
         bias = '!inimages'
 
     # Determine input DataFile EXTNAME convention, to pass to the task:
-    labels = component_labels(inputs)
+    labels = get_extname_labels(inputs)
 
     # Insert a BPM in the task inputs if supplied by the user
     # (NB. Use of this BPM parameter is untested at the time of writing; it
