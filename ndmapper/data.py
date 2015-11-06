@@ -145,9 +145,7 @@ class DataFile(object):
         # defaults not overridden still apply, to allow specifying a subset
         # without leaving things unlabelled.
         if not self._labels:
-            self._labels = {'data' : config['data_name'],
-                            'uncertainty' : config['uncertainty_name'],
-                            'flags' : config['flags_name']}
+            self._labels = config['labels']
         if labels:
             if isinstance(labels, basestring):
                 self._labels['data'] = labels

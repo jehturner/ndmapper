@@ -13,9 +13,7 @@ from ._astropy_init import *
 
 config = {'filename_regex' : '[NS][0-9]{8}S[0-9]{3,4}',
           'logfile' : None,
-          'data_name' : 'SCI',
-          'uncertainty_name' : 'VAR',
-          'flags_name' : 'DQ',
+          'labels' : {'data' : 'SCI', 'uncertainty' : 'VAR', 'flags' : 'DQ'},
           'use_uncert' : True,
           'use_flags' : True,
           'interact' : False

@@ -120,9 +120,7 @@ def map_file(filename, labels):
     hdulist = pyfits.open(str(filename), mode='readonly')
 
     if not labels:
-        labels = {'data' : config['data_name'],
-                  'uncertainty' : config['uncertainty_name'],
-                  'flags' : config['flags_name']}
+        labels = config['labels']
 
     # A dict of empty lists to sort recognized extensions into:
     idx_dict = {'data' : [], 'uncertainty' : [], 'flags' : [], 'undef' : []}

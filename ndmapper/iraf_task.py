@@ -69,13 +69,14 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
         simple FITS as input (eg. core IRAF tasks; default = True)? This
         should be set to False for tasks that already handle multi-extension
         FITS files (eg. from Gemini IRAF) or when the input files are already
-        simple FITS. The extension names iterated over are defined by the
-        package "config" dictionary.
+        simple FITS. The extension names to be iterated over are defined when
+        the input DataFile instances are created, defaulting to values kept in
+        the package "config" dictionary.
 
-        The number of extensions named config['labels']['data'] must be the
-        same for every input file or one (in which case that single extension
-        will be re-used for each iteration over the extensions of the other
-        input files).
+        The number of extensions named config['labels']['data'] (eg. 'SCI')
+        must be the same for every input file or one (in which case that
+        single extension will be re-used for each iteration over the extensions
+        of the other input files).
 
     path_param : str or None
         Name of a task parameter (eg. 'rawpath') used to specify the location
