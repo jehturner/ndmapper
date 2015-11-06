@@ -119,6 +119,7 @@ def map_file(filename, labels):
 
     hdulist = pyfits.open(str(filename), mode='readonly')
 
+    # Use package default extname labels if not specified:
     if not labels:
         labels = config['labels']
 
@@ -128,8 +129,7 @@ def map_file(filename, labels):
     # Sort any FITS image extensions by EXTNAME into SCI/VAR/DQ lists
     # (remembering the original MEF index for later I/O):
     have_names = False
-    idx = 0
-    for hdu in hdulist:
+    for idx, hdu in enumerate(hdulist):
 
         # Ignore any non-image extensions (NB. any data in a FITS primary
         # header must be an image array according to the std & PyFITS docs):
@@ -157,8 +157,6 @@ def map_file(filename, labels):
             #     ignore any extensions with unrecognized names
 
             # print idx_dict
-
-        idx += 1
 
     # If there are no named image extensions, treat the unnamed ones as our
     # "data" (SCI) arrays (otherwise ignore them):
