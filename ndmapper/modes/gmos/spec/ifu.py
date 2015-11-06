@@ -3,7 +3,7 @@
 
 from pyraf import iraf
 from ndmapper import config, ndprocess_defaults
-from ndmapper.iraf_task import run_task
+from ndmapper.iraf_task import run_task, component_labels
 from ndmapper.modes.gemini import gemini_iraf_helper
 
 @ndprocess_defaults
@@ -12,7 +12,7 @@ def prepare(inputs, outputs=None, mdf=None):
     Parameters
     ----------
 
-    images : DataFileList or DataFile
+    inputs : DataFileList or DataFile
         Input images to be "prepared" by attaching a "mask definition file"
         (MDF) extension, describing the slit mapping to sky, and performing
         meta-data updates.
@@ -35,14 +35,6 @@ def prepare(inputs, outputs=None, mdf=None):
     outimages : DataFileList
         The "prepared" images produced by gfreduce.
 
-
-    Package 'config' options
-    ------------------------
-
-    data_name : str
-        Name identifying main NDData data (science) arrays within a file
-        (default 'SCI' = Gemini convention).
-
     """
 
     # Use default prefix if output filename unspecified:
@@ -52,6 +44,9 @@ def prepare(inputs, outputs=None, mdf=None):
 
     # Get a few common Gemini IRAF defaults.:
     gemvars = gemini_iraf_helper()
+
+    # Determine input DataFile EXTNAME convention, to pass to the task:
+    labels = component_labels(inputs)
 
     # Get MDF from gmos$data by default or, if specified, from the CWD:
     if mdf is None:
@@ -84,8 +79,8 @@ def prepare(inputs, outputs=None, mdf=None):
         filterdb=gemvars['gmosdata']+'GMOSfilters.dat', xoffset=iraf.INDEF,
         expr='default', sepslits=False, w1=iraf.INDEF, w2=iraf.INDEF,
         dw=iraf.INDEF, nw=iraf.INDEF, observatory=gemvars['observatory'],
-        sci_ext=config['data_name'], var_ext=config['uncertainty_name'],
-        dq_ext=config['flags_name'], verbose=gemvars['verbose'])
+        sci_ext=labels['data'], var_ext=labels['uncertainty'],
+        dq_ext=labels['flags'], verbose=gemvars['verbose'])
 
     return result['outimages']
 
@@ -180,6 +175,9 @@ def subtract_bias(inputs, bias, outputs=None, ovs_function='spline3',
     # Get a few common Gemini IRAF defaults.:
     gemvars = gemini_iraf_helper()
 
+    # Determine input DataFile EXTNAME convention, to pass to the task:
+    labels = component_labels(inputs)
+
     # Need to add QE correction parameters when copying this, once available.
 
     # Here some "unnecessary" parameters are defined just to be certain they
@@ -206,8 +204,8 @@ def subtract_bias(inputs, bias, outputs=None, ovs_function='spline3',
         filterdb=gemvars['gmosdata']+'GMOSfilters.dat', xoffset=iraf.INDEF,
         expr='default', sepslits=False, w1=iraf.INDEF, w2=iraf.INDEF,
         dw=iraf.INDEF, nw=iraf.INDEF, observatory=gemvars['observatory'],
-        sci_ext=config['data_name'], var_ext=config['uncertainty_name'],
-        dq_ext=config['flags_name'], verbose=gemvars['verbose'])
+        sci_ext=labels['data'], var_ext=labels['uncertainty'],
+        dq_ext=labels['flags'], verbose=gemvars['verbose'])
 
     return result['outimages']
 

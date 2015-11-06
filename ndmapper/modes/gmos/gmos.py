@@ -3,7 +3,7 @@
 
 from pyraf import iraf
 from ndmapper import config, ndprocess_defaults
-from ndmapper.iraf_task import run_task
+from ndmapper.iraf_task import run_task, component_labels
 
 # These functions are intended to represent logical processing steps, rather
 # than strict one-to-one wrappers for existing IRAF tasks; the aim is not to
@@ -85,18 +85,6 @@ def make_bias(inputs, bias=None, bpm=None, ovs_function='spline3',
     use_flags : bool
         Enable NDData 'flags' (data quality) propagation (default True)?
 
-    data_name : str
-        Name identifying main NDData data (science) arrays within a file
-        (default 'SCI' = Gemini convention).
-
-    uncertainty_name : str
-        Name identifying NDData uncertainty (variance) arrays within a file
-        (default 'VAR' = Gemini convention).
-
-    flags_name : str
-        Name identifying NDData flags (data quality) arrays within a file
-        (default 'DQ' = Gemini convention).
-
     interact : bool
         Enable interactive plotting (default False)? This may be overridden
         by the task's own "interact" parameter.
@@ -109,6 +97,9 @@ def make_bias(inputs, bias=None, bpm=None, ovs_function='spline3',
     # Default to appending "_bias" if an output filename is not specified:
     if not bias:
         bias = '!inimages'
+
+    # Determine input DataFile EXTNAME convention, to pass to the task:
+    labels = component_labels(inputs)
 
     # Insert a BPM in the task inputs if supplied by the user
     # (NB. Use of this BPM parameter is untested at the time of writing; it
@@ -135,8 +126,8 @@ def make_bias(inputs, bias=None, bpm=None, ovs_function='spline3',
         MEF_ext=False, path_param='rawpath', fl_over=True, fl_trim=True,
         key_biassec='BIASSEC', key_datasec='DATASEC', key_ron='RDNOISE',
         key_gain='GAIN', ron=3.5, gain=2.2, gaindb='default',
-        sci_ext=config['data_name'], var_ext=config['uncertainty_name'],
-        dq_ext=config['flags_name'], sat='default', nbiascontam='default',
+        sci_ext=labels['data'], var_ext=labels['uncertainty'],
+        dq_ext=labels['flags'], sat='default', nbiascontam='default',
         biasrows='default', fl_inter=interact, median=False,
         function=ovs_function, order=ovs_order, low_reject=ovs_lsigma,
         high_reject=ovs_hsigma, niterate=ovs_niter, combine='average',
