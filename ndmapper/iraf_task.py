@@ -576,6 +576,11 @@ def component_labels(datafiles):
 
     Raises ValueError if the constituent label dictionaries differ.
     """
+    if isinstance(datafiles, DataFile):
+        datafiles = [datafiles]
+    elif not hasattr(datafiles, '__iter__') or \
+         not all([isinstance(df, DataFile) for df in datafiles]):
+        raise TypeError('datafiles must be a DataFile list or a DataFile')
 
     unique_items = set([tuple(df._labels.iteritems()) for df in datafiles])
     if len(unique_items) > 1:
