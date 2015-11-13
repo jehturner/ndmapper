@@ -16,11 +16,12 @@ import numpy as np
 
 #from astropy.units import Unit, Quantity
 from astropy.nddata import NDDataBase, NDData, NDDataArray
+from astropy.table import Table
 from astropy.utils.compat.odict import OrderedDict
 
 from . import config
 from . import io as ndmio
-from .io import FileName, NDMapIO
+from .io import FileName, NDMapIO, TabMapIO
 
 
 class DataFile(object):
@@ -115,6 +116,7 @@ class DataFile(object):
 
     _filename = None
     _meta = None
+    _tables = None    # change later to _extras?
     _labels = None
 
     log = ''
@@ -125,6 +127,7 @@ class DataFile(object):
 
         if isinstance(data, DataFile):  # create new copy of existing obj
             self._data = data._data
+            self._tables = data._tables
             self._meta = deepcopy(data.meta)
             self._filename = deepcopy(data.filename)
             self._labels = copy(data._labels)
@@ -190,6 +193,8 @@ class DataFile(object):
         # zero.
         if self._data is None:
             self._data = []
+        if self._tables is None:
+            self._tables = []
         if self.meta is None:
             self._meta = OrderedDict()
         self._len = len(self._data)
@@ -286,6 +291,9 @@ class DataFile(object):
             for ident, item in enumerate(items, start=self.next_ident):
                 item.ident = ident
         self._data += items._data
+        # TO DO: re-number table idents if there's duplication between the dfs?
+        # Maybe need "discard=True" option to eliminate duplicates?
+        self._tables += items._tables
         self._len = len(self._data)
         self._unloaded = False
 
@@ -296,8 +304,13 @@ class DataFile(object):
     # flat lists of NDData objects are supported, rather than any arbitrary
     # hierarchy supported by, say, HDF5.
     def _load_data(self):
-        self._data = [NDLater(iomap=iomap) for iomap in \
-                      ndmio.map_file(self.filename, labels=self._labels)]
+        data_maps, table_maps = ndmio.map_file(self.filename,
+                                               labels=self._labels)
+        self._data = [NDLater(iomap=iomap) for iomap in data_maps]
+        # Table proxy objects are kept directly in DataFile, rather than used
+        # by a sub-class as for NDData, since there is little need to load
+        # separate parts of a Table on demand (& it could be complicated):
+        self._tables = table_maps
 
     def _load_meta(self):
         self._meta = ndmio.load_common_meta(self.filename)
@@ -374,9 +387,25 @@ class DataFile(object):
         # to pass to the save_list function. Also record the file location
         # index for each saved attribute, to allow remapping to the new file.
 
-        data_list, meta_list, identifiers, mapidx = [], [], [], []
+        # Currently it's assumed that image arrays & tables go in the same flat
+        # list of arrays, which might be invalid for formats other than FITS.
+
+        data_list, meta_list, identifiers, type_list = [], [], [], []
+        imapidx, tmapidx = [], []
 
         idx = 0
+
+        # Add any tables at the beginning of the file, to keep the NDData
+        # arrays together if more get appended later:
+        for tproxy in self._tables:
+            idx += 1
+            data_list.append(np.array(tproxy.table))
+            meta_list.append(tproxy.table.meta)
+            identifiers.append((tproxy.label, tproxy.ident))
+            type_list.append('table')
+            tmapidx.append(idx)
+
+        # Add the NDData component arrays:
         for ndd in self._data:
 
             ident = ndd.ident
@@ -390,27 +419,37 @@ class DataFile(object):
             id_group = ((data_label, ident), (uncertainty_label, ident),
                         (flags_label, ident))
 
+            type_group = ('image',) * 3
+
             # Include list entries for the main data array and only non-empty
             # uncertainty/flags (passing None values to save_list for those
             # would cause any existing information to be preserved at the
             # applicable location in the file, which isn't what we want).
-            for arr, meta, arr_id in zip(arr_group, meta_group, id_group):
+            for arr, meta, arr_id, arr_type in \
+                zip(arr_group, meta_group, id_group, type_group):
+
                 if arr is not None or arr_id[0] == data_label:
                     idx += 1
                     data_list.append(arr)
                     meta_list.append(meta)
                     identifiers.append(arr_id)
-                    mapidx.append(idx)
+                    type_list.append(arr_type)
+                    imapidx.append(idx)
                 else:
-                    mapidx.append(None)
+                    imapidx.append(None)
 
         ndmio.save_list(self.filename, data_list, meta_list, identifiers,
-                        self.meta)
+                        type_list, self.meta)
 
         # If the save succeeded without raising an exception, remap each
-        # NDLater's _io attribute to the newly-saved file:
+        # Table proxy & each NDLater's _io attribute to the newly-saved file.
+
+        for (n, tproxy), idx in zip(enumerate(self._tables), tmapidx):
+            self._tables[n] = TabMapIO(self.filename, idx=idx,
+                                       label=tproxy.label, ident=tproxy.ident)
+
         for ndd, data_idx, uncertainty_idx, flags_idx in \
-            zip(self._data, *[iter(mapidx)]*3):
+            zip(self._data, *[iter(imapidx)]*3):
 
             # Initialize a new _io instance in case it doesn't exist already:
             ndd._io = NDMapIO(FileName(self.filename),
@@ -1150,8 +1189,10 @@ def temp_saved_datafile(datafile):
     # saving the new DataFile object:
     tdf.save()
 
-    # Pass the new temporary DataFile back to the caller:
+    # Pass the new temporary DataFile back to the caller (should it
+    # automatically delete its own file when it goes out of scope?):
     return tdf
+
 
 # To do:
 # - Is the DataFile init logic needlessly re-reading any DataFile passed

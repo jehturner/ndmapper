@@ -5,7 +5,7 @@ import os
 import astropy.io.fits as pyfits
 
 from .. import config
-from .mapio import NDMapIO
+from .mapio import NDMapIO, TabMapIO
 
 
 def load_common_meta(filename):
@@ -48,7 +48,18 @@ def save_array(filename, index, data, meta=None):
     hdulist.close()
 
 
-def save_list(filename, data, array_meta, identifiers, common_meta):
+def load_table_meta(filename, index):
+    return pyfits.getheader(str(filename), index)
+
+
+def load_table(filename, index):
+    # Treat any int (flags) array as unsigned for the appropriate BZERO/BSCALE
+    # (to avoid scaling int16 DQ to float32). Not sure whether this applies to
+    # binary tables but it should be harmless.
+    return pyfits.getdata(str(filename), index, uint=True)
+
+
+def save_list(filename, data, array_meta, identifiers, types, common_meta):
 
     filename = str(filename)
 
@@ -58,9 +69,16 @@ def save_list(filename, data, array_meta, identifiers, common_meta):
         array_meta = [None for arr in data]
     if identifiers is None:
         identifiers = [(None, None) for arr in data]
+    if types is None:
+        types = ['image' for arr in data]
+    else:
+        if not all([arrtype in ['image', 'table'] for arrtype in types]):
+            raise ValueError('types values must be \'image\' or \'table\'')
 
-    if len(array_meta) != narr or len(identifiers) != narr:
-        raise ValueError('lengths of array_meta & identifiers must match data')
+    if len(array_meta) != narr or len(identifiers) != narr \
+                               or len(types) != narr:
+        raise ValueError('lengths of array_meta, identifiers & types must '\
+                         'match data')
 
     phu = pyfits.PrimaryHDU(header=_convert_meta(common_meta))
     phu.header['EXTEND'] = True  # required when adding MEF extensions
@@ -78,8 +96,8 @@ def save_list(filename, data, array_meta, identifiers, common_meta):
         hdulist[0] = phu
 
     # Loop over the image extensions/inputs:
-    for n, (arr, meta, (name, ver)) in \
-        enumerate(zip(data, array_meta, identifiers), start=1):
+    for n, (arr, meta, (name, ver), arrtype) in \
+        enumerate(zip(data, array_meta, identifiers, types), start=1):
 
         # Update only those extensions for which data and/or a header have
         # been provided; otherwise it's understood that the caller wants to
@@ -87,8 +105,10 @@ def save_list(filename, data, array_meta, identifiers, common_meta):
         # unnecessary writes (which io.fits does automatically).
         if arr is not None or meta is not None or n > oldlen:
 
-            hdu = pyfits.ImageHDU(data=arr, header=_convert_meta(meta),
-                                  name=name, uint=True)
+            hduclass = pyfits.BinTableHDU if arrtype is 'table' \
+                       else pyfits.ImageHDU
+            hdu = hduclass(data=arr, header=_convert_meta(meta), name=name,
+                           uint=True)
             # Set INHERIT = F here?
             hdu.ver = -1 if ver is None else ver
 
@@ -124,14 +144,15 @@ def map_file(filename, labels):
         labels = config['labels']
 
     # A dict of empty lists to sort recognized extensions into:
-    idx_dict = {'data' : [], 'uncertainty' : [], 'flags' : [], 'undef' : []}
+    idx_dict = {'data' : [], 'uncertainty' : [], 'flags' : [], 'undef' : [],
+                'tables' : []}
 
     # Sort any FITS image extensions by EXTNAME into SCI/VAR/DQ lists
     # (remembering the original MEF index for later I/O):
     have_names = False
     for idx, hdu in enumerate(hdulist):
 
-        # Ignore any non-image extensions (NB. any data in a FITS primary
+        # Classify image extensions by extname (NB. any data in a FITS primary
         # header must be an image array according to the std & PyFITS docs):
         if (isinstance(hdu, pyfits.ImageHDU) or idx==0) and hdu.size > 0:
 
@@ -158,6 +179,12 @@ def map_file(filename, labels):
 
             # print idx_dict
 
+        # Also collect any table extensions for separate propagation. Any
+        # more exotic extensions are currently ignored but should really also
+        # be propagated in extras somehow.
+        elif isinstance(hdu, (pyfits.BinTableHDU, pyfits.TableHDU)):
+            idx_dict['tables'].append(idx)
+
     # If there are no named image extensions, treat the unnamed ones as our
     # "data" (SCI) arrays (otherwise ignore them):
     if not have_names:
@@ -166,9 +193,9 @@ def map_file(filename, labels):
     # List existing data (SCI) array extension numbers for reference:
     extvers = [hdulist[idx].ver for idx in idx_dict['data']]
 
-    # Create the NDLater instances. Since the main data array is mandatory,
-    # we just ignore any uncertainty (VAR) or flags (DQ) extensions without a
-    # corresponding data (SCI) array and loop over the latter:
+    # Create the NDMapIO instances for NDLater. Since the main data array is
+    # mandatory, we just ignore any uncertainty (VAR) or flags (DQ) extensions
+    # without a corresponding data (SCI) array and loop over the latter:
     lastver = 0
     maplist = []
     for data_idx in idx_dict['data']:
@@ -208,13 +235,18 @@ def map_file(filename, labels):
         # Instantiate the NDMapIO instance, recording the original FITS
         # extension indices and the group extver (== data extver).
         maplist.append(NDMapIO(filename, ident=data_hdu.ver,
-            data_idx=data_idx, uncertainty_idx=uncert_idx, \
+            data_idx=data_idx, uncertainty_idx=uncert_idx,
             flags_idx=flags_idx))
+
+    # Use another map list to propagate & access any extra extensions
+    # (currently just tables) separately from the main array groups:
+    tables = [TabMapIO(filename, tab_idx, label=hdulist[tab_idx].name,
+              ident=hdulist[tab_idx].ver) for tab_idx in idx_dict['tables']]
 
     # We don't keep the file open continually, since it may get updated later
     # by IRAF or whatever (this means some trickery later on to keep io.fits
     # happy, since we haven't read in the lazy-loaded data arrays yet).
     hdulist.close()
 
-    return maplist
+    return maplist, tables
 

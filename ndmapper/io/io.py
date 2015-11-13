@@ -54,6 +54,24 @@ def load_array(loader, filename, index):
     return loader(filename, index)
 
 
+@_get_loader
+def load_table_meta(loader, filename, index):
+    """
+    Load the meta-data data associated with a table from the specified index
+    within a file.
+    """
+    return loader(filename, index)
+
+
+@_get_loader
+def load_table(loader, filename, index):
+    """
+    Load a table from the specified index within a file as an array-like
+    object.
+    """
+    return loader(filename, index)
+
+
 # This exists for completeness & experimentation but in practice we want to
 # write the whole file at once from DataFile.
 @_get_loader
@@ -74,7 +92,7 @@ def save_array(loader, filename, index, data, meta=None):
 
 @_get_loader
 def save_list(loader, filename, data, array_meta=None, identifiers=None,
-              common_meta=None):
+              types=None, common_meta=None):
     """
     Save a list of data arrays and associated meta-data to a file (overwriting
     any existing data).
@@ -101,17 +119,30 @@ def save_list(loader, filename, data, array_meta=None, identifiers=None,
         EXTNAME & EXTVER), where applicable overriding any such information
         in array_meta.
 
+    types : list of str, optional
+        Type of each data item to be saved: 'image' or 'table' (where the
+        applicable file format makes such a distinction). Defaults to 'image'
+        for each item.
+
     common_meta : dict-like, optional
         Header/meta-data dictionary common to all the arrays within the file.
 
     """
-    return loader(filename, data, array_meta, identifiers, common_meta)
+    return loader(filename, data, array_meta, identifiers, types, common_meta)
 
 
 @_get_loader
 def map_file(loader, filename, labels=None):
     """
-    Open an existing file and return a list of corresponding NDMapIO instances.
+    Open an existing file and return a list of NDMapIO instances corresponding
+    to data/uncertainty/flags image array groups and a second list of TabMapIO
+    instances corresponding to any additional data tables.
+
+    Returns
+    -------
+
+    (list of NDMapIO, list of TabMapIO)
+
     """
     return loader(filename, labels)
 

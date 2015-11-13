@@ -9,13 +9,14 @@ import hashlib
 import numpy as np
 
 from astropy.nddata import StdDevUncertainty
+from astropy.table import Table
 import astropy.io.fits as pyfits
 
 from .. import config
 from ._util import get_backend_fn
 
 
-__all__ = ['FileName', 'NDMapIO']
+__all__ = ['FileName', 'NDMapIO', 'TabMapIO']
 
 
 class FileName(object):
@@ -310,4 +311,82 @@ class NDMapIO(object):
         # here turns out to be premature optimization before reinstating it:
         # self._meta_hash = hashlib.sha1(str(meta)).hexdigest()
         return meta
+
+
+class TabMapIO(object):
+    """
+    A proxy object for lazily loading/saving AstroPy Table instances. This is
+    similar to NDMapIO, but instead of being used by an NDData sub-class to
+    load its own attributes lazily, TabMapIO is used to initialize a normal
+    Table instance on demand, since the latter doesn't have several data
+    arrays to load separately and sub-classing Table would likely prove more
+    complicated with less benefit.
+
+    At the user level, instances are managed by, and the corresponding table
+    data accessed via, DataFile objects. For lazy-loading or saving operations
+    to succeed, the corresponding file must already exist.
+
+    Attributes
+    ----------
+
+    filename : FileName
+        The path to the file from which the data are to be mapped.
+
+    label : str
+        Application-specific label/name identifying the type of Table
+        (EXTNAME for FITS). Multiple tables of the same type can be
+        distinguished via the ident parameter.
+
+    ident : int or str or None
+        Identifier appropriate for the file type (int EXTVER for FITS), which
+        distinguishes this particular instance of a given type of Table within
+        the applicable DataFile.
+
+    idx : int
+        The original array index/number within the host file (extension number
+        for FITS).
+
+    """
+
+    _table = None
+
+    def __init__(self, filename, idx, label=None, ident=None):
+
+        # Cast the filename to a new FileName instance whether or not it is
+        # one already; we need an independent copy here, otherwise lazy
+        # loading of data not yet in memory will fail when changing the
+        # filename of a DataFile instance and trying to save the data.
+        try:
+            filename = FileName(filename)
+        except ValueError:
+            raise ValueError('must define filename as a str or FileName '
+                             'object')
+
+        self.filename = filename
+        self.idx = idx
+        self.label = label
+        self.ident = ident
+
+        self._dloader = get_backend_fn('load_table', self.filename)
+        self._mloader = get_backend_fn('load_table_meta', self.filename)
+        # self._saver = get_backend_fn('save_table', self.filename)
+
+    def load_data(self):
+        data = self._dloader(self.filename, self.idx)
+        return data
+
+    def load_meta(self):
+        meta = self._mloader(self.filename, self.idx)
+        return meta
+
+    def load_table(self):
+        meta = self.load_meta()
+        data = self.load_data()
+        self._table = Table(data=data, meta=meta, copy=False)
+
+    @property
+    def table(self):
+        if not self._table:
+            self.load_table()
+        return self._table
 
