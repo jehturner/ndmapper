@@ -24,6 +24,10 @@ from . import io as ndmio
 from .io import FileName, NDMapIO, TabMapIO
 
 
+__all__ = ['DataFile', 'DataFileList', 'NDLater', 'load_datafilelist',
+           'temp_saved_datafile']
+
+
 class DataFile(object):
     """
     A class representing a data-file-like object, including a filename and/or
