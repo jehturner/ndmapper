@@ -5,6 +5,8 @@ from pyraf import iraf
 from ndmapper import config, ndprocess_defaults
 from ndmapper.iraf_task import run_task, get_extname_labels
 
+from ..gemini import *
+
 # These functions are intended to represent logical processing steps, rather
 # than strict one-to-one wrappers for existing IRAF tasks; the aim is not to
 # replicate the IRAF user interface exactly. Each "wrapper" function must

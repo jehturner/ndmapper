@@ -6,6 +6,8 @@ from ndmapper import config, ndprocess_defaults
 from ndmapper.iraf_task import run_task, get_extname_labels
 from ndmapper.modes.gemini import gemini_iraf_helper
 
+from .spec import *
+
 @ndprocess_defaults
 def prepare(inputs, outputs=None, mdf=None):
     """
