@@ -4,7 +4,7 @@
 from ..gmos import *
 
 # Default calibration dependence for GMOS spectroscopy:
-CAL_DEPS = {'input' : ['specphot', 'flat', 'bias'],
+CAL_DEPS = {'target' : ['specphot', 'flat', 'bias'],
             'specphot' : ['flat', 'bias'],
             'flat' : ['bias'],
             'bias' : []

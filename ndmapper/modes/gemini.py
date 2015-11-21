@@ -5,7 +5,7 @@ from ndmapper import config
 
 # Default cal dependencies are defined by instrument mode, with just an empty
 # placeholder dict at this level:
-CAL_DEPS = {'input' : []}
+CAL_DEPS = {'target' : []}
 
 
 def gemini_iraf_helper():
