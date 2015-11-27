@@ -13,6 +13,7 @@ from astropy.table import Table
 import astropy.io.fits as pyfits
 
 from .. import config
+from ..libutils import splitext, addext
 from ._util import get_backend_fn
 
 
@@ -124,12 +125,7 @@ class FileName(object):
             # Separate directory, filename root & file extension:
             self.dir = os.path.dirname(path)
             # This splits at the first dot, unlike os.path.splitext:
-            fncmp = os.path.basename(path).split(os.extsep, 1)
-            froot = fncmp[0]  # split always produces a root/base name
-            if len(fncmp) == 1:
-                self.ext = None   # distinguish no ext at all from a dot
-            else:
-                self.ext = fncmp[1]
+            froot, self.ext = splitext(os.path.basename(path))
 
             # Separate any prefix and/or suffixes from the base name:
             match = self._re.search(froot)
