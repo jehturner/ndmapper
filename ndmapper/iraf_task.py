@@ -16,7 +16,7 @@ from .io import FileName
 from .data import DataFile, DataFileList, temp_saved_datafile
 
 
-__all__ = ['run_task', 'component_labels']
+__all__ = ['run_task', 'get_extname_labels']
 
 
 def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
