@@ -8,7 +8,7 @@ import xml.dom.minidom as xmd
 
 from ndmapper.io import FileName
 from ndmapper.data import DataFile
-from .calibrations import init_cal_dict, recurse_file_cals
+from .calibrations import init_cal_dict, save_cal_dict, recurse_file_cals
 
 __all__ = ['look_up_cals', 'look_up_single_cal_gemini']
 
@@ -105,7 +105,7 @@ def look_up_cals(filenames, dependencies, server, cache=None,
 
     # Load the cached/edited calibration dictionary if one already exists,
     # otherwise initialize a new one:
-    priorcache = cache if os.path.exists(str(cache)) else None
+    priorcache = cache if (cache and os.path.exists(str(cache))) else None
     cal_dict = init_cal_dict(filename=priorcache)
 
     # Look up the calibrations for each input filename:
@@ -116,7 +116,9 @@ def look_up_cals(filenames, dependencies, server, cache=None,
         recurse_file_cals(filename, obs_type, dependencies, back_end_fn,
                           cal_dict)
 
-    # Save the dict to the cache here.
+    # Save the updated cal dict to the cache file:
+    if cache:
+        save_cal_dict(cal_dict, cache)
 
     return cal_dict
 
@@ -132,11 +134,15 @@ def look_up_single_cal_gemini(filename, cal_type):
 
     query = '/'.join((service, cal_type, filename))
 
-    # Perform the Web query and parse the page contents, passing back any HTTP
-    # errors directly to the caller. Apparently urllib doesn't support "with"
-    # directly so create the context manager with contextlib.closing.
-    with closing(urllib2.urlopen(query)) as fileobj:
-        xml_dom = xmd.parse(fileobj)
+    # Perform the Web query and parse the page contents, printing any failed
+    # query details in case of HTTP errors. Apparently urllib doesn't support
+    # "with" directly, so create the context manager with contextlib.closing.
+    try:
+        with closing(urllib2.urlopen(query)) as fileobj:
+            xml_dom = xmd.parse(fileobj)
+    except urllib2.HTTPError:
+        print 'Failed query: {0}'.format(query)  # to do: log this
+        raise
 
     # Also looked at astropy.utils.xml.iterparser here but it doesn't seem to
     # parse things in a convenient hierarchical way for this purpose.

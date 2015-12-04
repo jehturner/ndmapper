@@ -1,9 +1,12 @@
 # Copyright(c) 2015 Association of Universities for Research in Astronomy, Inc.
 # by James E.H. Turner.
 
+import os.path
+import json
+
 from ndmapper.libutils import splitext, addext
 
-__all__ = ['init_cal_dict', 'add_cal_entry']
+__all__ = ['init_cal_dict', 'save_cal_dict', 'add_cal_entry']
 
 
 K_ASSOCIATIONS = 'associations'
@@ -29,7 +32,7 @@ def init_cal_dict(filename=None):
         An (empty or populated) dictionary of calibration files & associations,
         in the required format. This consists of 3 sub-dictionaries,
         'associations', mapping each input filename to a dictionary of
-        calibration name labels, keyed by calibration type, 'calibrations',
+        calibration name labels, keyed by calibration type; 'calibrations',
         mapping each calibration name label to a list of constituent raw files
         and 'checksums', mapping each raw calibration file to an optional
         checksum. [To do: add an example.]
@@ -41,14 +44,35 @@ def init_cal_dict(filename=None):
     # cache just not being created yet, though unintentional differences won't
     # ordinarily occur as both cases will involve the same line of user code).
 
-    # To do: cache results as JSON.
+    # If a cache file was specified and exists, read it:
+    if filename and os.path.exists(filename):
+        with open(filename) as fobj:
+            jstr = fobj.read()
 
-    # Read any existing file:
-    # To do: remove the "and False" once persistence is implemented.
-    if filename and False:
-        cal_dict = None
+        # Convert JSON to Python dict, passing through any parsing errors:
+        cal_dict = json.loads(jstr)
 
-    # Initialize a new calibration dictionary:
+        # Catch any basic errors in the calibration dict format itself. This
+        # could be made more bulletproof & informative but at least ensures
+        # that the structures are nested as expected so look-ups will work:
+        if isinstance(cal_dict, dict) and \
+           sorted(cal_dict.iterkeys()) == \
+               sorted([K_ASSOCIATIONS, K_CALIBRATIONS, K_CHECKSUMS]) and \
+           all([isinstance(val, dict) \
+                for val in cal_dict.itervalues()]) and \
+           all([isinstance(val, dict) \
+                for val in cal_dict[K_ASSOCIATIONS].itervalues()]) and \
+           all([isinstance(val, list) \
+                for val in cal_dict[K_CALIBRATIONS].itervalues()]):
+            valid = True
+        else:
+            valid = False
+
+        if not valid:
+            raise ValueError('Bad calibration dict format in {0}'\
+                             .format(filename))
+
+    # Otherwise, initialize a new calibration dictionary:
     else:
         cal_dict = {
             K_ASSOCIATIONS : {},
@@ -57,6 +81,29 @@ def init_cal_dict(filename=None):
         }
 
     return cal_dict
+
+
+def save_cal_dict(cal_dict, filename):
+    """
+    Save the provided calibration dictionary as a user-editable JSON file.
+
+    Parameters
+    ----------
+
+    cal_dict : dict
+        A dictionary of calibration files & associations, in the format
+        produced by init_cal_dict().
+
+    filename : str
+        Name of the JSON cache file to save the dictionary to.
+
+    """
+    # Create a pretty-printed JSON string that's easy to read & edit:
+    jstr = json.dumps(cal_dict, sort_keys=True, indent=4)
+
+    # Save it to the cache file, overwriting any existing copy:
+    with open(filename, 'w') as fobj:
+        fobj.write(jstr)
 
 
 def recurse_file_cals(filename, obs_type, dependencies, lookup_fn, cal_dict):
