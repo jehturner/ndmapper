@@ -1,6 +1,9 @@
 # Copyright(c) 2015 Association of Universities for Research in Astronomy, Inc.
 # by James E.H. Turner.
 
+from ndmapper.io import FileName
+from ndmapper.data import DataFile
+
 
 def convert_region(region, convention):
     """
@@ -73,4 +76,34 @@ def convert_region(region, convention):
         slices.append(sliceobj)
 
     return tuple(slices)
+
+
+def to_filename_strings(objects, strip=True):
+    """
+    Convert a list of str, FileName or DataFile objects (or a DataFileList)
+    to their string representations, by default removing any path and
+    processing suffix/prefixes. A single object of these types, or calibration
+    dictionary in the format produced by calibrations.init_cal_dict(), may
+    also be given. It is the caller's responsibility to ensure that the string
+    values are actually valid filenames.
+
+    """
+    # Convert any single objects to a list (partly to ensure we don't
+    # inadvertently iterate over the NDData instances of a DataFile):
+    if isinstance(objects, (DataFile, FileName, basestring)):
+        objects = [objects]
+
+    # If the objects argument looks like a calibration dict, extract a list
+    # of unique constituent filenames from all the calibrations:
+    elif hasattr(objects, 'keys') and 'calibrations' in objects:
+        objects = list(set([fn for flist in \
+                            objects['calibrations'].itervalues() \
+                   for fn in (flist if hasattr(flist, '__iter__') else [])]))
+
+    if not hasattr(objects, '__iter__'):  # must be a list if converted above
+        raise ValueError('objects parameter has an unexpected type')
+
+    return [str(FileName(str(obj), strip=strip, \
+                         dirname='' if strip else None)) \
+            for obj in objects]
 
