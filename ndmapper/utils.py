@@ -78,24 +78,25 @@ def convert_region(region, convention):
     return tuple(slices)
 
 
-def to_filename_strings(objects, strip=True):
+def to_filename_strings(objects, strip=True, use_cal_dict=False):
     """
-    Convert a list of str, FileName or DataFile objects (or a DataFileList)
-    to their string representations, by default removing any path and
-    processing suffix/prefixes. A single object of these types, or calibration
-    dictionary in the format produced by calibrations.init_cal_dict(), may
-    also be given. It is the caller's responsibility to ensure that the string
-    values are actually valid filenames.
+    Extract a list of filename strings from one or more str, FileName or
+    DataFile objects (or a DataFileList), by default removing any path and
+    processing suffix/prefixes. A calibration dictionary may also be given,
+    in the format produced by calibrations.init_cal_dict(), if the relevant
+    option is enabled. It is the caller's responsibility to ensure that the
+    string values are actually valid filenames.
 
     """
-    # Convert any single objects to a list (partly to ensure we don't
-    # inadvertently iterate over the NDData instances of a DataFile):
+    # Convert any recognized single objects to a list (partly to ensure we
+    # don't inadvertently iterate over the NDData instances of a DataFile):
     if isinstance(objects, (DataFile, FileName, basestring)):
         objects = [objects]
 
     # If the objects argument looks like a calibration dict, extract a list
     # of unique constituent filenames from all the calibrations:
-    elif hasattr(objects, 'keys') and 'calibrations' in objects:
+    elif use_cal_dict and hasattr(objects, 'keys') and \
+         'calibrations' in objects:
         objects = list(set([fn for flist in \
                             objects['calibrations'].itervalues() \
                    for fn in (flist if hasattr(flist, '__iter__') else [])]))
