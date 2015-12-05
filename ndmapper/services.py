@@ -26,7 +26,8 @@ def _get_back_end(server, fn_base):
         try:
             back_end_fn = eval('{0}_{1}'.format(fn_base, server))
         except NameError:
-            raise ValueError('unknown server \'{0}\''.format(server))
+            raise ValueError('unknown server \'{0}\' for {1}'\
+                             .format(server, fn_base))
 
     return back_end_fn
 
@@ -69,7 +70,6 @@ def look_up_cals(filenames, dependencies, server, cache=None,
         reproducibility and allowing the user to override matches iteratively.
         If the file does not already exist, it will be created from a new
         look-up, while the default of None produces a new look-up every time.
-        [CACHE CURRENTLY UNIMPLEMENTED]
 
     obs_type : str
         The type of observation, corresponding to `filenames`, for which
