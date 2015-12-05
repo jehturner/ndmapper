@@ -6,11 +6,29 @@ from contextlib import closing
 import urllib2
 import xml.dom.minidom as xmd
 
-from ndmapper.io import FileName
-from ndmapper.data import DataFile
+from .utils import to_filename_strings
 from .calibrations import init_cal_dict, save_cal_dict, recurse_file_cals
 
 __all__ = ['look_up_cals', 'look_up_single_cal_gemini']
+
+
+def _get_back_end(server, fn_base):
+    """
+    Private function to get the appropriate back-end for performing a look-up
+    on a specified server, given the back-end function's base name. If the
+    first argument is a user-supplied function rather than a server name, it
+    is used directly and the second argument is ignored.
+    """
+
+    if callable(server):
+        back_end_fn = server
+    else:
+        try:
+            back_end_fn = eval('{0}_{1}'.format(fn_base, server))
+        except NameError:
+            raise ValueError('unknown server \'{0}\''.format(server))
+
+    return back_end_fn
 
 
 def look_up_cals(filenames, dependencies, server, cache=None,
@@ -25,8 +43,7 @@ def look_up_cals(filenames, dependencies, server, cache=None,
     Parameters
     ----------
 
-    filenames : list of (str or DataFile or FileName)
-                or str or DataFile or FileName
+    filenames : list of (convertible to str) or convertible to str
         The filename(s) for which calibration files are to be looked up.
 
     dependencies : dict of str : list of str
@@ -71,19 +88,9 @@ def look_up_cals(filenames, dependencies, server, cache=None,
         produced by calibrations.init_cal_dict().
 
     """
-
-    # If given a single filename, make it into a list:
-    if isinstance(filenames, (DataFile, FileName, basestring)):
-        filenames = [filenames]
-    elif not isinstance(filenames, list):
-        raise ValueError('filenames parameter has an unexpected type')
-
-    # Cast filenames to strings if they are DataFile instances and remove any
-    # path & processing prefix/suffixes to get the original base name. This is
-    # a bit convoluted to deal concisely with str & DataFile in the same way.
-    # filenames = [FileName(str(fn)).base for fn in filenames]  # no: keep ext
-    filenames = [str(FileName(str(fn), strip=True, dirname='')) \
-                 for fn in filenames]
+    # Convert each filename object to a string and remove any path &
+    # processing prefix/suffixes to get the original base names:
+    filenames = to_filename_strings(filenames, strip=True, use_cal_dict=False)
 
     # Check that the dependency dict looks as expected:
     if not hasattr(dependencies, 'keys') or 'target' not in dependencies or \
@@ -95,13 +102,7 @@ def look_up_cals(filenames, dependencies, server, cache=None,
                          .format(obs_type))
     
     # Determine which server-specific look-up function to use:
-    if callable(server):
-        back_end_fn = server
-    else:
-        try:
-            back_end_fn = eval('look_up_single_cal_'+server)
-        except NameError:
-            raise ValueError('unknown server \'{0}\''.format(server))
+    back_end_fn = _get_back_end(server, 'look_up_single_cal')
 
     # Load the cached/edited calibration dictionary if one already exists,
     # otherwise initialize a new one:
