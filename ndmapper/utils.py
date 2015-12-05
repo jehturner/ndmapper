@@ -1,8 +1,14 @@
 # Copyright(c) 2015 Association of Universities for Research in Astronomy, Inc.
 # by James E.H. Turner.
 
+"""
+Some high-level utility functions for use in scripts & processing functions.
+"""
+
 from ndmapper.io import FileName
 from ndmapper.data import DataFile
+
+from .calibrations import K_CALIBRATIONS
 
 
 def convert_region(region, convention):
@@ -87,6 +93,9 @@ def to_filename_strings(objects, strip=True, use_cal_dict=False):
     option is enabled. It is the caller's responsibility to ensure that the
     string values are actually valid filenames.
 
+    This is typically used to reproduce base filenames for use in either
+    downloading or looking up external information about the files.
+
     """
     # Convert any recognized single objects to a list (partly to ensure we
     # don't inadvertently iterate over the NDData instances of a DataFile):
@@ -96,12 +105,13 @@ def to_filename_strings(objects, strip=True, use_cal_dict=False):
     # If the objects argument looks like a calibration dict, extract a list
     # of unique constituent filenames from all the calibrations:
     elif use_cal_dict and hasattr(objects, 'keys') and \
-         'calibrations' in objects:
+         K_CALIBRATIONS in objects:
         objects = list(set([fn for flist in \
-                            objects['calibrations'].itervalues() \
+                            objects[K_CALIBRATIONS].itervalues() \
                    for fn in (flist if hasattr(flist, '__iter__') else [])]))
 
-    if not hasattr(objects, '__iter__'):  # must be a list if converted above
+    # This must be list-like after the above:
+    if not hasattr(objects, '__iter__') or hasattr(objects, 'keys'):
         raise ValueError('objects parameter has an unexpected type')
 
     return [str(FileName(str(obj), strip=strip, \
