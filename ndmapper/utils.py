@@ -84,7 +84,8 @@ def convert_region(region, convention):
     return tuple(slices)
 
 
-def to_filename_strings(objects, strip=True, use_cal_dict=False):
+def to_filename_strings(objects, strip_names=True, strip_dirs=True,
+                        use_cal_dict=False):
     """
     Extract a list of filename strings from one or more str, FileName or
     DataFile objects (or a DataFileList), by default removing any path and
@@ -114,7 +115,7 @@ def to_filename_strings(objects, strip=True, use_cal_dict=False):
     if not hasattr(objects, '__iter__') or hasattr(objects, 'keys'):
         raise ValueError('objects parameter has an unexpected type')
 
-    return [str(FileName(str(obj), strip=strip, \
-                         dirname='' if strip else None)) \
+    return [str(FileName(str(obj), strip=strip_names, \
+                         dirname='' if strip_dirs else None)) \
             for obj in objects]
 

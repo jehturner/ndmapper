@@ -95,7 +95,8 @@ def look_up_cals(filenames, dependencies, server, cache=None,
     """
     # Convert each filename object to a string and remove any path &
     # processing prefix/suffixes to get the original base names:
-    filenames = to_filename_strings(filenames, strip=True, use_cal_dict=False)
+    filenames = to_filename_strings(filenames, strip_names=True,
+                                    strip_dirs=True, use_cal_dict=False)
 
     # Check that the dependency dict looks as expected:
     if not hasattr(dependencies, 'keys') or 'target' not in dependencies or \
@@ -234,7 +235,8 @@ def download_files(filenames, server, dirname=''):
     # Convert each filename to a string or calibration dictionary to a list
     # of files and remove any path & processing prefix/suffixes to get the
     # original base names.
-    filenames = to_filename_strings(filenames, strip=True, use_cal_dict=True)
+    filenames = to_filename_strings(filenames, strip_names=False,
+                                    strip_dirs=True, use_cal_dict=True)
 
     # Determine which server-specific look-up function to use:
     back_end_fn = _get_back_end(server, 'download_files')
