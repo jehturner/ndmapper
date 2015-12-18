@@ -6,7 +6,8 @@ import json
 
 from ndmapper.libutils import splitext, addext
 
-__all__ = ['init_cal_dict', 'save_cal_dict', 'add_cal_entry']
+__all__ = ['init_cal_dict', 'save_cal_dict', 'add_cal_entry',
+           'extract_cal_entries']
 
 
 K_ASSOCIATIONS = 'associations'
