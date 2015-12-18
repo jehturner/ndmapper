@@ -228,8 +228,8 @@ def download_files(filenames, server, dirname=''):
     -------
 
     list of str
-        A copy of the input filenames, for syntactical convenience, eg.
-        allowing "DataFileList(download_files(some_list, server='gemini'))" .
+        A copy of the derived input filenames, for syntactical convenience, eg.
+        allowing "DataFileList(download_files(some_list, server='gemini'))".
 
     """
     # Convert each filename to a string or calibration dictionary to a list

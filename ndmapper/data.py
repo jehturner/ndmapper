@@ -24,7 +24,7 @@ from . import io as ndmio
 from .io import FileName, NDMapIO, TabMapIO
 
 
-__all__ = ['DataFile', 'DataFileList', 'NDLater', 'load_datafilelist',
+__all__ = ['DataFile', 'DataFileList', 'NDLater', 'load_file_list',
            'temp_saved_datafile']
 
 
@@ -1121,50 +1121,60 @@ class NDLater(NDDataArray):
         return self._unloaded
 
 
-def load_datafilelist(filename, dirname=None, mode='read'):
+def load_file_list(filename):
     """
-    Open a text file containing a list of filenames as a DataFileList object.
+    Load a text file containing a list of filenames (or other strings) as a
+    Python list.
+
+    To obtain a list of DataFile objects, the result can easily be converted
+    as in the example:
+
+    >>> raw_biases = DataFileList(load_file_list('list_of_biases.txt'))
+
+    If the listed files need downloading first, the usage would be similar to:
+
+    >>> bias_list = load_file_list('list_of_biases.txt')
+    >>> download_files(bias_list, server='gemini', dirname='raw')
+    >>> raw_biases = DataFileList(bias_list, dirname='raw')
+
+    (or it may be preferable to produce the initial list by other means, such
+    as command-line arguments or a list definition in the user script).
+
+    The DataFileList object can subsequently be used in place of the initial
+    plain Python list.
+
 
     Parameters
     ----------
 
     filename : str
-        Name of a plain-text file, containing one filename per line.
-
-    dirname : str, optional
-        Directory where the files to be read/written are located, to be
-        prefixed to each listed filename. This option cannot be used if any
-        filenames already include a (full or relative) path.
-
-    mode : str, optional
-        Access mode parameter to pass to each instantiated DataFile object.
-
+        Name of a plain-text file, containing one entry per line. Although
+        the intention is mainly to work with filenames, any non-comment strings
+        are valid. Lines whose first non-whitespace character is '#' are
+        treated as comments.
 
     Returns
     -------
 
-    DataFileList
-        A DataFileList object, mapped to the listed files.
+    list of str
+        A list of filenames (or other strings), one per input line with any
+        leading or trailing whitespace removed.
 
     """
 
     f = open(filename, 'r')
 
-    dfl = DataFileList()
+    flist = []
 
-    # Parse each filename, one per line, check it doesn't have a duplicate
-    # path and append it to the DataFileList:
+    # Append one filename per line to the list:
     for line in f:
         line = line.strip()         # remove new lines & trailing/leading space
         if line and line[0] != '#': # ignore empty lines & comments
-            if dirname and os.path.dirname(line):
-                raise IOError('Specified \'dirname\' when file already has '
-                    'one:\n  %s' % line)
-            dfl.append(DataFile(filename=line, mode=mode, dirname=dirname))
+            flist.append(line)
 
     f.close()
 
-    return dfl
+    return flist
 
 
 def temp_saved_datafile(datafile):
