@@ -249,3 +249,55 @@ def add_cal_entry(filename, cal_type, matches, cal_dict):
     # Record the calibration association corresponding to this look-up:
     associations[filename][cal_type] = label
 
+
+def extract_cal_entries(cal_dict, cal_type, reference=None):
+    """
+    Extract entries matching a specified calibration type from the
+    'calibrations' sub-dict of the calibration dictionary.
+
+    This could also be done "manually" -- but (to avoid duplication of type
+    information in calibration dictionary) involves some nested loops or
+    (in?)comprehensions that are less user-readable than a function call.
+
+    Parameters
+    ----------
+
+    cal_dict : dict
+        A dictionary of calibration files & associations, in the format
+        produced by init_cal_dict() or services.look_up_cals().
+
+    cal_type : str
+        Type of calibration to be looked up (matching a type name in the
+        'associations' sub-dict).
+
+    reference : str or tuple of str, optional
+        One or more filenames with which matching calibrations must be
+        associated, to limit the selection. By default, all available
+        calibrations of type `cal_type` are selected.
+
+    Returns
+    -------
+
+    dict of (str : list of str)
+        An dictionary where the keys are calibration name labels and the values
+        lists of constituent filenames -- the same as in the input
+        'calibrations' sub-dict but including only those entries that match
+        `cal_type` (and, if specified, `reference`).
+
+    """
+
+    # Convert reference to a tuple if a single name is provided:
+    if isinstance(reference, basestring):
+        reference = (reference,)
+
+    # Extract the unique keys (calibration name labels) matching the specified
+    # calibration type and reference files from the associations sub-dict:
+    keys = {name for refkey, calmap in cal_dict[K_ASSOCIATIONS].iteritems() \
+              if reference is None or refkey in reference \
+            for typekey, name in calmap.iteritems() if typekey == cal_type}
+
+    # Now extract the entries from the calibrations sub-dict corresponding to
+    # the keys determined above. This could also be nested with the above set
+    # comprehension if we want to enter the obfuscated 1-liner competition:
+    return {key : cal_dict[K_CALIBRATIONS][key] for key in keys}
+
