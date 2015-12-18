@@ -54,7 +54,7 @@ class FileName(object):
         Directory name to add to the path (replacing any existing directory).
 
     regex : str or re or None
-        Regular expression matching root filename (without a file extension).
+        Regular expression matching base filename (without a file extension).
         By default this is None, causing the value of the package configuration
         variable "ndmapper.config['filename_regex']" to be used, which
         defaults to Gemini's "S20150101S0001"-style convention (thus allowing
@@ -74,7 +74,11 @@ class FileName(object):
 
     base : str
         Base filename in a standard format that can be recognized via the
-        regex parameter, eg. S20150307S0001 for Gemini data.
+        regex parameter, eg. S20150307S0001 for Gemini data. This is the
+        original filename without the file extension, before any processing
+        prefix/suffix are added. Not to be confused (due to lack of a clear
+        alternative term) with the Unix "basename", which would be equivalent
+        to root + ext, where root = prefix + base + suffix.
 
     suffix : list
         List of one or more suffixes following the base name, including any
@@ -83,8 +87,13 @@ class FileName(object):
     ext : str
         File extension(s), eg. "fits" or "fits.gz".
 
-    sep : str, None
+    sep : str
         One or more characters specified as a suffix separator.
+
+    orig : str
+        The original filename with no prefix, suffix or directory, equivalent
+        to `base` + `ext` (read only). This is not one of the parsed components
+        and exists for convenience in look-ups, list comprehensions etc.
 
     """
 
@@ -196,6 +205,10 @@ class FileName(object):
             dotext = os.extsep+self.ext
         return (os.path.join(self.dir, (self.prefix+self.base+ \
                 string.join(self.suffix, '')+dotext)))
+    @property
+    def orig(self):
+        return self.base if self.ext is None else \
+               os.extsep.join((self.base, self.ext))
 
     def __deepcopy__(self, memo):
         # One can't copy a regex, except by re.compile(_re.pattern), but they

@@ -11,7 +11,7 @@ def splitext(path):
     to avoid incorrect reconstruction of 'file.' as 'file' or vice versa.
     """
 
-    components = path.split(os.extsep, 1) # always produces a root/base name
+    components = path.split(os.extsep, 1) # always produces a root name
 
     return components[0], None if len(components) == 1 else components[1]
 
