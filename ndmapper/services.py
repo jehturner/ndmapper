@@ -228,8 +228,10 @@ def download_files(filenames, server, dirname=''):
     -------
 
     list of str
-        A copy of the derived input filenames, for syntactical convenience, eg.
+        A list of the file(s) downloaded, for syntactical convenience, eg.
         allowing "DataFileList(download_files(some_list, server='gemini'))".
+        This is just a copy of the input name string(s) that are derived from
+        `filenames`, prefixed with `dirname`.
 
     """
     # Convert each filename to a string or calibration dictionary to a list
@@ -250,7 +252,7 @@ def download_files(filenames, server, dirname=''):
 
     back_end_fn(filenames, dirname)
 
-    return filenames
+    return [os.path.join(dirname, fn) for fn in filenames]
 
 
 def download_files_gemini(filenames, dirname=''):
