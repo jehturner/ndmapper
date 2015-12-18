@@ -169,7 +169,7 @@ class DataFile(object):
 
         # Parse any filename into a FileName object:
         self._filename = FileName(filename, strip=strip, prefix=prefix,
-            suffix=suffix, dirname=dirname)
+                                  suffix=suffix, dirname=dirname)
 
         # Load the file if requested and it contents haven't been overridden
         # and check that it exists or doesn't, to match expectations:

@@ -1,6 +1,10 @@
 # Copyright(c) 2015 Association of Universities for Research in Astronomy, Inc.
 # by James E.H. Turner.
 
+# To do: better to remove dependence on FileName from the I/O back-ends and
+# have them parse the extension themselves. Then consider moving FileName back
+# into data.py, which is probably more natural.
+
 import os.path
 import string
 import re
@@ -28,27 +32,28 @@ class FileName(object):
     Parameters
     ----------
 
-    path : str, FileName
-        Single filename to parse into a FileName object representation.
+    path : str or FileName, optional
+        Single filename to parse into a FileName object representation
+        (defaults to an empty string).
 
-    sep : str, None
+    sep : str or None, optional
         Separator for suffix components (defaults to "_").
 
-    strip : bool
+    strip : bool, optional
         Remove any existing prefix and suffixes from the supplied path
         (prior to adding any specified prefix & suffix)?
 
-    prefix : str, None
+    prefix : str or None, optional
         Prefix string to add before the base filename.
 
-    suffix : str, None
+    suffix : str or None, optional
         Suffix string to add after the base filename (including any initial
         separator).
 
-    dirname : str, None
+    dirname : str or None, optional
         Directory name to add to the path (replacing any existing directory).
 
-    regex : str, re, None
+    regex : str or re or None
         Regular expression matching root filename (without a file extension).
         By default this is None, causing the value of the package configuration
         variable "ndmapper.config['filename_regex']" to be used, which
@@ -102,10 +107,13 @@ class FileName(object):
         self.sep = sep
 
         # If passed an existing instance, reconstruct and re-parse it, since
-        # the regex or separator can differ (and it's simpler to do).
+        # the regex or separator can differ (and it's simpler to do). Since
+        # almost anything can be converted to a string in Python, accept only
+        # FileName objects & string types, to avoid confusion. Currently,
+        # DataFile instances are excluded to avoid a circular dependency.
         if isinstance(path, FileName):
             path = str(path)
-        elif path is not None and not isinstance(path, str):
+        elif path is not None and not isinstance(path, basestring):
             raise ValueError('path must be a str or %s instance' % \
                              str(self.__class__.__name__))
 
