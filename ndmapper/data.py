@@ -49,7 +49,7 @@ class DataFile(object):
     filename : str or FileName, optional
         The filename on disk of the dataset(s) to be represented.
 
-    data : NDData or list of NDData or DataFile or None
+    data : NDData or list of NDData or DataFile or None, optional
         NDData instance(s) for the dataset(s) to be represented, or an
         existing DataFile instance (in which case the result will be a new
         DataFile referring to the same NDData instance(s) as the original,
@@ -60,12 +60,12 @@ class DataFile(object):
         this if the intention is to replace any existing data). Otherwise,
         the user-specified data will be used instead.
 
-    meta : dict-like
+    meta : dict-like, optional
         A meta-data dictionary / header describing the file as a whole
         (rather than any individual nddata object), replacing any existing
         meta-data if the file already exists on disk.
 
-    mode : str
+    mode : str, optional
         'read' (default), 'new', 'update' or 'overwrite'
         Specifies whether the file should exist on disk already and be used to
         initialize this DataFile (if a filename is provided) and whether it can
@@ -78,18 +78,18 @@ class DataFile(object):
         and will be replaced when writing to disk. The 'data' and 'filename'
         parameters always override whatever would otherwise be read from disk.
 
-    strip : bool
+    strip : bool, optional
         Remove any existing prefix and suffixes from the supplied filename
         (prior to adding any specified prefix & suffix)?
 
-    prefix : str, None
+    prefix : str or None, optional
         Prefix string to add before the base filename.
 
-    suffix : str, None
+    suffix : str or None, optional
         Suffix string to add after the base filename (including any initial
         separator).
 
-    dirname : str, None
+    dirname : str or None, optional
         Directory name to add to the filename (replacing any existing dir).
 
     labels : str or dict of str : str, optional
@@ -113,6 +113,13 @@ class DataFile(object):
         The header/meta-data associated with the file as a whole (eg. the
         primary FITS header) rather than an individual nddata instance.
 
+    cals : dict of str : DataFile
+        A dictionary of associated processed calibrations, mapping calibration
+        types (eg. 'bias') to DataFile instances that can be (or have been)
+        used by the corresponding calibration steps. This attribute is
+        currently not persistent when saving to disk, so any calibrations must
+        be associated explicitly on reloading, if needed.
+
     The NDData instance(s) associated with the DataFile are accessed by
     iterating over or subscripting it like a list.
 
@@ -122,6 +129,7 @@ class DataFile(object):
     _meta = None
     _tables = None    # change later to _extras?
     _labels = None
+    _cals = None
 
     log = ''
 
@@ -135,6 +143,7 @@ class DataFile(object):
             self._meta = deepcopy(data.meta)
             self._filename = deepcopy(data.filename)
             self._labels = copy(data._labels)
+            self._cals = data._cals
         elif isinstance(data, NDDataBase):
             self._data = [NDLater(data=data)]
         elif hasattr(data, '__iter__') and \
@@ -201,12 +210,14 @@ class DataFile(object):
             self._tables = []
         if self.meta is None:
             self._meta = OrderedDict()
+        if self._cals is None:
+            self._cals = {}
         self._len = len(self._data)
 
         # Has the user overridden or accessed the file contents since
         # instantiation (if not, we can avoid saving without checking hashes
         # when supplying a DataFileList to an external program such as an
-        # IRAF task via run_task?
+        # IRAF task via run_task)?
         self._unloaded = meta is None and data is None
 
     @property
@@ -234,6 +245,10 @@ class DataFile(object):
     def meta(self):
         self._unloaded = False
         return self._meta
+
+    @property
+    def cals(self):
+        return self._cals
 
     # Specify that class manages its own iteration with next() method:
     def __iter__(self):
