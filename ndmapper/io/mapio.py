@@ -87,7 +87,7 @@ class FileName(object):
     ext : str
         File extension(s), eg. "fits" or "fits.gz".
 
-    sep : str
+    sep : str or None
         One or more characters specified as a suffix separator.
 
     orig : str
@@ -185,7 +185,8 @@ class FileName(object):
         else:
             result = [ls[0]]
         # Restore the separator char before any subsequent elements:
-        result += [self.sep + s for s in ls[1:]]
+        sep = ' ' if self.sep is None else self.sep
+        result += [sep + s for s in ls[1:]]
         return result
 
     @property
