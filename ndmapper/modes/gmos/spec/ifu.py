@@ -3,6 +3,7 @@
 
 from pyraf import iraf
 from ndmapper import config, ndprocess_defaults
+from ndmapper.data import DataFileList
 from ndmapper.iraf_task import run_task, get_extname_labels
 from ndmapper.modes.gemini import gemini_iraf_helper
 
@@ -88,23 +89,23 @@ def prepare(inputs, outputs=None, mdf=None):
 
 
 @ndprocess_defaults
-def subtract_bias(inputs, bias, outputs=None, ovs_function='spline3',
-    ovs_order=1, ovs_lsigma=2.0, ovs_hsigma=2.0, ovs_niter=5, interact=None):
+def subtract_bias(inputs, outputs=None, ovs_function='spline3', ovs_order=1,
+                  ovs_lsigma=2.0, ovs_hsigma=2.0, ovs_niter=5, interact=None):
 
     """
+    Subtract overscan level & pixel-to-pixel variations in zero point.
+
     Parameters
     ----------
 
-    images : DataFileList or DataFile
+    inputs : DataFileList or DataFile
         Input images from which to subtract the bias & overscan levels and
         trim off the overscan region. Currently these must reside in the
         current working directory (which will normally be the case after
-        running prepare).
-
-    bias : DataFile or DataFileList
-        Processed bias image to be used for subtracting pixel-to-pixel
-        variations in zero point (which should likewise have its overscan
-        level subtracted and the overscan region removed).
+        running prepare). Each input image should already have an entry named
+        'bias' in its dictionary of associated calibration files (`cals`
+        attribute); these bias images should already have their overscan levels
+        subtracted and overscan columns removed.
 
     outputs: DataFileList or DataFile, optional.
         Output bias subtracted files. If None (default), a new DataFileList
@@ -173,6 +174,13 @@ def subtract_bias(inputs, bias, outputs=None, ovs_function='spline3',
     prefix = 'r'
     if not outputs:
         outputs = '@inimages'
+
+    # Get a list of biases to use from the input file "cals" dictionaries.
+    # If the entry exists, assume the value is already a valid DataFile.
+    try:
+        bias = DataFileList(data=[df.cals['bias'] for df in inputs])
+    except KeyError:
+        raise KeyError('one or more inputs is missing an associated bias')
 
     # Get a few common Gemini IRAF defaults.:
     gemvars = gemini_iraf_helper()
