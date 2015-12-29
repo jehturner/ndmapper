@@ -1210,7 +1210,7 @@ def temp_saved_datafile(datafile):
     # DataFile immediately to avoid possible collisions.
     with tempfile.NamedTemporaryFile(
         prefix='tmp_{0}_'.format(datafile.filename.base),
-        suffix='.'+datafile.filename.ext, dir='') as tmpfile:
+        suffix=datafile.filename.dotext, dir='') as tmpfile:
 
         # Construct the new DataFile in memory from the old one:
         tdf = DataFile(data=datafile, filename=tmpfile.name, dirname='', \

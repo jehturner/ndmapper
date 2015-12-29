@@ -95,6 +95,12 @@ class FileName(object):
         to `base` + `ext` (read only). This is not one of the parsed components
         and exists for convenience in look-ups, list comprehensions etc.
 
+    dotext : str
+        The file extension as a string, beginning with the separator ('.'),
+        unless blank. This read-only attribute is provided for convenience;
+        the corresponding parsed filename component is `ext` (which excludes
+        the separator and may be None, when there is no extension).
+
     """
 
     def __init__(self, path=None, sep='_', strip=False, prefix=None, \
@@ -193,6 +199,10 @@ class FileName(object):
     def re(self):
         return self._re
 
+    @property
+    def dotext(self):
+        return '' if self.ext is None else os.extsep + self.ext
+
     # Show something meaningful when inspecting an instance:
     def __repr__(self):
         return 'FileName \'{0}\''.format(str(self))
@@ -200,16 +210,11 @@ class FileName(object):
     # Reconstruct the filename when printing the instance value (after any
     # user modifications to the individual components):
     def __str__(self):
-        if self.ext is None:
-            dotext = ''
-        else:
-            dotext = os.extsep+self.ext
         return (os.path.join(self.dir, (self.prefix+self.base+ \
-                string.join(self.suffix, '')+dotext)))
+                string.join(self.suffix, '')+self.dotext)))
     @property
     def orig(self):
-        return self.base if self.ext is None else \
-               os.extsep.join((self.base, self.ext))
+        return self.base + self.dotext
 
     def __deepcopy__(self, memo):
         # One can't copy a regex, except by re.compile(_re.pattern), but they
