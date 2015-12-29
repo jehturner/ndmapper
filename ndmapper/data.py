@@ -77,6 +77,7 @@ class DataFile(object):
         it must not exist and with 'overwrite', any existing file is ignored
         and will be replaced when writing to disk. The 'data' and 'filename'
         parameters always override whatever would otherwise be read from disk.
+        When no `filename` is given, the default is 'new' instead of 'read'.
 
     strip : bool, optional
         Remove any existing prefix and suffixes from the supplied filename
@@ -134,7 +135,7 @@ class DataFile(object):
     log = ''
 
 
-    def __init__(self, filename=None, data=None, meta=None, mode='read',
+    def __init__(self, filename=None, data=None, meta=None, mode=None,
         strip=False, prefix=None, suffix=None, dirname=None, labels=None):
 
         if isinstance(data, DataFile):  # create new copy of existing obj
@@ -184,16 +185,17 @@ class DataFile(object):
         # and check that it exists or doesn't, to match expectations:
         exists = os.path.exists(str(self.filename))
         read_file = False
-        if str(self.filename):  # Ignore mode=='read' if there's no filename
-            if mode in ['read', 'update']:
-                read_file = True
-                if not exists:
-                    raise IOError('%s not found' % str(self.filename))
-            elif mode == 'new':
-                if exists:
-                    raise IOError('%s already exists' % str(self.filename))
-            elif mode != 'overwrite':
-                raise ValueError('unrecognized file mode, \'%s\'' % mode)
+        if mode is None:
+            mode = 'read' if str(self.filename) else 'new'
+        if mode in ['read', 'update']:
+            read_file = True
+            if not exists:
+                raise IOError('%s not found' % str(self.filename))
+        elif mode == 'new':
+            if exists:
+                raise IOError('%s already exists' % str(self.filename))
+        elif mode != 'overwrite':
+            raise ValueError('unrecognized file mode, \'%s\'' % mode)
         self._mode = mode
 
         if read_file and self.meta is None:
