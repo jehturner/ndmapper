@@ -804,7 +804,7 @@ class DataFileList(list):
         prefix=None, suffix=None, dirname=None):
 
         # Check & if needed expand the argument lists, as in init.
-        filenames, data, meta = self._expand_args(filenames=filenames,
+        filenames, data, meta, mode = self._expand_args(filenames=filenames,
             data=data, meta=meta, mode=self._mode, strip=strip, prefix=prefix,
             suffix=suffix, dirname=dirname)
 
