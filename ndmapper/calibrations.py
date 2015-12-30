@@ -5,9 +5,10 @@ import os.path
 import json
 
 from ndmapper.libutils import splitext, addext
+from ndmapper.data import DataFile, DataFileList
 
 __all__ = ['init_cal_dict', 'save_cal_dict', 'add_cal_entry',
-           'extract_cal_entries']
+           'extract_cal_entries', 'associate_cals']
 
 
 K_ASSOCIATIONS = 'associations'
@@ -301,4 +302,81 @@ def extract_cal_entries(cal_dict, cal_type, reference=None):
     # the keys determined above. This could also be nested with the above set
     # comprehension if we want to enter the obfuscated 1-liner competition:
     return {key : cal_dict[K_CALIBRATIONS][key] for key in keys}
+
+
+def associate_cals(cals, inputs, cal_type=None, from_type=None, cal_dict=None):
+    """
+    Associate a given type of processed calibrations with the data they will
+    subsequently be used to calibrate (both as DataFile instances).
+
+    cals : DataFileList or DataFile or (dict of str : DataFile)
+        A list of processed calibrations that are available for association
+        with zero or more matching `inputs`. If a dictionary (with filename
+        strings as the keys) is provided, it is used directly to look up
+        available calibration DataFile instances by name, otherwise such a
+        dictionary is created internally from the parameter value. An entry
+        must exist in `cals` for every match found in `cal_dict` for `inputs`.
+
+    inputs : DataFileList or DataFile
+        DataFile instances with which processed calibrations are to be
+        associated. If no calibration match can be determined from `cal_dict`
+        for a given input, the association is silently omitted (but it is an
+        error for a calibration that is matched to be missing from `cals`).
+
+    cal_type : str, optional
+        Associated calibration type; this determines the name of the key
+        (eg. 'flat' or 'trace') under which the calibrations get associated in
+        the `cals` dictionaries of the `inputs`. It must match a type name
+        expected by later processing steps, rather than a type name defined in
+        the calibration dictionary (though these are typically the same).
+
+    from_type : str, optional
+        Calibration dictionary type to associate, if different from the
+        default of `cal_type`. This can be used, for example, to associate a
+        'flat' from the calibration dictionary as a 'trace' (extraction
+        reference) calibration -- or when the type naming convention from a
+        calibration look-up does not match that expected by subsequent
+        processing steps because the look-up service and processing routines
+        have different authors.
+
+    cal_dict : dict, optional
+        A populated calibration dictionary, in the specific format produced by
+        init_cal_dict() or services.look_up_cals(), used to match `cals` with
+        the `inputs`.
+
+    """
+
+    # Ensure the inputs are DataFileLists if not already:
+    inputs = DataFileList(data=inputs)
+
+    # Convert cals to a dict keyed by name if needed (to avoid searching the
+    # list for matches repeatedly). Distinguish DataFile(List) explicitly in
+    # case they have keys attributes added later.
+    if isinstance(cals, (DataFileList, DataFile)) or not hasattr(cals, 'keys'):
+        cals = {str(df.filename) : df for df in DataFileList(data=cals)}
+
+    # Default to using same cal_dict type convention as for associated type.
+    # Could `from_type` be removed in favour of a brute-force look-up of files
+    # associated with each input amongst the provided cals? Not if we want to
+    # allow supplying a heterogenous mass of available cals, which might be
+    # convenient from a user-bookeeping perspective.
+    if from_type is None:
+        from_type = cal_type
+
+    # To do: add cal_dict validation, to produce a sensible error if needed.
+
+    # Do the look-ups and perform the associations:
+    for df in inputs:
+        try:
+            match_name = cal_dict[K_ASSOCIATIONS][df.filename.orig][from_type]
+        except KeyError:
+            pass  # if no calibration match is found, do nothing & move on
+        else:
+            try:
+                df.cals[cal_type] = cals[match_name]
+            except KeyError:
+                raise KeyError('{0} missing from input cals'.format(match_name))
+
+    # Return input files with cals now attached, for syntactic convenience:
+    return inputs
 
