@@ -274,7 +274,7 @@ def download_files_gemini(filenames, dirname=''):
 
     """
     # (The alternative to this query is 'file', which omits the checksum)
-    service = 'download/filename'
+    service = 'download'
 
     # The Gemini archive currently doesn't support looking up a list of known
     # filenames, so request them one at a time:
@@ -312,9 +312,8 @@ def download_query_gemini(query, dirname=''):
     Parameters
     ----------
 
-    filenames : list of str
-        The names of the files to request from the server. Any that are
-        already present in `dirname` will be ignored.
+    query : str
+        The query URL (or just the path component) to request from the server.
 
     dirname : str, optional
         The (absolute or relative) directory path in which to place the files.
