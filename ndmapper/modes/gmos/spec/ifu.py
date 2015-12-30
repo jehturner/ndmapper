@@ -60,7 +60,9 @@ def prepare(inputs, outputs=None, mdf=None):
 
     # Here some "unnecessary" parameters are defined just to be certain they
     # don't change anything and so we can easily copy this when wrapping
-    # other operations with gfreduce later:
+    # other operations with gfreduce later. Using gfreduce for this ensures
+    # that the MDF is determined in the same way as in my CL example, though
+    # that logic seems to be duplicated in gprepare (argh).
     result = run_task('gemini.gmos.gfreduce', inputs={'inimages' : inputs},
         outputs={'outimages' : outputs}, prefix=prefix, comb_in=False,
         MEF_ext=False, path_param='rawpath', outpref='default', slits='header',
@@ -93,7 +95,8 @@ def subtract_bias(inputs, outputs=None, ovs_function='spline3', ovs_order=1,
                   ovs_lsigma=2.0, ovs_hsigma=2.0, ovs_niter=5, interact=None):
 
     """
-    Subtract overscan level & pixel-to-pixel variations in zero point.
+    Subtract overscan level & pixel-to-pixel variations in zero point. This
+    also (as an artifact of using gfreduce) converts the units to electrons.
 
     Parameters
     ----------
@@ -218,4 +221,165 @@ def subtract_bias(inputs, outputs=None, ovs_function='spline3', ovs_order=1,
         dq_ext=labels['flags'], verbose=gemvars['verbose'])
 
     return result['outimages']
+
+
+@ndprocess_defaults
+def extract_spectra(inputs, outputs=None, startpos=None, interact=None):
+
+    """
+    Extract one spectrum per IFU fibre from each 2D spectrogram to produce
+    row-stacked 1D spectra, mosaicking the separate GMOS CCDs beforehand and
+    adding an approximate wavelength solution to the headers afterwards. The
+    results are also divided by any associated flat spectra, where available.
+
+    The combination of multiple operations here is a side effect of wrapping
+    gfextract; at least the mosaicking & flat fielding are likely to be
+    separated into their own steps in a later version.
+
+    Parameters
+    ----------
+
+    inputs : DataFileList or DataFile
+        Input images from which to extract spectra (in which the individual
+        detectors are not yet mosaicked). If flat fielding is to be performed,
+        every input DataFile must already have an entry named 'flat' in its
+        `cals` dictionary, corresponding to a processed detector+IFU flat
+        (otherwise, flat fielding is omitted if there are no such
+        associations). Likewise, if the fibre traces are to be taken from one
+        or more reference files(s) (usually flats), rather than re-measured,
+        every input must have an entry named 'trace' in its `cals` dictionary,
+        pointing to a previous output file from this step.
+
+    outputs: DataFileList or DataFile, optional
+        Output files containing extracted & flat-fielded spectra. If None
+        (default), a new DataFileList will be returned, whose names are
+        constructed from those of the input files, prefixed with 'e' as in the
+        Gemini IRAF package.
+
+    startpos : int, optional
+        Starting column in which the peaks corresponding to each fibre are
+        identified (when not using a reference image), before tracing the
+        corresponding spectra in either direction along the wavelength axis.
+        This is defined relative to the equally-sized sub-region(s) cut out by
+        gfextract for the IFU slits (see the log file), rather than the full
+        input image. The default is the middle column of each region (ie. of
+        the useful wavelength range). This parameter is typically useful for
+        avoiding localized artifacts, such as cosmic rays, that can be mistaken
+        by apall for fibres when bright enough. The definition of this
+        parameter is likely to change in a future version, such that the value
+        will be an offset relative to the default column (currently awkward to
+        implement, as the regions cut out by gfextract are unknown beforehand).
+
+    interact : bool, None
+        Identify the fibres interactively in IRAF? If None (default),
+        interactivity is instead controlled by the package configuration
+        dictionary (see below).
+
+    See "help gfextract" in IRAF for more detailed information. Note that the
+    behaviour of this step can depend on whether an IRAF database file already
+    exists from a previous run, causing the earlier results to be re-used.
+
+
+    Returns
+    -------
+
+    outimage : DataFileList
+        The extracted spectra produced by gfextract.
+
+
+    Package 'config' options
+    ------------------------
+
+    use_uncert : bool
+        Enable NDData 'uncertainty' (variance) propagation (default True)?
+
+    use_flags : bool
+        Enable NDData 'flags' (data quality) propagation (default True)?
+
+    interact : bool
+        Enable interactive plotting (default False)? This may be overridden
+        by the step's own "interact" parameter.
+
+    """
+
+    # Initialize the task inputs dict from the main list of input files; any
+    # associated "reference" or "response" file lists then get added below,
+    # only if applicable:
+    task_inputs = {'inimage' : inputs}
+
+    # Use default prefix if output filename unspecified:
+    prefix = 'e'
+    if not outputs:
+        outputs = '@inimage'
+
+    # Use apall starting column default if not specified:
+    if startpos is None:
+        startpos = iraf.INDEF
+
+    # Make a list of flats from each input's "cals" dictionary. If NO files
+    # have flats associated, the response parameter is omitted and no flat
+    # fielding is done. Otherwise, at present, they must all have one.
+    flats = [df.cals['flat'] if 'flat' in df.cals else None for df in inputs]
+    if None in flats:
+        print [entry for entry in flats]
+        if not all([entry is None for entry in flats]):
+            raise KeyError('one or more inputs is missing an associated flat')
+    else:
+        task_inputs['response'] = DataFileList(data=flats)
+
+    # Do likewise for the reference traces.
+    traces = [df.cals['trace'] if 'trace' in df.cals else None for df in inputs]
+    if None in traces:
+        if not all([entry is None for entry in traces]):
+            raise KeyError('one or more inputs is missing an associated '\
+                           'reference trace')
+    else:
+        task_inputs['reference'] = DataFileList(data=traces)
+
+    # To do:
+    # - Replace the above replicated blocks with a DataFileList cals attribute
+    #   that returns another DataFileList? Allow for None values in
+    #   DataFileList so files can remain associated positionally when there are
+    #   missing associations (probably non-trivial)?
+    # - Consider adapting run_task to accept None values for inputs and set
+    #   the corresponding filename parameter to "" in that case?
+    #   - An alternative might be to add a cals parameter to run_task, which
+    #     would tell it to derive each named parameter from a specified cal
+    #     type in the inputs cal dicts -- but this could be messy, as it means
+    #     mapping each cal parameter to both an inputs parameter and a cal type
+    #     rather than a single DataFileList.
+    # - Some additional parameters probably want exposing, such as perovlap.
+
+    # Get a few common Gemini IRAF defaults.:
+    gemvars = gemini_iraf_helper()
+
+    # Determine input DataFile EXTNAME convention, to pass to the task:
+    labels = get_extname_labels(inputs)
+
+    # The apextract trace parameter only seems to control whether a trace in
+    # wavelength is used at all (as opposed to a fixed range of rows around the
+    # measured starting centre, with no tilt or curvature); thus, there is no
+    # reason to set it to False. In either case, where a reference is used, the
+    # existing trace terms (but not the fibre centre / zero point) get copied
+    # from it verbatim. The recenter parameter controls whether a fixed
+    # adjustment is applied to the fibre centre zero points when using a
+    # reference image -- but that would break the correspondence with the pixel
+    # flat, so leave it disabled for now (probably better to lose a bit of
+    # signal for small shifts than to introduce unquantified systematics).
+
+    result = run_task(
+        'gemini.gmos.gfextract', inputs=task_inputs,
+        outputs={'outimage' : outputs}, prefix=prefix, comb_in=False,
+        MEF_ext=False, path_param=None, outpref='e', title='', exslits='*',
+        line=startpos, nsum=10, trace=True, recenter=False, thresh=200.,
+        function='chebyshev', order=5, t_nsum=10, weights='none',
+        bpmfile=gemvars['gmosdata']+'chipgaps.dat', grow=1.0, gaindb='default',
+        gratingdb=gemvars['gmosdata']+'GMOSgratings.dat',
+        filterdb=gemvars['gmosdata']+'GMOSfilters.dat', xoffset=iraf.INDEF,
+        perovlap=10., sci_ext=labels['data'], var_ext=labels['uncertainty'],
+        dq_ext=labels['flags'], fl_inter=interact, fl_vardq=gemvars['vardq'],
+        fl_novlap=True, fl_gnsskysub=False, fl_fixnc=False, fl_fixgaps=True,
+        fl_gsappwave=True, fl_fulldq=True, dqthresh=0.1,
+        verbose=gemvars['verbose']
+    )
 
