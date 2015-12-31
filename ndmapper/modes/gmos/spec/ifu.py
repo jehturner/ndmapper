@@ -367,6 +367,8 @@ def extract_spectra(inputs, outputs=None, startpos=None, interact=None):
     # flat, so leave it disabled for now (probably better to lose a bit of
     # signal for small shifts than to introduce unquantified systematics).
 
+    # Change the default function to spline3 (etc.), like in the CL example?
+
     result = run_task(
         'gemini.gmos.gfextract', inputs=task_inputs,
         outputs={'outimage' : outputs}, prefix=prefix, comb_in=False,
@@ -382,4 +384,49 @@ def extract_spectra(inputs, outputs=None, startpos=None, interact=None):
         fl_gsappwave=True, fl_fulldq=True, dqthresh=0.1,
         verbose=gemvars['verbose']
     )
+
+    return result['outimage']
+
+
+@ndprocess_defaults
+def calibrate_wavelength(inputs, order=4, line_list=None, interact=None):
+    """
+    """
+
+    # For the time being, the output from this only exists in the IRAF
+    # database on disk and is thereby communicated between gswavelength &
+    # gftransform. When the step is eventually replaced with Python code,
+    # the solution will persist in the gWCS attribute(s) of the output
+    # NDLater instances.
+
+    # Get a few common Gemini IRAF defaults.:
+    gemvars = gemini_iraf_helper()
+
+    # Determine input DataFile EXTNAME convention, to pass to the task:
+    labels = get_extname_labels(inputs)
+
+    if line_list is None:
+        line_list = gemvars['gmosdata']+'CuAr_GMOS.dat'
+
+    fl_inter = 'yes' if interact else 'NO'  # enumerated value in this task
+
+    result = run_task(
+        'gemini.gmos.gswavelength', inputs={'inimages' : inputs}, outputs=None,
+        prefix=None, suffix=None, comb_in=False, MEF_ext=False, path_param=None,
+        crval='CRVAL1', cdelt='CD1_1', crpix='CRPIX1', key_dispaxis='DISPAXIS',
+        dispaxis=1, database='database', coordlist=line_list,
+        gratingdb=gemvars['gmosdata']+'GMOSgratings.dat',
+        filterdb=gemvars['gmosdata']+'GMOSfilters.dat', fl_inter=fl_inter,
+        section='default', nsum=1, ftype='emission', fwidth=10., gsigma=0.,
+        cradius=10., threshold=0., minsep=2.5, match=-6., function='chebyshev',
+        order=order, sample='*', niterate=10., low_reject=2.5, high_reject=2.5,
+        grow=0., refit=True, step=1, trace=True, nlost=10, maxfeatures=150,
+        ntarget=30, npattern=5, fl_addfeat=True, aiddebug='s', fl_dbwrite='YES',
+        fl_overwrite=True, fl_gsappwave=False, fitcfunc='chebyshev',
+        fitcxord=4, fitcyord=4, verbose=gemvars['verbose']
+    )
+
+    # Propagate the task inputs unmodified since the solution currently isn't
+    # being attached to them but will be in future.
+    return inputs
 

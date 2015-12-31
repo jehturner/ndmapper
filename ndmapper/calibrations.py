@@ -365,6 +365,8 @@ def associate_cals(cals, inputs, cal_type=None, from_type=None, cal_dict=None):
 
     # To do: add cal_dict validation, to produce a sensible error if needed.
 
+    # Need to edit this to make the cal_dict (& cal_type?) actually optional.
+
     # Do the look-ups and perform the associations:
     for df in inputs:
         try:
