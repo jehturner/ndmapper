@@ -311,18 +311,19 @@ def cal_entries(cal_dict, cal_type, reference=None):
     return tuple((key, cal_dict[K_CALIBRATIONS][key]) for key in keys)
 
 
-def associate_cals(cals, inputs, cal_type=None, from_type=None, cal_dict=None):
+def associate_cals(cals, inputs, cal_type, from_type=None, cal_dict=None):
     """
     Associate a given type of processed calibrations with the data they will
     subsequently be used to calibrate (both as DataFile instances).
 
     cals : DataFileList or DataFile or (dict of str : DataFile)
-        A list of processed calibrations that are available for association
-        with zero or more matching `inputs`. If a dictionary (with filename
-        strings as the keys) is provided, it is used directly to look up
-        available calibration DataFile instances by name, otherwise such a
-        dictionary is created internally from the parameter value. An entry
-        must exist in `cals` for every match found in `cal_dict` for `inputs`.
+        A list/dict of processed calibrations, available for association with
+        zero or more matching `inputs`. If a dictionary (with filename strings
+        as the keys) is provided, it is used directly to look up available
+        calibration DataFile instances by name, otherwise such a dictionary is
+        created internally from the parameter value. Any existing keys are
+        ignored if `from_type` is set to 'self'. An entry must exist in `cals`
+        for every match found in `cal_dict` for `inputs`.
 
     inputs : DataFileList or DataFile
         DataFile instances with which processed calibrations are to be
@@ -330,7 +331,7 @@ def associate_cals(cals, inputs, cal_type=None, from_type=None, cal_dict=None):
         for a given input, the association is silently omitted (but it is an
         error for a calibration that is matched to be missing from `cals`).
 
-    cal_type : str, optional
+    cal_type : str
         Associated calibration type; this determines the name of the key
         (eg. 'flat' or 'trace') under which the calibrations get associated in
         the `cals` dictionaries of the `inputs`. It must match a type name
@@ -338,29 +339,49 @@ def associate_cals(cals, inputs, cal_type=None, from_type=None, cal_dict=None):
         the calibration dictionary (though these are typically the same).
 
     from_type : str, optional
-        Calibration dictionary type to associate, if different from the
-        default of `cal_type`. This can be used, for example, to associate a
-        'flat' from the calibration dictionary as a 'trace' (extraction
-        reference) calibration -- or when the type naming convention from a
-        calibration look-up does not match that expected by subsequent
-        processing steps because the look-up service and processing routines
-        have different authors.
+        Calibration dictionary type to associate, if different from the default
+        of `cal_type`. This can be used for multiple purposes, including:
+        1) re-use of, for example, an associated 'flat' in the calibration
+        dictionary (where available) as a 'trace' reference for spectral
+        extraction; 2) when the type naming convention from a calibration
+        look-up differs from that expected by subsequent processing steps
+        (eg. due to different authors) and 3) associating calibration files
+        with themselves (a case that may or may not exist explicitly in the
+        calibration dictionary). The special parameter value of 'self' causes
+        the cal_dict look-up to be skipped altogether and, for each input file,
+        looks for a file in `cals` with the same original name. In case 1,
+        where no substitute association exists, an entry ('trace') must be
+        added manually to the calibration dictionary, pointing to either an
+        existing calibration name label or a new one.
 
     cal_dict : dict, optional
         A populated calibration dictionary, in the specific format produced by
         init_cal_dict() or services.look_up_cals(), used to match `cals` with
-        the `inputs`.
+        the `inputs`. Must be provided unless `from_type` == 'self'.
 
     """
 
     # Ensure the inputs are DataFileLists if not already:
     inputs = DataFileList(data=inputs)
 
-    # Convert cals to a dict keyed by name if needed (to avoid searching the
-    # list for matches repeatedly). Distinguish DataFile(List) explicitly in
-    # case they have keys attributes added later.
+    # Are we associating a calibration with itself rather than some calibration
+    # look-up result?
+    from_self = from_type == 'self'
+
+    # Convert cals to a dict keyed by name if not already in that format (to
+    # avoid searching the list for matches repeatedly). Distinguish
+    # DataFile(List) explicitly in case they have keys attributes added later.
+    # This is a bit fiddly to make more concise.
     if isinstance(cals, (DataFileList, DataFile)) or not hasattr(cals, 'keys'):
-        cals = {str(df.filename) : df for df in DataFileList(data=cals)}
+        if from_self:
+            cals = {str(df.filename.orig) : df \
+                    for df in DataFileList(data=cals)}
+        else:
+            cals = {str(df.filename) : df for df in DataFileList(data=cals)}
+
+    # If passed a dict & associating with 'self', regenerate appropriate keys:
+    elif from_self:
+        cals = {str(df.filename.orig) : df for df in cals.itervalues()}
 
     # Default to using same cal_dict type convention as for associated type.
     # Could `from_type` be removed in favour of a brute-force look-up of files
@@ -370,17 +391,25 @@ def associate_cals(cals, inputs, cal_type=None, from_type=None, cal_dict=None):
     if from_type is None:
         from_type = cal_type
 
-    # To do: add cal_dict validation, to produce a sensible error if needed.
+    # Calibration dict is only optional if self-associating:
+    if cal_dict is None and not from_self:
+        raise ValueError('cal_dict must be specified unless '\
+                         'from_type is \'self\'')
 
-    # Need to edit this to make the cal_dict (& cal_type?) actually optional.
+    # To do: Add cal_dict validation, to produce a sensible error if needed.
 
     # Do the look-ups and perform the associations:
     for df in inputs:
-        try:
-            match_name = cal_dict[K_ASSOCIATIONS][df.filename.orig][from_type]
-        except KeyError:
-            pass  # if no calibration match is found, do nothing & move on
+        if from_self:
+            match_name = df.filename.orig
         else:
+            try:
+                match_name = cal_dict[K_ASSOCIATIONS][df.filename.orig]\
+                                     [from_type]
+            except KeyError:
+                match_name = None  # if no match is found, do nothing & move on
+
+        if match_name is not None:
             try:
                 df.cals[cal_type] = cals[match_name]
             except KeyError:
