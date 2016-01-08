@@ -252,14 +252,16 @@ def add_cal_entry(filename, cal_type, matches, cal_dict):
     associations[filename][cal_type] = label
 
 
-def extract_cal_entries(cal_dict, cal_type, reference=None):
+def cal_entries(cal_dict, cal_type, reference=None):
     """
-    Extract entries matching a specified calibration type from the
-    'calibrations' sub-dict of the calibration dictionary.
+    Extract entries of a specified type from the 'calibrations' section of
+    a calibration dictionary (typically for iterating over and processing
+    calibrations of a given type).
 
-    This could also be done "manually" -- but (to avoid duplication of type
-    information in calibration dictionary) involves some nested loops or
-    (in?)comprehensions that are less user-readable than a function call.
+    This could also be done by the user in 1-2 lines of code, but involves
+    some nested loops or (in)comprehensions that are less user-readable than
+    a function call (to avoid duplication of type information in calibration
+    dictionary, which would then have to be kept synchronized).
 
     Parameters
     ----------
@@ -280,11 +282,14 @@ def extract_cal_entries(cal_dict, cal_type, reference=None):
     Returns
     -------
 
-    dict of (str : list of str)
-        An dictionary where the keys are calibration name labels and the values
-        lists of constituent filenames -- the same as in the input
-        'calibrations' sub-dict but including only those entries that match
-        `cal_type` (and, if specified, `reference`).
+    tuple of (str, list of str)
+        A tuple of (key, value) tuple pairs from the dictionary, where each
+        first element is a calibration name label and each second element a
+        list of constituent filenames. These are the items() of the input
+        'calibrations' sub-dict that match `cal_type` (and, if specified,
+        `reference`). The result can be iterated over directly, for processing
+        each entry in turn, or converted with dict() to reproduce the
+        appropriate subset of cal_dict['calibrations'].
 
     """
 
@@ -300,8 +305,10 @@ def extract_cal_entries(cal_dict, cal_type, reference=None):
 
     # Now extract the entries from the calibrations sub-dict corresponding to
     # the keys determined above. This could also be nested with the above set
-    # comprehension if we want to enter the obfuscated 1-liner competition:
-    return {key : cal_dict[K_CALIBRATIONS][key] for key in keys}
+    # comprehension if we want to enter the obfuscated 1-liner competition.
+    # It would be preferable to leave this as a generator from a programmatic
+    # viewpoint but a tuple is just more user-friendly.
+    return tuple((key, cal_dict[K_CALIBRATIONS][key]) for key in keys)
 
 
 def associate_cals(cals, inputs, cal_type=None, from_type=None, cal_dict=None):

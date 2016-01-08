@@ -321,7 +321,6 @@ def extract_spectra(inputs, outputs=None, startpos=None, interact=None):
     # fielding is done. Otherwise, at present, they must all have one.
     flats = [df.cals['flat'] if 'flat' in df.cals else None for df in inputs]
     if None in flats:
-        print [entry for entry in flats]
         if not all([entry is None for entry in flats]):
             raise KeyError('one or more inputs is missing an associated flat')
     else:
