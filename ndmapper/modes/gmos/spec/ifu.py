@@ -250,7 +250,7 @@ def extract_spectra(inputs, outputs=None, startpos=None, interact=None):
         every input must have an entry named 'trace' in its `cals` dictionary,
         pointing to a previous output file from this step.
 
-    outputs: DataFileList or DataFile, optional
+    outputs : DataFileList or DataFile, optional
         Output files containing extracted & flat-fielded spectra. If None
         (default), a new DataFileList will be returned, whose names are
         constructed from those of the input files, prefixed with 'e' as in the
