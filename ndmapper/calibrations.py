@@ -7,8 +7,8 @@ import json
 from ndmapper.libutils import splitext, addext
 from ndmapper.data import DataFile, DataFileList
 
-__all__ = ['init_cal_dict', 'save_cal_dict', 'add_cal_entry',
-           'extract_cal_entries', 'associate_cals']
+__all__ = ['init_cal_dict', 'save_cal_dict', 'add_cal_entry', 'cal_entries',
+           'associate_cals']
 
 
 K_ASSOCIATIONS = 'associations'
