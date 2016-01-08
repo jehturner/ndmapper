@@ -390,6 +390,55 @@ def extract_spectra(inputs, outputs=None, startpos=None, interact=None):
 @ndprocess_defaults
 def calibrate_wavelength(inputs, order=4, line_list=None, interact=None):
     """
+    Determine an absolute wavelength solution for each row (fibre) of the
+    input spectra. Currently, this information is saved only in an IRAF
+    database, whence it is picked up directly by the rectification step.
+
+    In future, this will be replaced by two Python steps that use AstroPy
+    gWCS to propagate a two-component wavelength solution, one mapping the
+    differences between fibres and the other a reference spectrum from pixels
+    to wavelength units.
+
+    Parameters
+    ----------
+
+    inputs : DataFileList or DataFile
+        Input images with extracted, row-stacked spectra, from which to
+        determine a wavelength fit by comparision with the `line_list`.
+
+    order : int, optional
+        Order of the one-dimensional Chebyshev fitting function, used to
+        describe wavelength as a function of pixel index for each row
+        (default 4).
+
+    line_list : str, optional
+        Name of a text file from which reference wavelengths are to be read
+        for the spectral lines present in the source spectrum (see the help
+        for IRAF task "identify"). The default is "gmos$data/CuAr_GMOS.dat".
+
+    interact : bool, None
+        Inspect & modify the line identifications and fitting functions
+        interactively in IRAF? If None (default), interactivity is instead
+        controlled by the package configuration  dictionary (see below).
+
+    See "help gswavelength" in IRAF for more detailed information.
+
+
+    Returns
+    -------
+
+    DataFileList
+        The (unmodified) `inputs`, with newly-associated wavelength solution
+        databases in IRAF.
+
+
+    Package 'config' options
+    ------------------------
+
+    interact : bool
+        Enable interactive plotting (default False)? This may be overridden
+        by the step's own "interact" parameter.
+
     """
 
     # For the time being, the output from this only exists in the IRAF
