@@ -101,6 +101,11 @@ class FileName(object):
         the corresponding parsed filename component is `ext` (which excludes
         the separator and may be None, when there is no extension).
 
+    root : str
+        The root filename (prefix + base + suffix). This read-only attribute
+        is provided for convenience in list comprehensions etc. (eg. to help
+        determine IRAF database names) and is not one of the parsed components.
+
     """
 
     def __init__(self, path=None, sep='_', strip=False, prefix=None, \
@@ -203,6 +208,10 @@ class FileName(object):
     def dotext(self):
         return '' if self.ext is None else os.extsep + self.ext
 
+    @property
+    def root(self):
+        return self.prefix + self.base + string.join(self.suffix, '')
+
     # Show something meaningful when inspecting an instance:
     def __repr__(self):
         return 'FileName \'{0}\''.format(str(self))
@@ -210,8 +219,7 @@ class FileName(object):
     # Reconstruct the filename when printing the instance value (after any
     # user modifications to the individual components):
     def __str__(self):
-        return (os.path.join(self.dir, (self.prefix+self.base+ \
-                string.join(self.suffix, '')+self.dotext)))
+        return (os.path.join(self.dir, self.root + self.dotext))
     @property
     def orig(self):
         return self.base + self.dotext
