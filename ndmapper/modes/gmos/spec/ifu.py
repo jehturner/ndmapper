@@ -155,18 +155,6 @@ def subtract_bias(inputs, outputs=None, ovs_function='spline3', ovs_order=1,
     use_flags : bool
         Enable NDData 'flags' (data quality) propagation (default True)?
 
-    data_name : str
-        Name identifying main NDData data (science) arrays within a file
-        (default 'SCI' = Gemini convention).
-
-    uncertainty_name : str
-        Name identifying NDData uncertainty (variance) arrays within a file
-        (default 'VAR' = Gemini convention).
-
-    flags_name : str
-        Name identifying NDData flags (data quality) arrays within a file
-        (default 'DQ' = Gemini convention).
-
     interact : bool
         Enable interactive plotting (default False)? This may be overridden
         by the task's own "interact" parameter.
@@ -477,4 +465,110 @@ def calibrate_wavelength(inputs, order=4, line_list=None, interact=None):
     # Propagate the task inputs unmodified since the solution currently isn't
     # being attached to them but will be in future.
     return inputs
+
+
+@ndprocess_defaults
+def rectify_wavelength(inputs, outputs=None, start_wl=None, end_wl=None,
+                       delta_wl=None, npix=None):
+    """
+    Resample ("transform") fibre spectra onto a pixel array with a linear
+    wavelength increment.
+
+    This step currently depends on a version of gftransform that has been
+    patched with respect to the public version 1.13.1, to accept ".fits" in
+    the filenames passed to its `wavtraname` parameter. This change is likely
+    to be included in the public Gemini IRAF package in 2016.
+
+
+    Parameters
+    ----------
+
+    inputs : DataFileList or DataFile
+        Input images, containing extracted fibre spectra, to be interpolated
+        and resampled to linear World co-ordinates along the wavelength axis.
+        Each input must already have an associated entry named 'arc' in its
+        `cals` dictionary (whose name is used by gftransform, in the current
+         implementation, to find the corresponding IRAF database files).
+
+    outputs : DataFileList or DataFile, optional
+        Output images with a constant increment in wavelength per pixel. If
+        None (default), a new DataFileList will be returned, whose names are
+        constructed from those of the input files, prefixed with 't' as in the
+        Gemini IRAF package.
+
+    start_wl, end_wl, delta_wl : float, optional
+        Starting & ending wavelengths (at the centre of the first/last column)
+        and wavelength increment per pixel to use for the output grid, in the
+        same units as the database (? Usually Angstroms). By default, the
+        output spans the same average wavelength range as the input, with the
+        same number of pixels. Any combination of these parameters and `npix`
+        can be overridden (precedence if all four specified TBC), leaving the
+        remainder to be determined based on the input.
+
+    npix : int, optional
+        Length in pixels of the wavelength axis of the output image(s), by
+        default the same as in the input (used in conjuction with `start_wl`,
+        `end_wl` & `delta_wl` to constrain the wavelength increment & range).
+
+    See "help gftransform" in IRAF for more detailed information.
+
+
+    Returns
+    -------
+
+    outimages : DataFileList
+        The extracted spectra produced by gfextract.
+
+
+    Package 'config' options
+    ------------------------
+
+    use_uncert : bool
+        Enable NDData 'uncertainty' (variance) propagation (default True)?
+
+    use_flags : bool
+        Enable NDData 'flags' (data quality) propagation (default True)?
+
+    """
+
+    # Use default prefix if output filename unspecified:
+    prefix = 't'
+    if not outputs:
+        outputs = '@inimages'
+
+    # Make a list of arcs from each input's "cals" dictionary. Every file must
+    # have one associated. The wavtraname parameter for gftransform is an
+    # oddball case because the files it names don't actually need to exist
+    # (just the corresponding database entries) and the original task fails if
+    # .fits extensions are included -- had to fix it in order to use a
+    # DataFileList, otherwise run_task won't correlate multiple inputs properly.
+    try:
+        arcs = DataFileList(data=[df.cals['arc'] for df in inputs])
+    except KeyError:
+        raise KeyError('one or more inputs is missing an associated arc')
+
+    # Get a few common Gemini IRAF defaults.:
+    gemvars = gemini_iraf_helper()
+
+    # Determine input DataFile EXTNAME convention, to pass to the task:
+    labels = get_extname_labels(inputs)
+
+    # Convert unspecified values to IRAF syntax:
+    if start_wl is None: start_wl = iraf.INDEF
+    if end_wl is None: end_wl = iraf.INDEF
+    if delta_wl is None: delta_wl = iraf.INDEF
+    if npix is None: npix = iraf.INDEF
+
+    result = run_task(
+        'gemini.gmos.gftransform',
+        inputs={'inimages' : inputs, 'wavtraname' : arcs},
+        outputs={'outimages' : outputs}, prefix=prefix, suffix=None,
+        comb_in=False, MEF_ext=False, path_param=None, database='database',
+        w1=start_wl, w2=end_wl, dw=delta_wl, nw=npix, dqthresh=0.1,
+        fl_vardq=gemvars['vardq'], fl_flux='yes', sci_ext=labels['data'],
+        var_ext=labels['uncertainty'], dq_ext=labels['flags'],
+        verbose=gemvars['verbose']
+    )
+
+    return result['outimages']
 
