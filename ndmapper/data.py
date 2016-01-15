@@ -52,8 +52,10 @@ class DataFile(object):
     data : NDData or list of NDData or DataFile or None, optional
         NDData instance(s) for the dataset(s) to be represented, or an
         existing DataFile instance (in which case the result will be a new
-        DataFile referring to the same NDData instance(s) as the original,
-        until such time as it is saved [not implemented]).
+        DataFile referring to the same NDData instance(s) as the original
+        [this will be changed so they are separate instances referring to the
+        same data, allowing lazy loading to be mapped differently, eg. after
+        one file is saved, to avoid surprises]).
 
         If "filename" refers to an existing file and "data" is None, the data
         will be mapped lazily from that file (data=[] can be used to avoid
@@ -141,7 +143,7 @@ class DataFile(object):
         if isinstance(data, DataFile):  # create new copy of existing obj
             self._data = data._data
             self._tables = data._tables
-            self._meta = deepcopy(data.meta)
+            self._meta = deepcopy(data._meta)
             self._filename = deepcopy(data.filename)
             self._labels = copy(data._labels)
             self._cals = data._cals
@@ -1200,8 +1202,8 @@ def temp_saved_datafile(datafile):
     use by an external program, and return the copy. It is the caller's
     responsibility to delete the file once it is no longer needed.
 
-    Although mapped to different files, both objects share the same pixel data
-    until reloaded.
+    Although mapped to different files, both objects share any pixel data in
+    memory until reloaded.
     """
     # Python doesn't provide a (non-deprecated) way to produce a temporary
     # filename without actually creating and opening the file (to avoid
@@ -1213,7 +1215,7 @@ def temp_saved_datafile(datafile):
         suffix=datafile.filename.dotext, dir='') as tmpfile:
 
         # Construct the new DataFile in memory from the old one:
-        tdf = DataFile(data=datafile, filename=tmpfile.name, dirname='', \
+        tdf = DataFile(data=datafile, filename=tmpfile.name, dirname='',
                        mode='overwrite')
 
     # As soon as Python has closed its file handle, re-create the file by
