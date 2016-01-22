@@ -14,6 +14,7 @@ from ._astropy_init import *
 config = {'filename_regex' : '[NS][0-9]{8}S[0-9]{3,4}',
           'logfile' : None,
           'labels' : {'data' : 'SCI', 'uncertainty' : 'VAR', 'flags' : 'DQ'},
+          'reprocess' : None,
           'use_uncert' : True,
           'use_flags' : True,
           'interact' : False
@@ -45,7 +46,7 @@ if not _ASTROPY_SETUP_:
 
             # Convert any unspecified flags to the run-time defaults specified
             # in the package configuration dictionary:
-            for param in ['interact']:
+            for param in ['interact', 'reprocess']:
                 if param in callargs and callargs[param] is None:
                     callargs[param] = config[param]
 
