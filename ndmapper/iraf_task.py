@@ -1,7 +1,12 @@
-# Copyright(c) 2015 Association of Universities for Research in Astronomy, Inc.
+# Copyright(c) 2015-2016 Association of Universities for Research in Astronomy, Inc.
 # by James E.H. Turner.
 
 # Draft module to execute IRAF tasks with PyRAF.
+
+# This works quite well but could do with refactoring for modularity after
+# growing a bit ... erm ... organically as the the concept has been sketched
+# out and features added. Also, an interface needs to be added for capturing
+# the standard output and the logging needs tidying up significantly.
 
 import os
 import os.path
@@ -20,8 +25,8 @@ __all__ = ['run_task', 'get_extname_labels']
 
 
 def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
-             comb_in=False, MEF_ext=True, path_param=None, logfile=None,
-             **params):
+             comb_in=False, MEF_ext=True, path_param=None, reprocess=None,
+             logfile=None, **params):
     """
     Wrapper to run an IRAF task on one or more DataFile objects and collect
     the results.
@@ -93,6 +98,19 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
         not apply the path_param prefix (usually input calibrations), or the
         task will fail to find some or all of the inputs.
 
+    reprocess : bool or None, optional
+        Overwrite or re-use existing output files? The default of None
+        redirects to the value of the package configuration variable
+        "ndmapper.config['reprocess']", which in turn defaults to None,
+        causing an error to be raised where output files already exist before
+        processing. If the value is set to True, any existing files will be
+        deleted before the IRAF task is run, while False is a no-op for
+        existing files, causing them to be re-used as output without repeating
+        the processing. If the IRAF task produces any intermediate files that
+        are not included in `outputs` (ie. that are unknown to run_task), it
+        is the caller's responsibility to delete them before repeating any
+        processing. The task is always (re-)run where there are no `outputs`.
+
     logfile : str or {str : str} or None
         Optional filename for logging output, which includes any IRAF log
         contents (delimited by run_task status lines) or Python exceptions.
@@ -125,9 +143,9 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
     parameters that have a different meaning from the Gemini convention (ie. a
     string that is added to the start/end of the input filename to provide an
     output name), but there appears to be only one such case in Ureka
-    (sqiid.getcoo); likewise for "MEF_ext", which has no known uses elsewhere.
-    It is assumed that the widely-used "logfile" will only ever have the usual
-    meaning.
+    (sqiid.getcoo); likewise for "MEF_ext", which has no known uses elsewhere,
+    "path_param" and "reprocess". It is assumed that the widely-used "logfile"
+    will only ever have the usual meaning.
 
     Returns
     -------
@@ -155,6 +173,10 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
     else:
         # Dict, to be implemented:
         raise NotImplementedError('logfile must currently be str or None')
+
+    # Determine from the config dict whether to reprocess data, if unspecified:
+    if reprocess is None:
+        reprocess = config['reprocess']
 
     # Keep a list of any temporary files that need cleaning up when finished:
     tmplist = []
@@ -250,8 +272,12 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
                                          'in inputs dictionary' % refpar)
                     outputs[key] = preflist
 
-        # Make sure output parameters are filename lists, as for the input:
-        outplen = conv_io_pars(outputs, mode='new')
+        # Make sure output parameters are DataFileLists, as for the input,
+        # selecting the mode according to the reprocess parameter. Use
+        # overwrite mode for reprocess==False until the files get reloaded, so
+        # DataFile won't complain if they don't already exist.
+        mode = 'new' if reprocess is None else 'overwrite'
+        outplen = conv_io_pars(outputs, mode=mode)
 
         # Save temporary copies (to the current directory) of any input files
         # that could have changed in memory, having done what's needed with
@@ -320,25 +346,27 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
         else:
             inlist = [{key : DataFileList(data=inputs[key][n]) for key in \
                        inputs.keys()} for n in range(nfiles)]
-            outlist = [{key : DataFileList(data=outputs[key][n], mode='new') \
+            outlist = [{key : DataFileList(data=outputs[key][n], mode=mode) \
                         for key in outputs.keys()} for n in range(nfiles)]
 
         # Define IRAF string format for any extension FITS extension numbers:
         in_extfmt = '[%s]'
         out_extfmt = '[%s,%s,append]'
 
-        # Do a pre-iteration over output parameter set(s) to ensure the files
-        # don't already exist and are not duplicated between iterations, to
-        # avoid obscure failures (duplicates are allowed within an iteration
-        # and if not legitimate should eventually be caught when the task
-        # itself complains). We'll worry about other errors like file
-        # permissions later on, when checking that the files actually get
-        # created by IRAF. While we're at it, add the run_task delimiter to
+        # To avoid obscure failures, do a pre-iteration over output parameter
+        # set(s) and ensure there are no duplicate outputs between iterations
+        # or, when reprocess is False, incomplete subsets of existing outputs
+        # from any given iteration. Duplicate outputs are allowed within an
+        # iteration (ie. task call) and if not legitimate should eventually be
+        # caught when the task itself complains. Other errors like file
+        # permissions are dealt with later, by checking that the files actually
+        # get created by IRAF. While we're at it, add the run_task delimiter to
         # the DataFile log attributes (done separately from the IRAF log so
         # it's still present when not using the latter).
         prevnames = []
         for outpset in outlist:
             iternames = []
+            existing = non_existing = False
             for dfl in outpset.itervalues():
                 for df in dfl:
                     df.log += '\n%s\n' % logstart
@@ -347,147 +375,196 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
                     name = os.path.abspath(str(df))
                     if name in prevnames:
                         raise IOError('duplicate output file: %s' % str(df))
-                    if os.path.exists(name):
-                        raise IOError('%s already exists' % str(df))
+                    if reprocess is False:
+                        if os.path.exists(name):
+                            existing = True
+                        else:
+                            non_existing = True
                     iternames.append(name)
             prevnames.extend(iternames)
+            if reprocess is False and existing and non_existing:
+                raise IOError('reprocess is False & a subset of these outputs '\
+                              'already exist:\n  {0}'
+                              .format('\n  '.join([str(df) for dfl \
+                                                   in outpset.itervalues() \
+                                                   for df in dfl])))
 
         # Iterate over the parameter set(s) and run the task on each one:
         for inpset, outpset in zip(inlist, outlist):
 
-            # When MEF_ext=True, we require all the inputs to have the same or
-            # unit length at each iteration (or overall if comb_in=True) and
-            # the same EXTVERs in order to match data extensions unambiguously
-            # between the inputs. While one could envisage more intelligent
-            # expansion behaviour than this for special cases of comb_in=True
-            # (such as requiring the lengths to match only between files at
-            # the same list positions) it would be difficult to generalize
-            # without unnecessarily imposing fixed relationships between sets
-            # of input files (eg. there's nothing to stop an IRAF task from
-            # taking a different number of files for each input or combining
-            # them in some way other than one operation over all the inputs
-            # per list position). The most likely case of iterating implicitly
-            # over MEF extensions for multiple groups of files that only match
-            # within each group can be handled using comb_in=False.
-            if MEF_ext:
-                # List EXTVERs for each input file (matching inpset dict):
-                extdict = {param : [{ndd.ident : ndd._io.data_idx \
-                                     for ndd in df} for df in inpset[param]] \
-                           for param in inpset}
-                # Also derive a flat list of all sorted EXTVER lists, so we
-                # can easily check that they match & get the nominal EXTVERs:
-                allvers = [sorted(extmap.iterkeys()) for extmaps in \
-                           extdict.itervalues() for extmap in extmaps]
-                # Find the longest extension list, which we'll iterate over if
-                # all goes well (the others should be the same or unit length):
-                extvers = max(allvers, key=len)
-                # Fail if the other non-unit-length EXTVER lists don't match:
-                if not all([dfvers == extvers for dfvers in allvers
-                            if len(dfvers) > 1]):
-                    raise ValueError('non-matching input MEF EXTVERs')
+            call_task = True
 
-            # Not iterating explicitly over MEF extensions:
-            else:
-                # Dummy dict to iterate over below, avoiding duplication:
-                extdict = {param : [None for df in inpset[param]] \
-                           for param in inpset}
-                extvers = ['']
-
-            # Run the task once on per MEF extension, if applicable, otherwise
-            # just once in total:
-            for ver in extvers:
-
-                # Complete the IRAF parameter set with input/output file lists
-                # for this iteration over the input files:
-                for param in inpset:
-
-                    # IRAF filenames for this parameter:
-                    fnlist = []
-
-                    # Iterate over files for this parameter & their ext maps:
-                    for df, dfextmap in zip(inpset[param], extdict[param]):
-
-                        # OS filename, without any MEF ext (& without any path
-                        # if the task expects a separate path parameter):
-                        if path_param:
-                            fn = str(FileName(df.filename, dirname=''))
+            # If re-processing, delete any existing files from this task call
+            # and if not, check whether the call can be skipped. This check is
+            # done here, separately from the above section, to avoid premature
+            # removal of results in case of failure:
+            if reprocess is not None:
+                # This variable also gets re-used in the call_task else clause:
+                names = [str(df) for dfl in outpset.itervalues() for df in dfl]
+                for name in names:
+                    if os.path.exists(name):
+                        if reprocess:
+                            os.remove(name)
                         else:
-                            fn = str(df)
+                            call_task = False
+                            break  # either all or none exist after above sec.
 
-                        # If iterating over FITS extensions, find the data
-                        # extension number corresponding to this extver, or if
-                        # there's only one data ext re-use that number:
-                        if dfextmap:
-                            if len(df) == 1:
-                                fn += in_extfmt % df[0]._io.data_idx
-                            else:
-                                fn += in_extfmt % dfextmap[ver]
+            # Execute the task unless its outputs already exist and reprocess
+            # is False, in which case we just re-use the files instead (via the
+            # same reload() call at the end):
+            if call_task:
 
-                        fnlist.append(fn)
+                # When MEF_ext=True, we require all the inputs to have the same
+                # or unit length at each iteration (or overall if comb_in=True)
+                # and the same EXTVERs in order to match data extensions
+                # unambiguously between the inputs. While one could envisage
+                # more intelligent expansion behaviour than this for special
+                # cases of comb_in=True (such as requiring the lengths to match
+                # only between files at the same list positions) it would be
+                # difficult to generalize without unnecessarily imposing fixed
+                # relationships between sets of input files (eg. there's
+                # nothing to stop an IRAF task from taking a different number
+                # of files for each input or combining them in some way other
+                # than one operation over all the inputs per list position).
+                # The most likely case of iterating implicitly over MEF
+                # extensions for multiple groups of files that only match
+                # within each group can be handled using comb_in=False.
+                if MEF_ext:
+                    # List EXTVERs for each input file (matching inpset dict):
+                    extdict = {param : [{ndd.ident : ndd._io.data_idx \
+                                         for ndd in df} \
+                                        for df in inpset[param]] \
+                               for param in inpset}
+                    # Also derive a flat list of all sorted EXTVER lists, to
+                    # check easily that they match & get the nominal EXTVERs:
+                    allvers = [sorted(extmap.iterkeys()) for extmaps in \
+                               extdict.itervalues() for extmap in extmaps]
+                    # Find longest extension list, which we'll iterate over if
+                    # all goes well (others should be the same or unit length):
+                    extvers = max(allvers, key=len)
+                    # Fail if other non-unit-length EXTVER lists don't match:
+                    if not all([dfvers == extvers for dfvers in allvers
+                                if len(dfvers) > 1]):
+                        raise ValueError('non-matching input MEF EXTVERs')
 
-                    # Convert filename list to IRAF comma-separated string
-                    # and add the relevant task parameter/value:
-                    params[param] = ','.join(fnlist)
-
-                # Similar IRAF comma-separated list for the output files. Here
-                # we just give IRAF the extname/ver to use instead of the ext.
-                for param in outpset:
-                    params[param] = ','.join( \
-                        [str(df)+(out_extfmt % (df._labels['data'], ver)) \
-                         if ver else str(df) for df in outpset[param]])
-
-                # Specify log file for IRAF. Even if the user specifies a name,
-                # use a temporary file and capture its contents before
-                # appending to the user-specified file.
-                if logpar is not None:
-                    templog = tempfile.NamedTemporaryFile()
-                    params[logpar] = templog.name
+                # Not iterating explicitly over MEF extensions:
                 else:
-                    templog = None
+                    # Dummy dict to iterate over below, avoiding duplication:
+                    extdict = {param : [None for df in inpset[param]] \
+                               for param in inpset}
+                    extvers = ['']
 
-                # print 'pars', params
+                # Run the task once on per MEF extension, if applicable,
+                # otherwise just once in total:
+                for ver in extvers:
 
-                # Execute with our Python inputs converted to IRAF-style pars:
-                try:
-                    task(**params)
+                    # Complete the IRAF parameter set with input/output file
+                    # lists for this iteration over the input files:
+                    for param in inpset:
 
-                # Note that PyRAF doesn't trap failures in IRAF tasks that
-                # accept input file lists and only issue a warning and carry on
-                # when an error specific to one of the files occurs, so we have
-                # to check separately that the expected output gets created to
-                # be confident it worked.
+                        # IRAF filenames for this parameter:
+                        fnlist = []
 
-                except (iraf.IrafError, KeyError), errstr:
-                    # Currently this is just a placeholder for any clean-up.
-                    raise
+                        # Iterate over files for this param & their ext maps:
+                        for df, dfextmap in zip(inpset[param], extdict[param]):
 
-                # Save any temporary IRAF log output whether or not the task
-                # succeeded:
-                finally:
-                    if templog is not None:
-                        logtext = templog.read()
-                        # Copy the temporary IRAF log into user-specified log:
-                        if userlog:
-                            userlog.write(logtext)
-                        # Attach log text to all output DataFile objects since,
-                        # where there's more than one, we don't know which if
-                        # any is the main one and it may apply to them all:
-                        for dfl in outpset.itervalues():
-                            for df in dfl:
-                                df.log += logtext
-                        templog.close()
+                            # OS filename, without any MEF ext (& without any
+                            # path if task expects a separate path parameter):
+                            if path_param:
+                                fn = str(FileName(df.filename, dirname=''))
+                            else:
+                                fn = str(df)
 
-                # Check that any non-blank output filenames got created:
-                for key, val in outpset.items():
-                    for df in val:
-                        namestr = str(df)
-                        if namestr and not os.path.isfile(namestr):
-                            raise RuntimeError('No file %s after running %s' % \
-                                (namestr, taskname))
+                            # If iterating over FITS extensions, find the data
+                            # extension number corresponding to this extver, or
+                            # if there's only one data ext re-use that number:
+                            if dfextmap:
+                                if len(df) == 1:
+                                    fn += in_extfmt % df[0]._io.data_idx
+                                else:
+                                    fn += in_extfmt % dfextmap[ver]
 
-            # Here we would clean up any temporary copies of input files from
-            # this iteration over a given set of files, if and when the copies
-            # are made per iteration instead of all at the start.
+                            fnlist.append(fn)
+
+                        # Convert filename list to IRAF comma-separated string
+                        # and add the relevant task parameter/value:
+                        params[param] = ','.join(fnlist)
+
+                    # Similar IRAF comma-separated list for output files. Here
+                    # we just give IRAF the extname/ver instead of the ext.
+                    for param in outpset:
+                        params[param] = ','.join( \
+                            [str(df)+(out_extfmt % (df._labels['data'], ver)) \
+                             if ver else str(df) for df in outpset[param]])
+
+                    # Specify log file for IRAF. Even if the user specifies a
+                    # name, use a temporary file and capture its contents
+                    # before appending to the user-specified file.
+                    if logpar is not None:
+                        templog = tempfile.NamedTemporaryFile()
+                        params[logpar] = templog.name
+                    else:
+                        templog = None
+
+                    # print 'pars', params
+
+                    # Execute with Python inputs converted to IRAF-style pars:
+                    try:
+                        task(**params)
+
+                    # Note that PyRAF doesn't trap failures in IRAF tasks that
+                    # accept input file lists and only issue a warning and
+                    # carry on when an error specific to one of the files
+                    # occurs, so we have to check separately that the expected
+                    # output gets created to be confident it worked.
+
+                    except (iraf.IrafError, KeyError), errstr:
+                        # Currently just a placeholder for any clean-up.
+                        raise
+
+                    # Save any temporary IRAF log output whether or not the
+                    # task succeeded:
+                    finally:
+                        if templog is not None:
+                            logtext = templog.read()
+                            # Copy temporary IRAF log into user-specified log:
+                            if userlog:
+                                userlog.write(logtext)
+                            # Attach log text to all output DataFile objects
+                            # since, where there's more than one, we don't know
+                            # which if any is the main one and it may apply to
+                            # them all:
+                            # To do: currently get overwritten by reload below?
+                            for dfl in outpset.itervalues():
+                                for df in dfl:
+                                    df.log += logtext
+                            templog.close()
+
+                    # Check that any non-blank output filenames got created:
+                    for key, val in outpset.items():
+                        for df in val:
+                            namestr = str(df)
+                            if namestr and not os.path.isfile(namestr):
+                                raise RuntimeError(
+                                    'No file %s after running %s' % \
+                                    (namestr, taskname)
+                                )
+
+                # Here we would clean up any temp copies of input files from
+                # this iteration over a given set of files, if and when the
+                # copies are made per iteration instead of all at the start.
+
+            # If processing was skipped, note that in the log:
+            else:
+                msg = 'Skip processing & re-use existing outputs for:'
+                for name in names:   # from "if reprocess" at start of loop
+                    msg += '\n  {0}'.format(name)
+                for dfl in outpset.itervalues():
+                    for df in dfl:
+                        df.log += msg
+                if userlog:
+                    userlog.write('{0}\n'.format(msg))
+                print msg
 
         # Print final run_task() delimiter:
         dt = datetime.datetime.now()
@@ -555,6 +632,9 @@ def conv_io_pars(pardict, mode):
         if isinstance(parval, basestring):
             dfmode = 'read' if mode is None else mode
             parval = DataFile(filename=parval, mode=dfmode)
+        elif parval and hasattr(parval, '__iter__') and \
+             all([isinstance(fn, basestring) for fn in parval]):
+            parval = DataFileList(filenames=parval, mode=mode)
         try:
             pardict[param] = DataFileList(data=parval, mode=mode)
         except TypeError:
