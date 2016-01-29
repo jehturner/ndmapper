@@ -476,8 +476,9 @@ def rectify_wavelength(inputs, outputs=None, start_wl=None, end_wl=None,
 
     This step currently depends on a version of gftransform that has been
     patched with respect to the public version 1.13.1, to accept ".fits" in
-    the filenames passed to its `wavtraname` parameter. This change is likely
-    to be included in the public Gemini IRAF package in 2016.
+    the filenames passed to its `wavtraname` parameter. This change is
+    available in the "ifudrgmos" version of the GMOS package (r145+) and is
+    likely to be included in the public Gemini IRAF package in mid 2016.
 
 
     Parameters
@@ -571,4 +572,88 @@ def rectify_wavelength(inputs, outputs=None, start_wl=None, end_wl=None,
     )
 
     return result['outimages']
+
+
+@ndprocess_defaults
+def make_flat(inputs, flats=None, order=45, sample='*', interact=None):
+    """
+    Generate a normalized flat field calibration spectrum that includes both
+    fibre-to-fibre and pixel-to-pixel variations, by fitting the average
+    continuum and dividing each fibre spectrum by the result (scaled to match
+    its wavelength solution).
+
+    This requires the modified version of the IRAF task gfresponse found in
+    the "ifudrgmos" version of the GMOS package (r145+), published at
+    http://drforum.gemini.edu/topic/gmos-ifu-data-reduction-scripts/.
+
+    Parameters
+    ----------
+
+    inputs : DataFileList or DataFile
+        Input images, each containing extracted fibre spectra of a spatially
+        flat, spectrally smooth source (normally the GCal Quartz-Halogen lamp),
+        with known wavelength solutions. Each input must already have an
+        associated entry named 'arc' in its `cals` dictionary (whose name is
+        currently used to find the corresponding IRAF database files).
+
+    outputs : DataFileList or DataFile, optional
+        Output normalized flat-field images, one per input. If None (default),
+        a new DataFileList will be returned, whose names are constructed from
+        those of the input files by appending '_flat'.
+
+    order : int, optional
+        Order of the Chebyshev continuum fit (default 45).
+
+    sample : str, optional
+        The range of sample pixels in the wavelength dimension to use for
+        continuum fitting (currently IRAF convention, default '*').
+
+    See "help gfresponse" in IRAF for more detailed information.
+
+
+    Returns
+    -------
+
+    outimages : DataFileList
+        The extracted spectra produced by gfextract.
+
+
+    Package 'config' options
+    ------------------------
+
+    interact : bool
+        Enable interactive continuum fitting (default False)? This may be
+        overridden by the step's own "interact" parameter.
+
+    """
+
+    # Default to appending "_flat" if an output filename is not specified:
+    if not flats:
+        flats = '@inimage'
+
+    # Make a list of arcs from each input's "cals" dictionary. Every file must
+    # have one associated.
+    try:
+        arcs = DataFileList(data=[df.cals['arc'] for df in inputs])
+    except KeyError:
+        raise KeyError('one or more inputs is missing an associated arc')
+
+    # Get a few common Gemini IRAF defaults.:
+    gemvars = gemini_iraf_helper()
+
+    # Determine input DataFile EXTNAME convention, to pass to the task:
+    labels = get_extname_labels(inputs)
+
+    result = run_task(
+        'gemini.gmos.gfresponse',
+        inputs={'inimage' : inputs, 'wavtraname' : arcs},
+        outputs={'outimage' : flats}, prefix=None, suffix='_flat',
+        comb_in=False, MEF_ext=False, path_param=None, title='', skyimage='',
+        database='database', fl_inter=interact, fl_fit=False,
+        function='chebyshev', order=order, sample=sample,
+        sci_ext=labels['data'], var_ext=labels['uncertainty'],
+        dq_ext=labels['flags'], verbose=gemvars['verbose']
+    )
+
+    return result['outimage']
 
