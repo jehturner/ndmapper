@@ -704,3 +704,85 @@ def make_flat(inputs, flats=None, order=45, sample='*', reprocess=None,
 
     return result['outimage']
 
+
+@ndprocess_defaults
+def resample_to_cube(inputs, outputs=None, bitmask=8, use_uncert=None,
+                     reprocess=None):
+    """
+    Resample fibre spectra onto a 3D "data cube", interpolating spatially over
+    the hexagonal/triangular grid of the IFU. The alignment between wavelength
+    planes is also corrected for estimated atmospheric dispersion as part of
+    the process, using a model from SLALIB.
+
+
+    Parameters
+    ----------
+
+    inputs : DataFileList or DataFile
+        Input images, containing extracted, row-stacked fibre spectra with
+        linearized wavelength co-ordinates.
+
+    outputs : DataFileList or DataFile, optional
+        Output images, each containing a 3D "data cube" with 0.1" pixels
+        spatially and the flux units of the input converted to values per
+        square arcsecond. If None (default), a new DataFileList will be
+        returned, whose names are constructed from those of the input files,
+        prefixed with 'd' as in the Gemini IRAF package.
+
+    bitmask : int, optional
+        Data quality bits used to exclude bad pixels from the interpolation,
+        where available in the input file (default 8, for cosmic rays). Where
+        multiple data quality bits are summed to produce a bitmask that is not
+        a power of two, any one or more of those bits in the data quality plane
+        will cause the corresponding pixel to be excluded. A value of 0 causes
+        all the input pixels to be used. Since this step interpolates only in
+        the spatial directions, features of approximately constant wavelength,
+        such as chip gaps (16) and bad columns (1) are better dealt with by
+        spectral interpolation at an earlier reduction step.
+
+    See "help gfcube" in IRAF for more detailed information.
+
+
+    Returns
+    -------
+
+    outimages : DataFileList
+        The 3D images produced by gfcube.
+
+
+    Package 'config' options
+    ------------------------
+
+    use_uncert : bool
+        Enable NDData 'uncertainty' (variance) propagation (default True)?
+
+    use_flags : bool
+        Enable NDData 'flags' (data quality) propagation (default True)?
+
+    reprocess : bool or None
+        Re-generate and overwrite any existing output files on disk or skip
+        processing and re-use existing results, where available? The default
+        of None instead raises an exception where outputs already exist
+        (requiring the user to delete them explicitly). The processing is
+        always performed for outputs that aren't already available.
+
+    """
+    # Use default prefix if output filename unspecified:
+    prefix = 'd'
+    if not outputs:
+        outputs = '@inimage'
+
+    # Determine input DataFile EXTNAME convention, to pass to the task:
+    labels = get_extname_labels(inputs)
+
+    # Always generate output DQ since it tracks the interpolation bounds.
+    result = run_task(
+        'gemini.gmos.gfcube',
+        inputs={'inimage' : inputs}, outputs={'outimage' : outputs},
+        prefix=prefix, suffix=None, comb_in=False, MEF_ext=False,
+        path_param=None, reprocess=reprocess, ssample=0.1, bitmask=bitmask,
+        fl_atmdisp=True, fl_flux=True, fl_var=use_uncert, fl_dq=True
+    )
+
+    return result['outimage']
+
