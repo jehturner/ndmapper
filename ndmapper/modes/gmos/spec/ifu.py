@@ -10,7 +10,7 @@ from ndmapper.modes.gemini import gemini_iraf_helper
 from .spec import *
 
 @ndprocess_defaults
-def prepare(inputs, outputs=None, mdf=None):
+def prepare(inputs, outputs=None, mdf=None, reprocess=None):
     """
     Parameters
     ----------
@@ -37,6 +37,17 @@ def prepare(inputs, outputs=None, mdf=None):
 
     outimages : DataFileList
         The "prepared" images produced by gfreduce.
+
+
+    Package 'config' options
+    ------------------------
+
+    reprocess : bool or None
+        Re-generate and overwrite any existing output files on disk or skip
+        processing and re-use existing results, where available? The default
+        of None instead raises an exception where outputs already exist
+        (requiring the user to delete them explicitly). The processing is
+        always performed for outputs that aren't already available.
 
     """
 
@@ -65,14 +76,14 @@ def prepare(inputs, outputs=None, mdf=None):
     # that logic seems to be duplicated in gprepare (argh).
     result = run_task('gemini.gmos.gfreduce', inputs={'inimages' : inputs},
         outputs={'outimages' : outputs}, prefix=prefix, comb_in=False,
-        MEF_ext=False, path_param='rawpath', outpref='default', slits='header',
-        exslits='*', fl_nodshuffl=False, fl_inter=False,
-        fl_vardq=gemvars['vardq'], fl_addmdf=True, fl_over=False, fl_trim=False,
-        fl_bias=False, fl_gscrrej=False, fl_gnsskysub=False, fl_extract=False,
-        fl_gsappwave=False, fl_wavtran=False, fl_skysub=False,
-        fl_fluxcal=False, fl_fulldq=True, dqthresh=0.1, key_mdf='',
-        mdffile=mdf, mdfdir=mdfdir, key_biassec=gemvars['key_biassec'],
-        key_datasec=gemvars['key_datasec'],
+        MEF_ext=False, path_param='rawpath', reprocess=reprocess,
+        outpref='default', slits='header', exslits='*', fl_nodshuffl=False,
+        fl_inter=False, fl_vardq=gemvars['vardq'], fl_addmdf=True,
+        fl_over=False, fl_trim=False, fl_bias=False, fl_gscrrej=False,
+        fl_gnsskysub=False, fl_extract=False, fl_gsappwave=False,
+        fl_wavtran=False, fl_skysub=False, fl_fluxcal=False, fl_fulldq=True,
+        dqthresh=0.1, key_mdf='', mdffile=mdf, mdfdir=mdfdir,
+        key_biassec=gemvars['key_biassec'], key_datasec=gemvars['key_datasec'],
         bpmfile=gemvars['gmosdata']+'chipgaps.dat', grow=1.5,
         reference='', response='', wavtraname='', sfunction='', extinction='',
         fl_fixnc=False, fl_fixgaps=True, fl_novlap=True, perovlap=10.0,
@@ -92,7 +103,8 @@ def prepare(inputs, outputs=None, mdf=None):
 
 @ndprocess_defaults
 def subtract_bias(inputs, outputs=None, ovs_function='spline3', ovs_order=1,
-                  ovs_lsigma=2.0, ovs_hsigma=2.0, ovs_niter=5, interact=None):
+                  ovs_lsigma=2.0, ovs_hsigma=2.0, ovs_niter=5, reprocess=None,
+                  interact=None):
 
     """
     Subtract overscan level & pixel-to-pixel variations in zero point. This
@@ -155,6 +167,13 @@ def subtract_bias(inputs, outputs=None, ovs_function='spline3', ovs_order=1,
     use_flags : bool
         Enable NDData 'flags' (data quality) propagation (default True)?
 
+    reprocess : bool or None
+        Re-generate and overwrite any existing output files on disk or skip
+        processing and re-use existing results, where available? The default
+        of None instead raises an exception where outputs already exist
+        (requiring the user to delete them explicitly). The processing is
+        always performed for outputs that aren't already available.
+
     interact : bool
         Enable interactive plotting (default False)? This may be overridden
         by the task's own "interact" parameter.
@@ -186,10 +205,11 @@ def subtract_bias(inputs, outputs=None, ovs_function='spline3', ovs_order=1,
     # other operations with gfreduce later:
     result = run_task('gemini.gmos.gfreduce', inputs={'inimages' : inputs,
         'bias' : bias}, outputs={'outimages' : outputs}, prefix=prefix,
-        comb_in=False, MEF_ext=False, path_param='rawpath', outpref='default',
-        slits='header', exslits='*', fl_nodshuffl=False, fl_inter=interact,
-        fl_vardq=gemvars['vardq'], fl_addmdf=False, fl_over=True, fl_trim=True,
-        fl_bias=True, fl_gscrrej=False, fl_gnsskysub=False, fl_extract=False,
+        comb_in=False, MEF_ext=False, path_param='rawpath',
+        reprocess=reprocess, outpref='default', slits='header', exslits='*',
+        fl_nodshuffl=False, fl_inter=interact, fl_vardq=gemvars['vardq'],
+        fl_addmdf=False, fl_over=True, fl_trim=True, fl_bias=True,
+        fl_gscrrej=False, fl_gnsskysub=False, fl_extract=False,
         fl_gsappwave=False, fl_wavtran=False, fl_skysub=False,
         fl_fluxcal=False, fl_fulldq=True, dqthresh=0.1, key_mdf='',
         mdffile='default', mdfdir=gemvars['gmosdata'],
@@ -212,7 +232,8 @@ def subtract_bias(inputs, outputs=None, ovs_function='spline3', ovs_order=1,
 
 
 @ndprocess_defaults
-def extract_spectra(inputs, outputs=None, startpos=None, interact=None):
+def extract_spectra(inputs, outputs=None, startpos=None, reprocess=None,
+                    interact=None):
 
     """
     Extract one spectrum per IFU fibre from each 2D spectrogram to produce
@@ -283,6 +304,13 @@ def extract_spectra(inputs, outputs=None, startpos=None, interact=None):
 
     use_flags : bool
         Enable NDData 'flags' (data quality) propagation (default True)?
+
+    reprocess : bool or None
+        Re-generate and overwrite any existing output files on disk or skip
+        processing and re-use existing results, where available? The default
+        of None instead raises an exception where outputs already exist
+        (requiring the user to delete them explicitly). The processing is
+        always performed for outputs that aren't already available.
 
     interact : bool
         Enable interactive plotting (default False)? This may be overridden
@@ -359,11 +387,11 @@ def extract_spectra(inputs, outputs=None, startpos=None, interact=None):
     result = run_task(
         'gemini.gmos.gfextract', inputs=task_inputs,
         outputs={'outimage' : outputs}, prefix=prefix, comb_in=False,
-        MEF_ext=False, path_param=None, outpref='e', title='', exslits='*',
-        line=startpos, nsum=10, trace=True, recenter=False, thresh=200.,
-        function='spline3', order=21, t_nsum=10, weights='none',
-        bpmfile=gemvars['gmosdata']+'chipgaps.dat', grow=1.5, gaindb='default',
-        gratingdb=gemvars['gmosdata']+'GMOSgratings.dat',
+        MEF_ext=False, path_param=None, reprocess=reprocess, outpref='e',
+        title='', exslits='*', line=startpos, nsum=10, trace=True,
+        recenter=False, thresh=200., function='spline3', order=21, t_nsum=10,
+        weights='none', bpmfile=gemvars['gmosdata']+'chipgaps.dat', grow=1.5,
+        gaindb='default', gratingdb=gemvars['gmosdata']+'GMOSgratings.dat',
         filterdb=gemvars['gmosdata']+'GMOSfilters.dat', xoffset=iraf.INDEF,
         perovlap=10., sci_ext=labels['data'], var_ext=labels['uncertainty'],
         dq_ext=labels['flags'], fl_inter=interact, fl_vardq=gemvars['vardq'],
@@ -469,7 +497,7 @@ def calibrate_wavelength(inputs, order=4, line_list=None, interact=None):
 
 @ndprocess_defaults
 def rectify_wavelength(inputs, outputs=None, start_wl=None, end_wl=None,
-                       delta_wl=None, npix=None):
+                       delta_wl=None, npix=None, reprocess=None):
     """
     Resample ("transform") fibre spectra onto a pixel array with a linear
     wavelength increment.
@@ -518,7 +546,8 @@ def rectify_wavelength(inputs, outputs=None, start_wl=None, end_wl=None,
     -------
 
     outimages : DataFileList
-        The extracted spectra produced by gfextract.
+        The resampled spectra produced by gftransform, with a linear
+        wavelength increment.
 
 
     Package 'config' options
@@ -529,6 +558,13 @@ def rectify_wavelength(inputs, outputs=None, start_wl=None, end_wl=None,
 
     use_flags : bool
         Enable NDData 'flags' (data quality) propagation (default True)?
+
+    reprocess : bool or None
+        Re-generate and overwrite any existing output files on disk or skip
+        processing and re-use existing results, where available? The default
+        of None instead raises an exception where outputs already exist
+        (requiring the user to delete them explicitly). The processing is
+        always performed for outputs that aren't already available.
 
     """
 
@@ -564,18 +600,19 @@ def rectify_wavelength(inputs, outputs=None, start_wl=None, end_wl=None,
         'gemini.gmos.gftransform',
         inputs={'inimages' : inputs, 'wavtraname' : arcs},
         outputs={'outimages' : outputs}, prefix=prefix, suffix=None,
-        comb_in=False, MEF_ext=False, path_param=None, database='database',
-        w1=start_wl, w2=end_wl, dw=delta_wl, nw=npix, dqthresh=0.1,
-        fl_vardq=gemvars['vardq'], fl_flux='yes', sci_ext=labels['data'],
-        var_ext=labels['uncertainty'], dq_ext=labels['flags'],
-        verbose=gemvars['verbose']
+        comb_in=False, MEF_ext=False, path_param=None, reprocess=reprocess,
+        database='database', w1=start_wl, w2=end_wl, dw=delta_wl, nw=npix,
+        dqthresh=0.1, fl_vardq=gemvars['vardq'], fl_flux='yes',
+        sci_ext=labels['data'], var_ext=labels['uncertainty'],
+        dq_ext=labels['flags'], verbose=gemvars['verbose']
     )
 
     return result['outimages']
 
 
 @ndprocess_defaults
-def make_flat(inputs, flats=None, order=45, sample='*', interact=None):
+def make_flat(inputs, flats=None, order=45, sample='*', reprocess=None,
+              interact=None):
     """
     Generate a normalized flat field calibration spectrum that includes both
     fibre-to-fibre and pixel-to-pixel variations, by fitting the average
@@ -600,6 +637,7 @@ def make_flat(inputs, flats=None, order=45, sample='*', interact=None):
         Output normalized flat-field images, one per input. If None (default),
         a new DataFileList will be returned, whose names are constructed from
         those of the input files by appending '_flat'.
+        [To do: should this combine the inputs & produce only one output?]
 
     order : int, optional
         Order of the Chebyshev continuum fit (default 45).
@@ -615,11 +653,18 @@ def make_flat(inputs, flats=None, order=45, sample='*', interact=None):
     -------
 
     outimages : DataFileList
-        The extracted spectra produced by gfextract.
+        The normalized flat field produced by gfresponse.
 
 
     Package 'config' options
     ------------------------
+
+    reprocess : bool or None
+        Re-generate and overwrite any existing output files on disk or skip
+        processing and re-use existing results, where available? The default
+        of None instead raises an exception where outputs already exist
+        (requiring the user to delete them explicitly). The processing is
+        always performed for outputs that aren't already available.
 
     interact : bool
         Enable interactive continuum fitting (default False)? This may be
@@ -648,9 +693,9 @@ def make_flat(inputs, flats=None, order=45, sample='*', interact=None):
         'gemini.gmos.gfresponse',
         inputs={'inimage' : inputs, 'wavtraname' : arcs},
         outputs={'outimage' : flats}, prefix=None, suffix='_flat',
-        comb_in=False, MEF_ext=False, path_param=None, title='', skyimage='',
-        database='database', fl_inter=interact, fl_fit=False,
-        function='chebyshev', order=order, sample=sample,
+        comb_in=False, MEF_ext=False, path_param=None, reprocess=reprocess,
+        title='', skyimage='', database='database', fl_inter=interact,
+        fl_fit=False, function='chebyshev', order=order, sample=sample,
         sci_ext=labels['data'], var_ext=labels['uncertainty'],
         dq_ext=labels['flags'], verbose=gemvars['verbose']
     )

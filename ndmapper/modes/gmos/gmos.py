@@ -23,7 +23,7 @@ from ..gemini import *
 @ndprocess_defaults
 def make_bias(inputs, bias=None, bpm=None, ovs_function='spline3',
     ovs_order=1, ovs_lsigma=2.0, ovs_hsigma=2.0, ovs_niter=5,
-    comb_lsigma=2.0, comb_hsigma=2.0, interact=None):
+    comb_lsigma=2.0, comb_hsigma=2.0, reprocess=None, interact=None):
 
     """
     Parameters
@@ -87,6 +87,13 @@ def make_bias(inputs, bias=None, bpm=None, ovs_function='spline3',
     use_flags : bool
         Enable NDData 'flags' (data quality) propagation (default True)?
 
+    reprocess : bool or None
+        Re-generate and overwrite any existing output files on disk or skip
+        processing and re-use existing results, where available? The default
+        of None instead raises an exception where outputs already exist
+        (requiring the user to delete them explicitly). The processing is
+        always performed for outputs that aren't already available.
+
     interact : bool
         Enable interactive plotting (default False)? This may be overridden
         by the task's own "interact" parameter.
@@ -125,19 +132,20 @@ def make_bias(inputs, bias=None, bpm=None, ovs_function='spline3',
     # parameters, such as logfile & rawpath, are set directly by run_task.
     result = run_task('gemini.gmos.gbias', inputs=inputs,
         outputs={'outbias' : bias}, suffix='_bias', comb_in=True,
-        MEF_ext=False, path_param='rawpath', fl_over=True, fl_trim=True,
-        key_biassec='BIASSEC', key_datasec='DATASEC', key_ron='RDNOISE',
-        key_gain='GAIN', ron=3.5, gain=2.2, gaindb='default',
-        sci_ext=labels['data'], var_ext=labels['uncertainty'],
-        dq_ext=labels['flags'], sat='default', nbiascontam='default',
-        biasrows='default', fl_inter=interact, median=False,
-        function=ovs_function, order=ovs_order, low_reject=ovs_lsigma,
-        high_reject=ovs_hsigma, niterate=ovs_niter, combine='average',
-        reject='avsigclip', lthreshold=iraf.INDEF, hthreshold=iraf.INDEF,
-        masktype='goodvalue', maskvalue=0.0, scale='none', zero='none',
-        weight='none', statsec='[*,*]', key_exptime='EXPTIME', nkeep=1,
-        mclip=True, lsigma=comb_lsigma, hsigma=comb_hsigma, sigscale=0.1,
-        grow=0.0, fl_vardq=vardq, verbose=verbose)
+        MEF_ext=False, path_param='rawpath', reprocess=reprocess, fl_over=True,
+        fl_trim=True, key_biassec='BIASSEC', key_datasec='DATASEC',
+        key_ron='RDNOISE', key_gain='GAIN', ron=3.5, gain=2.2,
+        gaindb='default', sci_ext=labels['data'],
+        var_ext=labels['uncertainty'], dq_ext=labels['flags'], sat='default',
+        nbiascontam='default', biasrows='default', fl_inter=interact,
+        median=False, function=ovs_function, order=ovs_order,
+        low_reject=ovs_lsigma, high_reject=ovs_hsigma, niterate=ovs_niter,
+        combine='average', reject='avsigclip', lthreshold=iraf.INDEF,
+        hthreshold=iraf.INDEF, masktype='goodvalue', maskvalue=0.0,
+        scale='none', zero='none', weight='none', statsec='[*,*]',
+        key_exptime='EXPTIME', nkeep=1, mclip=True, lsigma=comb_lsigma,
+        hsigma=comb_hsigma, sigscale=0.1, grow=0.0, fl_vardq=vardq,
+        verbose=verbose)
 
     # Return the only DataFile instance from the output DataFileList
     # corresponding to the task's "outbias" parameter:
