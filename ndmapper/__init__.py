@@ -46,7 +46,7 @@ if not _ASTROPY_SETUP_:
 
             # Convert any unspecified flags to the run-time defaults specified
             # in the package configuration dictionary:
-            for param in ['interact', 'reprocess']:
+            for param in ['interact', 'reprocess', 'use_uncert', 'use_flags']:
                 if param in callargs and callargs[param] is None:
                     callargs[param] = config[param]
 
