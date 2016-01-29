@@ -12,3 +12,7 @@ CAL_DEPS = {'target' : ['specphot', 'flat', 'arc', 'bias'],
             'bias' : []
            }
 
+# For convenience & avoidance of visual noise, initialize these dictionaries
+# that can be used for managing calibrations within user scripts:
+biases, traces, arcs, flats, standards = {}, {}, {}, {}, {}
+
