@@ -25,6 +25,8 @@ def gemini_iraf_helper():
     vals = {'gmosdata' : 'gmos$data/',
             'key_biassec' : 'BIASSEC',
             'key_datasec' : 'DATASEC',
+            'key_ron' : 'RDNOISE',
+            'key_gain' : 'GAIN',
             'observatory' : 'default',
             'vardq' : vardq,
             'verbose' : True
