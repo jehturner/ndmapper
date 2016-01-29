@@ -345,10 +345,12 @@ def extract_spectra(inputs, outputs=None, startpos=None, reprocess=None,
     # Do likewise for the reference traces.
     traces = [df.cals['trace'] if 'trace' in df.cals else None for df in inputs]
     if None in traces:
+        trace = True
         if not all([entry is None for entry in traces]):
             raise KeyError('one or more inputs is missing an associated '\
                            'reference trace')
-    else:
+    else:  # have existing traces
+        trace = False
         task_inputs['reference'] = DataFileList(data=traces)
 
     # To do:
@@ -371,12 +373,12 @@ def extract_spectra(inputs, outputs=None, startpos=None, reprocess=None,
     # Determine input DataFile EXTNAME convention, to pass to the task:
     labels = get_extname_labels(inputs)
 
-    # The apextract trace parameter only seems to control whether a trace in
+    # The apextract trace parameter seems to control both whether a trace in
     # wavelength is used at all (as opposed to a fixed range of rows around the
-    # measured starting centre, with no tilt or curvature); thus, there is no
-    # reason to set it to False. In either case, where a reference is used, the
-    # existing trace terms (but not the fibre centre / zero point) get copied
-    # from it verbatim. The recenter parameter controls whether a fixed
+    # measured starting centre, with no tilt or curvature) and whether it is
+    # repeated for the input spectra when using a reference image (leading to
+    # artifacts in science data), so the appropriate setting depends on whether
+    # a reference is used. The recenter parameter controls whether a fixed
     # adjustment is applied to the fibre centre zero points when using a
     # reference image -- but that would break the correspondence with the pixel
     # flat, so leave it disabled for now (probably better to lose a bit of
@@ -388,7 +390,7 @@ def extract_spectra(inputs, outputs=None, startpos=None, reprocess=None,
         'gemini.gmos.gfextract', inputs=task_inputs,
         outputs={'outimage' : outputs}, prefix=prefix, comb_in=False,
         MEF_ext=False, path_param=None, reprocess=reprocess, outpref='e',
-        title='', exslits='*', line=startpos, nsum=10, trace=True,
+        title='', exslits='*', line=startpos, nsum=10, trace=trace,
         recenter=False, thresh=200., function='spline3', order=21, t_nsum=10,
         weights='none', bpmfile=gemvars['gmosdata']+'chipgaps.dat', grow=1.5,
         gaindb='default', gratingdb=gemvars['gmosdata']+'GMOSgratings.dat',
