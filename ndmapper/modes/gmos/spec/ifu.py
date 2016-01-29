@@ -761,6 +761,9 @@ def subtract_sky(inputs, outputs=None, reprocess=None):
     labels = get_extname_labels(inputs)
 
     # Disable interactivity as it seems slow and not that useful.
+    # Note that running gfskysub via gfreduce has been observed to corrupt
+    # the MDF in the past, requiring it to be re-copied from the input to the
+    # output, but so far so good here.
     result = run_task(
         'gemini.gmos.gfskysub',
         inputs={'inimages' : inputs}, outputs={'outimages' : outputs},
@@ -858,4 +861,74 @@ def resample_to_cube(inputs, outputs=None, bitmask=8, use_uncert=None,
     )
 
     return result['outimage']
+
+
+@ndprocess_defaults
+def sum_spectra(inputs, outputs=None, reprocess=None):
+    """
+    Sum over fibre spectra in the main "object" IFU field to produce a 1D
+    output spectrum.
+
+
+    Parameters
+    ----------
+
+    inputs : DataFileList or DataFile
+        Input images, containing extracted, row-stacked fibre spectra with
+        linearized wavelength co-ordinates.
+
+    outputs : DataFileList or DataFile, optional
+        Output images, each containing a 1D spectrum. If None (default), a new
+        DataFileList will be returned, whose names are constructed from those
+        of the input files, prefixed with 'a' as in the Gemini IRAF package.
+
+    See "help gfapsum" in IRAF for more detailed information.
+
+
+    Returns
+    -------
+
+    outimages : DataFileList
+        The 1D spectra produced by gfapsum.
+
+
+    Package 'config' options
+    ------------------------
+
+    reprocess : bool or None
+        Re-generate and overwrite any existing output files on disk or skip
+        processing and re-use existing results, where available? The default
+        of None instead raises an exception where outputs already exist
+        (requiring the user to delete them explicitly). The processing is
+        always performed for outputs that aren't already available.
+
+    """
+    # Use default prefix if output filename unspecified:
+    prefix = 'a'
+    if not outputs:
+        outputs = '@inimages'
+
+    # Get a few common Gemini IRAF defaults.:
+    gemvars = gemini_iraf_helper()
+
+    # Determine input DataFile EXTNAME convention, to pass to the task:
+    labels = get_extname_labels(inputs)
+
+    # Use a simple summation, at least for now, as getting the rejection etc.
+    # right with the level of contrast involved can be tricky.
+    result = run_task(
+        'gemini.gmos.gfapsum',
+        inputs={'inimages' : inputs}, outputs={'outimages' : outputs},
+        prefix=prefix, suffix=None, comb_in=False, MEF_ext=False,
+        path_param=None, reprocess=reprocess, apertures='', expr='default',
+        combine='sum', reject='none', scale='none', zero='none', weight='none',
+        lthreshold=iraf.INDEF, hthreshold=iraf.INDEF, nlow=1, nhigh=1, nkeep=0,
+        mclip=True, lsigma=3., hsigma=3., key_ron=gemvars['key_ron'],
+        key_gain=gemvars['key_gain'], snoise='0.0', sigscale=0.1, pclip=-0.5,
+        grow=0.0, blank=0.0, sci_ext=labels['data'],
+        var_ext=labels['uncertainty'], dq_ext=labels['flags'], fl_inter=False,
+        verbose=gemvars['verbose']
+    )
+
+    return result['outimages']
 
