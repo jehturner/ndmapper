@@ -626,6 +626,8 @@ def conv_io_pars(pardict, mode):
     type DataFileList and return a list of the list lengths (private).
 
     """
+    # To do: change this to use utils.to_datafilelist() now it's been
+    # factored out.
     for param in pardict:
         # First cast any strings to a DataFile and then any DataFiles
         # to a DataFileList:

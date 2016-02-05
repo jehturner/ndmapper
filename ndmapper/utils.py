@@ -6,7 +6,7 @@ Some high-level utility functions for use in scripts & processing functions.
 """
 
 from ndmapper.io import FileName
-from ndmapper.data import DataFile
+from ndmapper.data import DataFile, DataFileList
 
 from .calibrations import K_CALIBRATIONS
 
@@ -118,4 +118,34 @@ def to_filename_strings(objects, strip_names=True, strip_dirs=True,
     return [str(FileName(str(obj), strip=strip_names, \
                          dirname='' if strip_dirs else None)) \
             for obj in objects]
+
+
+def to_datafilelist(arg, mode=None):
+    """
+    Convert a filename str, list of str, DataFile or DataFileList argument to
+    a DataFileList object for subsequent manipulation. The `mode` defaults to
+    'read' when given one or more filename strings and to the existing mode
+    for DataFile and DataFileList.
+    """
+
+    # Return any existing DataFileList as-is:
+    if isinstance(arg, DataFileList):
+        outlist = arg
+
+    # Convert a string or list of strings:
+    elif isinstance(arg, basestring) or (arg and hasattr(arg, '__iter__') \
+       and all([isinstance(fn, basestring) for fn in arg])):
+
+        mode = 'read' if mode is None else mode
+        outlist = DataFileList(filenames=arg, mode=mode)
+
+    # Convert a DataFile or list of DataFiles (or any type supported later):
+    else:
+        try:
+            outlist = DataFileList(data=arg, mode=mode)
+        except TypeError:
+            raise TypeError('could not convert {0} to DataFileList'\
+                            .format(type(arg)))
+
+    return outlist
 
