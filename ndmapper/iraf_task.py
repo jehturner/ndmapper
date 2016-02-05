@@ -617,6 +617,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
     #   and converting them to strings as needed, for convenience.
     # - Add IRAF tests with another 2 FITS files: with VAR/DQ, unnumbered.
     # - Improve error trapping further??
+    #   - Check gemini status parameters?
 
 
 def conv_io_pars(pardict, mode):
