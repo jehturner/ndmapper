@@ -21,7 +21,7 @@ from astropy.utils.compat.odict import OrderedDict
 from . import config
 from . import io as ndmio
 from .io import FileName, NDMapIO, TabMapIO
-from .libutils import temp_filename
+from .libutils import new_filename
 
 
 __all__ = ['DataFile', 'DataFileList', 'NDLater', 'load_file_list',
@@ -1205,12 +1205,12 @@ def temp_saved_datafile(datafile):
     Although mapped to different files, both objects share any pixel data in
     memory until reloaded.
     """
-    name = temp_filename(base=datafile.filename.base,
-                         ext=datafile.filename.dotext, full_path=False)
+    name = new_filename(base=datafile.filename.base,
+                        ext=datafile.filename.dotext, full_path=False)
 
     tdf = DataFile(data=datafile, filename=name, dirname='', mode='overwrite')
 
-    # Re-create the file as soon as possible after temp_filename has released
+    # Re-create the file as soon as possible after new_filename has released
     # the file handle, by saving the new DataFile object:
     tdf.save()
 

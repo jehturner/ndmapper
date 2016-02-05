@@ -26,15 +26,20 @@ def addext(path, ext):
     return path + ('' if ext is None else os.extsep + ext)
 
 
-def temp_filename(base='', ext='', full_path=False):
+def new_filename(purpose='tmp', base='', ext='', full_path=False):
     """
-    Generate a temporary filename string. Unlike Python's tempfile module, this
-    function does not actually open the file, making the result suitable for
-    passing to external programs, but as a result, a race condition may occur
-    if the file is not created immediately, which is the user's responsibility.
+    Generate a new filename string that is not already used in the current
+    directory (beginning with 'tmp' by default, for use as a temporary file).
+    Unlike Python's tempfile module, this function does not actually open the
+    file, making the result suitable for passing to external programs, but as
+    a result, a race condition may occur if the file is not created
+    immediately, which is the user's responsibility.
 
     Parameters
     ----------
+
+    purpose : str, optional
+        Starting string, used to indicate the file's purpose (default 'tmp').
 
     base : convertible to str, optional
         A base name to add between "tmp_" and the last few, randomized
@@ -54,7 +59,7 @@ def temp_filename(base='', ext='', full_path=False):
     -------
 
     str
-        A unique, temporary filename.
+        A filename that doesn't already exist in the current working directory.
 
     """
     base = str(base)
@@ -71,7 +76,7 @@ def temp_filename(base='', ext='', full_path=False):
     # the file again and then recycle its name, saving the corresponding
     # DataFile immediately to avoid possible collisions.
     with tempfile.NamedTemporaryFile(
-        prefix='tmp_{0}{1}'.format(base, '_' if base else ''),
+        prefix='{0}_{1}{2}'.format(purpose, base, '_' if base else ''),
         suffix=ext, dir='') as tmpfile:
 
         tmpname = tmpfile.name
