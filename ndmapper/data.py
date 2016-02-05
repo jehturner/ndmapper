@@ -10,7 +10,6 @@
 
 import os.path
 from copy import copy, deepcopy
-import tempfile
 
 import numpy as np
 
@@ -22,6 +21,7 @@ from astropy.utils.compat.odict import OrderedDict
 from . import config
 from . import io as ndmio
 from .io import FileName, NDMapIO, TabMapIO
+from .libutils import temp_filename
 
 
 __all__ = ['DataFile', 'DataFileList', 'NDLater', 'load_file_list',
@@ -1205,21 +1205,13 @@ def temp_saved_datafile(datafile):
     Although mapped to different files, both objects share any pixel data in
     memory until reloaded.
     """
-    # Python doesn't provide a (non-deprecated) way to produce a temporary
-    # filename without actually creating and opening the file (to avoid
-    # possible race conditions & exploits). One can, however, let Python close
-    # the file again and then recycle its name, saving the corresponding
-    # DataFile immediately to avoid possible collisions.
-    with tempfile.NamedTemporaryFile(
-        prefix='tmp_{0}_'.format(datafile.filename.base),
-        suffix=datafile.filename.dotext, dir='') as tmpfile:
+    name = temp_filename(base=datafile.filename.base,
+                         ext=datafile.filename.dotext, full_path=False)
 
-        # Construct the new DataFile in memory from the old one:
-        tdf = DataFile(data=datafile, filename=tmpfile.name, dirname='',
-                       mode='overwrite')
+    tdf = DataFile(data=datafile, filename=name, dirname='', mode='overwrite')
 
-    # As soon as Python has closed its file handle, re-create the file by
-    # saving the new DataFile object:
+    # Re-create the file as soon as possible after temp_filename has released
+    # the file handle, by saving the new DataFile object:
     tdf.save()
 
     # Pass the new temporary DataFile back to the caller (should it
