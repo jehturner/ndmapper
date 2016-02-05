@@ -23,10 +23,12 @@ def gemini_iraf_helper():
         vardq = False
 
     vals = {'gmosdata' : 'gmos$data/',
+            'key_airmass' : 'AIRMASS',
             'key_biassec' : 'BIASSEC',
             'key_datasec' : 'DATASEC',
-            'key_ron' : 'RDNOISE',
+            'key_exptime' : 'EXPTIME',
             'key_gain' : 'GAIN',
+            'key_ron' : 'RDNOISE',
             'observatory' : 'default',
             'vardq' : vardq,
             'verbose' : True
