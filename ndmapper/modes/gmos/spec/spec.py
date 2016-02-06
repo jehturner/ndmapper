@@ -142,7 +142,7 @@ def calibrate_flux(inputs, outputs=None, reference=None, lookup_dir=None,
             bandwidth=iraf.INDEF, bandsep=iraf.INDEF, fnuzero=3.68e-20,
             caldir=lookup_dir, observatory=gemvars['observatory'], mag='',
             magband='', teff='', ignoreaps=True, extinction='',
-            out_extinction='extinct.dat', function='spline3', order=6,
+            out_extinction='extinct.dat', function='spline3', order=3,
             graphs='sr', marks='plus cross box', colors='2 1 3 4',
             verbose=gemvars['verbose']
         )
