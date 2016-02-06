@@ -3,6 +3,7 @@
 
 import os, os.path
 
+from ndmapper.data import DataFileList
 from ndmapper.utils import to_datafilelist
 
 from ..gmos import *
@@ -101,7 +102,7 @@ def calibrate_flux(inputs, outputs=None, reference=None, lookup_dir=None,
 
     # Loop over the files explicitly, rather than letting run_task do it,
     # since we need to modify or delete the "sfile" output each time:
-    outlist = []
+    outlist = DataFileList(mode='update')
     for indf, outname in zip(inputs, outputs):
 
         # Default to obtaining the look-up table filename from the target
@@ -146,7 +147,89 @@ def calibrate_flux(inputs, outputs=None, reference=None, lookup_dir=None,
             verbose=gemvars['verbose']
         )
 
-        outlist.append(result['sfunction'])
+        outlist.append(result['sfunction'][0])
 
     return outlist
+
+
+@ndprocess_defaults
+def apply_flux_cal(inputs, outputs=None, reprocess=None, interact=None):
+    """
+    Apply a previously-measured sensitivity spectrum to each input to
+    convert the data values to spectrophotometric flux units.
+
+    Parameters
+    ----------
+
+    inputs : DataFileList or DataFile
+        Input images, containing spectra to be converted to physical flux
+        units. Each input DataFile must already have an associated entry named
+        'specphot' in its `cals` dictionary, corresponding to the measured
+        instrumental sensitivity spectrum.
+
+    outputs : DataFileList or DataFile, optional
+        Output spectra with units of flux. If None (default), a new
+        DataFileList will be returned, whose names are constructed from those
+        of the input files, prefixed with 'c' as in the Gemini IRAF package.
+
+
+    Returns
+    -------
+
+    output : DataFileList
+        The flux-calibrated spectra produced by gscalibrate.
+
+
+    Package 'config' options
+    ------------------------
+
+    use_uncert : bool
+        Enable NDData 'uncertainty' (variance) propagation (default True)?
+
+    use_flags : bool
+        Enable NDData 'flags' (data quality) propagation (default True)?
+
+    reprocess : bool or None
+        Re-generate and overwrite any existing output files on disk or skip
+        processing and re-use existing results, where available? The default
+        of None instead raises an exception where outputs already exist
+        (requiring the user to delete them explicitly). The processing is
+        always performed for outputs that aren't already available.
+
+    """
+
+    # Use default prefix if output filename unspecified:
+    prefix = 'c'
+    if not outputs:
+        outputs = '@input'
+
+    # Get a list of sensitivity spectra to use from the input file "cals"
+    # dictionaries.
+    try:
+        sensspec = DataFileList(data=[df.cals['specphot'] for df in inputs])
+    except KeyError:
+        raise KeyError('one or more inputs is missing an associated '\
+                       'sensitivity spectrum')
+
+    # Get a few common Gemini IRAF defaults.:
+    gemvars = gemini_iraf_helper()
+
+    # Determine input DataFile EXTNAME convention, to pass to the task:
+    labels = get_extname_labels(inputs)
+
+    # To do: deal with extinction correction?
+    result = run_task(
+        'gemini.gmos.gscalibrate',
+        inputs={'input' : inputs, 'sfunction' : sensspec},
+        outputs={'output' : outputs}, prefix=prefix, suffix=None,
+        comb_in=False, MEF_ext=False, path_param=None, reprocess=reprocess,
+        sci_ext=labels['data'], var_ext=labels['uncertainty'],
+        dq_ext=labels['flags'], key_airmass=gemvars['key_airmass'],
+        key_exptime=gemvars['key_exptime'], fl_vardq=gemvars['vardq'],
+        fl_ext=False, fl_flux=True, fl_scale=True, fluxscale=1.0e15,
+        ignoreaps=True, fl_fnu=False, extinction='',
+        observatory=gemvars['observatory'], verbose=gemvars['verbose']
+    )
+
+    return result['output']
 
