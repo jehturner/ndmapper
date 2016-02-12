@@ -7,6 +7,11 @@ from ndmapper.iraf_task import run_task, get_extname_labels
 
 from ..gemini import *
 
+# Redefine explicitly what to expose from our parent module here, rather than
+# appending to its __all__ (as at lower levels of the tree), since it contains
+# observatory-specific helper functions that are not processing steps.
+__all__ = ['CAL_DEPS', 'make_bias']
+
 # These functions are intended to represent logical processing steps, rather
 # than strict one-to-one wrappers for existing IRAF tasks; the aim is not to
 # replicate the IRAF user interface exactly. Each "wrapper" function must
@@ -26,6 +31,10 @@ def make_bias(inputs, bias=None, bpm=None, ovs_function='spline3',
     comb_lsigma=2.0, comb_hsigma=2.0, reprocess=None, interact=None):
 
     """
+    Combine individual bias exposures to produce a reference bias frame for
+    calibrating other data.
+
+
     Parameters
     ----------
 

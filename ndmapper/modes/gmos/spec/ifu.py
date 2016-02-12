@@ -8,10 +8,19 @@ from ndmapper.iraf_task import run_task, get_extname_labels
 from ndmapper.modes.gemini import gemini_iraf_helper
 
 from .spec import *
+from .spec import __all__
+
+__all__ = __all__ + ['prepare', 'subtract_bias', 'extract_spectra',
+                     'calibrate_wavelength', 'rectify_wavelength', 'make_flat',
+                     'subtract_sky', 'resample_to_cube', 'sum_spectra']
+
 
 @ndprocess_defaults
 def prepare(inputs, outputs=None, mdf=None, reprocess=None):
     """
+    Update the meta-data from raw GMOS images in preparation for subsequent
+    processing.
+
     Parameters
     ----------
 

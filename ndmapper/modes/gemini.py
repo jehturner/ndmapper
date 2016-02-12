@@ -3,6 +3,9 @@
 
 from ndmapper import config
 
+__all__ = ['CAL_DEPS', 'gemini_iraf_helper']
+
+
 # Default cal dependencies are defined by instrument mode, with just an empty
 # placeholder dict at this level:
 CAL_DEPS = {'target' : []}
@@ -13,6 +16,13 @@ def gemini_iraf_helper():
     Define a few common default values for Gemini IRAF tasks in one place
     (just to avoid more repetition of static values than necessary) and
     convert some Python defaults to be more appropriate for the IRAF tasks.
+
+    Returns
+    -------
+
+    dict
+        Common parameter values suitable for passing to Gemini IRAF tasks.
+
     """
 
     # Enable both VAR & DQ if either is specified, since most Gemini tasks

@@ -3,10 +3,18 @@
 
 import os, os.path
 
+from pyraf import iraf
+from ndmapper import config, ndprocess_defaults
 from ndmapper.data import DataFileList
 from ndmapper.utils import to_datafilelist
+from ndmapper.iraf_task import run_task, get_extname_labels
+from ndmapper.modes.gemini import gemini_iraf_helper
 
 from ..gmos import *
+from ..gmos import __all__
+
+__all__ = __all__ + ['CAL_DEPS', 'biases', 'traces', 'arcs', 'flats',
+                     'standards', 'calibrate_flux', 'apply_flux_cal']
 
 
 # Default calibration dependence for GMOS spectroscopy. The 'spectwilight'

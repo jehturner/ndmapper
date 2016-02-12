@@ -7,11 +7,17 @@ from ndmapper import config, ndprocess_defaults
 from ndmapper.data import DataFile, NDLater
 from ndmapper.utils import convert_region as _convert_region
 
+__all__ = ['init_bpm']
+
 
 @ndprocess_defaults
 def init_bpm(reference, regions, convention='numpy', value=None,
              filename=None):
     """
+    Initialize a bad pixel mask array from a string listing the corresponding
+    regions in NumPy or IRAF/FITS syntax.
+
+
     Parameters
     ----------
 
