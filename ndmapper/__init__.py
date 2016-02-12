@@ -34,8 +34,11 @@ if not _ASTROPY_SETUP_:
 
     # Define a decorator that converts some package-API-standard arguments to
     # use package run-time default values, unless specified explicitly:
+    from functools import wraps
     import inspect
     def ndprocess_defaults(proc_fn):
+
+        @wraps(proc_fn)  # transfer target function name & docstring to wrapper
 
         # Wrapper function to be substituted for the original:
         def wrap_defaults(*args, **kwargs):
