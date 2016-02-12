@@ -8,7 +8,7 @@ from ndmapper import config, ndprocess_defaults
 from ndmapper.data import DataFileList
 from ndmapper.utils import to_datafilelist
 from ndmapper.iraf_task import run_task, get_extname_labels
-from ndmapper.modes.gemini import gemini_iraf_helper
+from ndmapper.lib.gemini import gemini_iraf_helper
 
 from ..gmos import *
 from ..gmos import __all__

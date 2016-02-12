@@ -5,7 +5,7 @@ from pyraf import iraf
 from ndmapper import config, ndprocess_defaults
 from ndmapper.data import DataFileList
 from ndmapper.iraf_task import run_task, get_extname_labels
-from ndmapper.modes.gemini import gemini_iraf_helper
+from ndmapper.lib.gemini import gemini_iraf_helper
 
 from .spec import *
 from .spec import __all__
