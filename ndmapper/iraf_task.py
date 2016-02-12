@@ -8,6 +8,11 @@
 # out and features added. Also, an interface needs to be added for capturing
 # the standard output and the logging needs tidying up significantly.
 
+"""
+A module to help execute IRAF tasks conveniently as part of an NDMapper data
+reduction sequence, with DataFileList objects as inputs and outputs.
+"""
+
 import os
 import os.path
 import tempfile

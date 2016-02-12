@@ -1,6 +1,12 @@
 # Copyright(c) 2015 Association of Universities for Research in Astronomy, Inc.
 # by James E.H. Turner.
 
+"""
+Public I/O routines used by NDMapper. These are wrappers for their
+file-format-specific back ends (which call astropy.io.fits etc.). Users should
+normally work with DataFile objects rather than calling these directly.
+"""
+
 # The functions defined in this file determine the API & doc-string for their
 # format-specific counterparts, to which the work of loading/saving/etc. is
 # delegated. Back-end look-up is done automatically by the _get_loader

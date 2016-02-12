@@ -1,6 +1,11 @@
 # Copyright(c) 2015-2016 Association of Universities for Research in Astronomy, Inc.
 # by James E.H. Turner.
 
+"""
+Some lower-level utility functions (with minimal dependencies) that are used
+internally and are also made available as part of the public API.
+"""
+
 import os, os.path
 import tempfile
 

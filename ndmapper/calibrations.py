@@ -1,6 +1,11 @@
 # Copyright(c) 2015 Association of Universities for Research in Astronomy, Inc.
 # by James E.H. Turner.
 
+"""
+A module for management of calibration exposure dependencies & associations via
+a Python dictionary (in conjuction with the "services" module).
+"""
+
 import os.path
 import json
 

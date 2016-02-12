@@ -24,6 +24,7 @@ from ._util import get_backend_fn
 __all__ = ['FileName', 'NDMapIO', 'TabMapIO']
 
 
+# To do: this class should probably be moved out of here (to a higher level?).
 class FileName(object):
     """
     A class for parsing filenames into components, reconstructing them &

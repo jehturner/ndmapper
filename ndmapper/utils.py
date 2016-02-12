@@ -2,7 +2,8 @@
 # by James E.H. Turner.
 
 """
-Some high-level utility functions for use in scripts & processing functions.
+Some high-level utilities for direct use in scripts & processing functions
+(or which depend on the high-level data representations used in NDMapper).
 """
 
 from ndmapper.io import FileName

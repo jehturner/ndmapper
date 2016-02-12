@@ -4,9 +4,10 @@
 # Code & documentation based on NDData: Copyright (c) 2011-2015, Astropy
 # Developers. Licensed under a 3-clause BSD style license - see ASTROPY.rst.
 
-# Need to understand the differences between AstroPy and Gemini Python
-# docstring conventions better, which are supposedly the same but one has
-# extra fields.
+"""
+A module representing files containing pixel data as high-level objects that
+contain `astropy.nddata`-like instances (and vice versa).
+"""
 
 import os.path
 from copy import copy, deepcopy
@@ -46,7 +47,7 @@ class DataFile(object):
     Parameters
     ----------
 
-    filename : str or FileName, optional
+    filename : `str` or `FileName`, optional
         The filename on disk of the dataset(s) to be represented.
 
     data : NDData or list of NDData or DataFile or None, optional

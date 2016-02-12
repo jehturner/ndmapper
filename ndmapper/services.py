@@ -1,6 +1,11 @@
 # Copyright(c) 2015 Association of Universities for Research in Astronomy, Inc.
 # by James E.H. Turner.
 
+"""
+A module for executing Web queries on specific data archive services, for file
+downloads, calibration file matching etc.
+"""
+
 import os, os.path
 import sys
 from contextlib import closing
