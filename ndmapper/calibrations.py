@@ -319,50 +319,51 @@ def cal_entries(cal_dict, cal_type, reference=None):
 def associate_cals(cals, inputs, cal_type, from_type=None, cal_dict=None):
     """
     Associate a given type of processed calibrations with the data they will
-    subsequently be used to calibrate (both as DataFile instances).
+    subsequently be used to calibrate (both as `DataFile` instances).
 
-    cals : DataFileList or DataFile or (dict of str : DataFile)
+    cals : `DataFileList` or `DataFile` or (`dict` of `str` : `DataFile`)
         A list/dict of processed calibrations, available for association with
-        zero or more matching `inputs`. If a dictionary (with filename strings
-        as the keys) is provided, it is used directly to look up available
-        calibration DataFile instances by name, otherwise such a dictionary is
-        created internally from the parameter value. Any existing keys are
-        ignored if `from_type` is set to 'self'. An entry must exist in `cals`
-        for every match found in `cal_dict` for `inputs`.
+        zero or more matching ``inputs``. If a dictionary (with filename
+        strings as the keys) is provided, it is used directly to look up
+        available calibration `DataFile` instances by name, otherwise such
+        a dictionary is created internally from the parameter value. Any
+        existing keys are ignored if ``from_type`` is set to ``self``. An
+        entry must exist in ``cals`` for every match found in ``cal_dict`` for
+        ``inputs``.
 
-    inputs : DataFileList or DataFile
+    inputs : `DataFileList` or `DataFile`
         DataFile instances with which processed calibrations are to be
-        associated. If no calibration match can be determined from `cal_dict`
+        associated. If no calibration match can be determined from ``cal_dict``
         for a given input, the association is silently omitted (but it is an
-        error for a calibration that is matched to be missing from `cals`).
+        error for a calibration that is matched to be missing from ``cals``).
 
-    cal_type : str
+    cal_type : `str`
         Associated calibration type; this determines the name of the key
         (eg. 'flat' or 'trace') under which the calibrations get associated in
-        the `cals` dictionaries of the `inputs`. It must match a type name
+        the ``cals`` dictionaries of the ``inputs``. It must match a type name
         expected by later processing steps, rather than a type name defined in
         the calibration dictionary (though these are typically the same).
 
-    from_type : str, optional
+    from_type : `str`, optional
         Calibration dictionary type to associate, if different from the default
-        of `cal_type`. This can be used for multiple purposes, including:
-        1) re-use of, for example, an associated 'flat' in the calibration
+        of ``cal_type``. This can be used for multiple purposes, including:
+        1. re-use of, for example, an associated 'flat' in the calibration
         dictionary (where available) as a 'trace' reference for spectral
-        extraction; 2) when the type naming convention from a calibration
+        extraction; 2. when the type naming convention from a calibration
         look-up differs from that expected by subsequent processing steps
-        (eg. due to different authors) and 3) associating calibration files
+        (eg. due to different authors) and 3. associating calibration files
         with themselves (a case that may or may not exist explicitly in the
         calibration dictionary). The special parameter value of 'self' causes
         the cal_dict look-up to be skipped altogether and, for each input file,
-        looks for a file in `cals` with the same original name. In case 1,
+        looks for a file in ``cals`` with the same original name. In case 1,
         where no substitute association exists, an entry ('trace') must be
         added manually to the calibration dictionary, pointing to either an
         existing calibration name label or a new one.
 
-    cal_dict : dict, optional
+    cal_dict : `dict`, optional
         A populated calibration dictionary, in the specific format produced by
-        init_cal_dict() or services.look_up_cals(), used to match `cals` with
-        the `inputs`. Must be provided unless `from_type` == 'self'.
+        `init_cal_dict()` or `services.look_up_cals()`, used to match ``cals``
+        with the ``inputs``. Must be provided unless ``from_type== 'self'``.
 
     """
 
