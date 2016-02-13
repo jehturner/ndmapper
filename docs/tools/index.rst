@@ -11,8 +11,9 @@ Reference/API for direct use in processing steps
 .. automodapi:: ndmapper.iraf_task
     :no-inheritance-diagram:
 
-.. automodapi:: ndmapper.calibrations
-    :no-inheritance-diagram:
+..
+   .. automodapi:: ndmapper.calibrations
+       :no-inheritance-diagram:
 
 .. automodapi:: ndmapper.services
     :no-inheritance-diagram:
