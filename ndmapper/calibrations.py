@@ -29,13 +29,13 @@ def init_cal_dict(filename=None):
     Parameters
     ----------
 
-    filename : str, optional
+    filename : `str`, optional
         Name of the JSON cache file to load, if any.
 
     Returns
     -------
 
-    dict
+    `dict`
         An (empty or populated) dictionary of calibration files & associations,
         in the required format. This consists of 3 sub-dictionaries,
         'associations', mapping each input filename to a dictionary of
@@ -97,11 +97,11 @@ def save_cal_dict(cal_dict, filename):
     Parameters
     ----------
 
-    cal_dict : dict
+    cal_dict : `dict`
         A dictionary of calibration files & associations, in the format
-        produced by init_cal_dict().
+        produced by `init_cal_dict()`.
 
-    filename : str
+    filename : `str`
         Name of the JSON cache file to save the dictionary to.
 
     """
@@ -117,7 +117,7 @@ def recurse_file_cals(filename, obs_type, dependencies, lookup_fn, cal_dict):
     """
     Look up the calibrations on which a given file depends (including their
     calibrations in turn). This is a support function for the public user
-    interface services.look_up_cals().
+    interface `services.look_up_cals()`.
 
     """
 
@@ -169,27 +169,27 @@ def add_cal_entry(filename, cal_type, matches, cal_dict):
     and the same type of calibration will be overwritten, but any existing
     lists of available calibration files and the corresponding checksums will
     be left unchanged. Normally, this function only gets called (eg. via
-    services.look_up_cals()) for calibration entries that don't already exist
+    `services.look_up_cals()`) for calibration entries that don't already exist
     in the dictionary, to preserve existing associations.
 
     Parameters
     ----------
 
-    filename : str
+    filename : `str`
         Name of the file for which the applicable calibration files are to
         be recorded.
 
-    cal_type : str
+    cal_type : `str`
         Type of calibration looked up (matching a name in the dependencies
         dictionary applicable to the instrument mode).
 
-    matches : list of (str, str or None)
+    matches : `list` of (`str`, `str` or `None`)
         List of (filename, checksum) pairs from a prior calibration look-up,
         to be included in the calibration dictionary.
 
-    cal_dict : dict
+    cal_dict : `dict`
         The calibration dictionary to populate, already initialized in the
-        required format by init_cal_dict().
+        required format by `init_cal_dict()`.
 
     """
 
@@ -271,30 +271,30 @@ def cal_entries(cal_dict, cal_type, reference=None):
     Parameters
     ----------
 
-    cal_dict : dict
+    cal_dict : `dict`
         A dictionary of calibration files & associations, in the format
-        produced by init_cal_dict() or services.look_up_cals().
+        produced by `init_cal_dict()` or `services.look_up_cals()`.
 
-    cal_type : str
+    cal_type : `str`
         Type of calibration to be looked up (matching a type name in the
         'associations' sub-dict).
 
-    reference : str or tuple of str, optional
+    reference : `str` or `tuple` of `str`, optional
         One or more filenames with which matching calibrations must be
         associated, to limit the selection. By default, all available
-        calibrations of type `cal_type` are selected.
+        calibrations of type ``cal_type`` are selected.
 
     Returns
     -------
 
-    tuple of (str, list of str)
+    `tuple` of (`str`, `list` of `str`)
         A tuple of (key, value) tuple pairs from the dictionary, where each
         first element is a calibration name label and each second element a
-        list of constituent filenames. These are the items() of the input
-        'calibrations' sub-dict that match `cal_type` (and, if specified,
-        `reference`). The result can be iterated over directly, for processing
-        each entry in turn, or converted with dict() to reproduce the
-        appropriate subset of cal_dict['calibrations'].
+        list of constituent filenames. These are the ``items()`` of the input
+        'calibrations' sub-dict that match ``cal_type`` (and, if specified,
+        ``reference``). The result can be iterated over directly, for
+        processing each entry in turn, or converted with ``dict()`` to
+        reproduce the appropriate subset of ``cal_dict['calibrations']``.
 
     """
 
