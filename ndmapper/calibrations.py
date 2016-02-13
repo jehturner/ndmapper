@@ -321,7 +321,7 @@ def associate_cals(cals, inputs, cal_type, from_type=None, cal_dict=None):
     Associate a given type of processed calibrations with the data they will
     subsequently be used to calibrate (both as `DataFile` instances).
 
-    cals : `DataFileList` or `DataFile`
+    cals : `DataFileList` or `DataFile` or `dict` of `str` : `DataFile`
         A list/dict of processed calibrations, available for association with
         zero or more matching ``inputs``. If a dictionary (with filename
         strings as the keys) is provided, it is used directly to look up
