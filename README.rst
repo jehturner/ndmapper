@@ -12,3 +12,6 @@ and some simple functionality for managing calibration associations; these
 things are intended to be moved to a separate "ndprocess" module as this
 prototype nears completion.
 
+NDMapper is built on the AstroPy affiliated package template but has no
+official association with AstroPy at present.
+
