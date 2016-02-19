@@ -1,4 +1,4 @@
-# Copyright(c) 2015 Association of Universities for Research in Astronomy, Inc.
+# Copyright(c) 2015-2016 Association of Universities for Research in Astronomy, Inc.
 # by James E.H. Turner.
 
 # Code & documentation based on NDData: Copyright (c) 2011-2015, Astropy

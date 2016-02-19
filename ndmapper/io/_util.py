@@ -1,4 +1,4 @@
-# Copyright(c) 2015 Association of Universities for Research in Astronomy, Inc.
+# Copyright(c) 2015-2016 Association of Universities for Research in Astronomy, Inc.
 # by James E.H. Turner.
 
 # These are helper functions for the I/O routines in ndmapper.io.
