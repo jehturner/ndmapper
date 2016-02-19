@@ -328,7 +328,7 @@ class DataFile(object):
     # flat lists of NDData objects are supported, rather than any arbitrary
     # hierarchy supported by, say, HDF5.
     def _load_data(self):
-        data_maps, table_maps = ndmio.map_file(self.filename,
+        data_maps, table_maps = ndmio.map_file(str(self.filename),
                                                labels=self._labels)
         self._data = [NDLater(iomap=iomap) for iomap in data_maps]
         # Table proxy objects are kept directly in DataFile, rather than used
@@ -337,7 +337,7 @@ class DataFile(object):
         self._tables = table_maps
 
     def _load_meta(self):
-        self._meta = ndmio.load_common_meta(self.filename)
+        self._meta = ndmio.load_common_meta(str(self.filename))
 
     def reload(self):
         """
@@ -462,21 +462,21 @@ class DataFile(object):
                 else:
                     imapidx.append(None)
 
-        ndmio.save_list(self.filename, data_list, meta_list, identifiers,
+        ndmio.save_list(str(self.filename), data_list, meta_list, identifiers,
                         type_list, self.meta)
 
         # If the save succeeded without raising an exception, remap each
         # Table proxy & each NDLater's _io attribute to the newly-saved file.
 
         for (n, tproxy), idx in zip(enumerate(self._tables), tmapidx):
-            self._tables[n] = TabMapIO(self.filename, idx=idx,
+            self._tables[n] = TabMapIO(str(self.filename), idx=idx,
                                        label=tproxy.label, ident=tproxy.ident)
 
         for ndd, data_idx, uncertainty_idx, flags_idx in \
             zip(self._data, *[iter(imapidx)]*3):
 
             # Initialize a new _io instance in case it doesn't exist already:
-            ndd._io = NDMapIO(FileName(self.filename),
+            ndd._io = NDMapIO(str(self.filename),
                               ident=ndd.ident, data_idx=data_idx,
                               uncertainty_idx=uncertainty_idx,
                               flags_idx=flags_idx)

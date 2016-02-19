@@ -10,20 +10,20 @@ from .mapio import NDMapIO, TabMapIO
 
 def load_common_meta(filename):
 
-    return pyfits.getheader(str(filename))
+    return pyfits.getheader(filename)
 
 
 def load_array_meta(filename, index):
 
     # This should probably have an optional header
-    return pyfits.getheader(str(filename), index)
+    return pyfits.getheader(filename, index)
 
 
 def load_array(filename, index):
 
     # Treat any int (flags) array as unsigned for the appropriate BZERO/BSCALE
     # (to avoid scaling int16 DQ to float32).
-    return pyfits.getdata(str(filename), index, uint=True)
+    return pyfits.getdata(filename, index, uint=True)
 
 
 def save_array(filename, index, data, meta=None):
@@ -32,7 +32,7 @@ def save_array(filename, index, data, meta=None):
     hdu = pyfits.ImageHDU(data=data, header=_convert_meta(meta), uint=True)
 
     # Open & parse the existing file:
-    hdulist = pyfits.open(str(filename), mode='update', memmap=True, uint=True)
+    hdulist = pyfits.open(filename, mode='update', memmap=True, uint=True)
 
     # Overwrite or append our new HDU at the specified index, producing an
     # error if it doesn't already exist and isn't the next one.
@@ -43,25 +43,23 @@ def save_array(filename, index, data, meta=None):
         hdulist[index] = hdu
     else:
         raise IndexError('index %d is out of range for %s' % \
-                         (index, str(filename)))
+                         (index, filename))
 
     hdulist.close()
 
 
 def load_table_meta(filename, index):
-    return pyfits.getheader(str(filename), index)
+    return pyfits.getheader(filename, index)
 
 
 def load_table(filename, index):
     # Treat any int (flags) array as unsigned for the appropriate BZERO/BSCALE
     # (to avoid scaling int16 DQ to float32). Not sure whether this applies to
     # binary tables but it should be harmless.
-    return pyfits.getdata(str(filename), index, uint=True)
+    return pyfits.getdata(filename, index, uint=True)
 
 
 def save_list(filename, data, array_meta, identifiers, types, common_meta):
-
-    filename = str(filename)
 
     narr = len(data)
 
@@ -137,7 +135,7 @@ def _convert_meta(meta):
 
 def map_file(filename, labels):
 
-    hdulist = pyfits.open(str(filename), mode='readonly')
+    hdulist = pyfits.open(filename, mode='readonly')
 
     # Use package default extname labels if not specified:
     if not labels:

@@ -29,14 +29,14 @@ def load_common_meta(loader, filename):
     Parameters
     ----------
 
-    filename : FileName or str
+    filename : `str`
         Name of an existing file from which to get the meta-data common to all
         groups of pixel data within that file.
 
     Returns
     -------
 
-    dict-like
+    `dict`-like
         A meta-data dictionary or compatible object.
 
     """
@@ -111,7 +111,7 @@ def save_list(loader, filename, data, array_meta=None, identifiers=None,
     Parameters
     ----------
 
-    filename : FileName or str
+    filename : str
         Name of the (new or existing) file to which the data should be saved.
 
     data : list of ndarray or None

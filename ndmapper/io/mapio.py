@@ -242,29 +242,29 @@ class FileName(object):
 
 class NDMapIO(object):
     """
-    Propagate additional information needed for NDData instances (or user code)
-    to support lazy loading, allow saving only arrays/header attributes that
-    have changed & report which FITS extensions they came from for IRAF etc.
+    Propagate additional information needed for `NDLater` instances to support
+    lazy loading, allow saving only arrays/header attributes that have changed
+    & report which FITS extensions they came from for IRAF etc.
 
     For lazy-loading or saving operations to succeed, the corresponding file
     must already exist. This class is intended to encapsulate bookkeeping
-    within NDLater (managed by a DataFile instance) with reasonable overheads,
-    rather than to provide a robust API: for the user-level interface, see
-    DataFile instead.
+    within `NDLater` (managed by a `DataFile` instance) with reasonable
+    overheads, rather than to provide a robust API: for the user-level
+    interface, see `DataFile` instead.
 
     Attributes
     ----------
 
-    filename : FileName
+    filename : `str`
         The path to the file from which the data are to be mapped.
 
-    ident : int or str or None
+    ident : `int` or `str` or `None`
         Group identifier appropriate for the file type (int EXTVER for FITS),
-        which labels this particular NDData instance within a DataFile.
+        which labels this particular `NDData` instance within a `DataFile`.
 
-    data_idx : int
-    uncertainty_idx : int or None
-    flags_idx : int or None
+    data_idx : `int`
+    uncertainty_idx : `int` or `None`
+    flags_idx : `int` or `None`
         The original index of each constituent data/uncertainty/flags array
         within the host file (extension number for FITS).
 
@@ -277,15 +277,12 @@ class NDMapIO(object):
     def __init__(self, filename, ident=None, data_idx=None, \
         uncertainty_idx=None, flags_idx=None):
 
-        # Cast the filename to a new FileName instance whether or not it is
-        # one already; we need an independent copy here, otherwise lazy
-        # loading of data not yet in memory will fail when changing the
-        # filename of a DataFile instance and trying to save the data.
-        try:
-            filename = FileName(filename)
-        except ValueError:
-            raise ValueError('must define filename as a str or FileName '
-                             'object')
+        # This must maintain a separate copy of the host object's filename,
+        # otherwise lazy loading of data not yet in memory will fail when
+        # changing the filename of a DataFile instance and trying to save it.
+
+        if not isinstance(filename, basestring):
+            raise ValueError('filename must be supplied as a string')
 
         self.filename = filename
         self.ident = ident
@@ -350,33 +347,33 @@ class NDMapIO(object):
 class TabMapIO(object):
     """
     A proxy object for lazily loading/saving AstroPy Table instances. This is
-    similar to NDMapIO, but instead of being used by an NDData sub-class to
-    load its own attributes lazily, TabMapIO is used to initialize a normal
-    Table instance on demand, since the latter doesn't have several data
-    arrays to load separately and sub-classing Table would likely prove more
+    similar to `NDMapIO`, but instead of being used by an `NDData` sub-class to
+    load its own attributes lazily, `TabMapIO` is used to initialize a normal
+    `Table` instance on demand, since the latter doesn't have several data
+    arrays to load separately and sub-classing `Table` would likely prove more
     complicated with less benefit.
 
     At the user level, instances are managed by, and the corresponding table
-    data accessed via, DataFile objects. For lazy-loading or saving operations
-    to succeed, the corresponding file must already exist.
+    data accessed via, `DataFile` objects. For lazy-loading or saving
+    operations to succeed, the corresponding file must already exist.
 
     Attributes
     ----------
 
-    filename : FileName
+    filename : `str`
         The path to the file from which the data are to be mapped.
 
-    label : str
-        Application-specific label/name identifying the type of Table
+    label : `str`
+        Application-specific label/name identifying the type of `Table`
         (EXTNAME for FITS). Multiple tables of the same type can be
         distinguished via the ident parameter.
 
-    ident : int or str or None
+    ident : `int` or `str` or `None`
         Identifier appropriate for the file type (int EXTVER for FITS), which
         distinguishes this particular instance of a given type of Table within
         the applicable DataFile.
 
-    idx : int
+    idx : `int`
         The original array index/number within the host file (extension number
         for FITS).
 
@@ -386,15 +383,12 @@ class TabMapIO(object):
 
     def __init__(self, filename, idx, label=None, ident=None):
 
-        # Cast the filename to a new FileName instance whether or not it is
-        # one already; we need an independent copy here, otherwise lazy
-        # loading of data not yet in memory will fail when changing the
-        # filename of a DataFile instance and trying to save the data.
-        try:
-            filename = FileName(filename)
-        except ValueError:
-            raise ValueError('must define filename as a str or FileName '
-                             'object')
+        # This must maintain a separate copy of the host object's filename,
+        # otherwise lazy loading of data not yet in memory will fail when
+        # changing the filename of a DataFile instance and trying to save it.
+
+        if not isinstance(filename, basestring):
+            raise ValueError('filename must be supplied as a string')
 
         self.filename = filename
         self.idx = idx

@@ -4,14 +4,17 @@
 # These are helper functions for the I/O routines in ndmapper.io.
 
 from functools import wraps
+
+from ..libutils import splitext
 from .formats import formats
+
 
 __all__ = ['get_backend_fn']
 
 
 def get_backend_fn(funcname, filename):
     """
-    Given a FileName object and the name of a loader function defined in
+    Given a filename string and the name of a loader function defined in
     ndmapper.io, return the implementation of the latter function from the
     sub-module appropriate for the file format.
 
@@ -24,7 +27,7 @@ def get_backend_fn(funcname, filename):
     new generic functions in ndmapper.io), via the _get_loader decorator.
 
     """
-    fext = '' if not filename.ext else filename.ext.lower()
+    fext = (splitext(filename)[1] or '').lower()
     backend_fn = None
     for fmt, vals in formats.iteritems():
         if fext in vals:
