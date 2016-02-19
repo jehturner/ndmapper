@@ -22,8 +22,7 @@ import traceback
 from pyraf import iraf
 
 from . import config
-from .io import FileName
-from .data import DataFile, DataFileList, temp_saved_datafile
+from .data import FileName, DataFile, DataFileList, temp_saved_datafile
 from .utils import to_datafilelist
 
 

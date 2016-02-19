@@ -6,8 +6,7 @@ Some high-level utilities for direct use in scripts & processing functions
 (or which depend on the high-level data representations used in NDMapper).
 """
 
-from ndmapper.io import FileName
-from ndmapper.data import DataFile, DataFileList
+from ndmapper.data import FileName, DataFile, DataFileList
 
 from .calibrations import K_CALIBRATIONS
 

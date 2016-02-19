@@ -10,6 +10,8 @@ contain `astropy.nddata`-like instances (and vice versa).
 """
 
 import os.path
+import string
+import re
 from copy import copy, deepcopy
 
 import numpy as np
@@ -21,12 +23,227 @@ from astropy.utils.compat.odict import OrderedDict
 
 from . import config
 from . import io as ndmio
-from .io import FileName, NDMapIO, TabMapIO
-from .libutils import new_filename
+from .io import NDMapIO, TabMapIO
+from .libutils import splitext, new_filename
 
 
-__all__ = ['DataFile', 'DataFileList', 'NDLater', 'load_file_list',
+__all__ = ['FileName', 'DataFile', 'DataFileList', 'NDLater', 'load_file_list',
            'temp_saved_datafile']
+
+
+class FileName(object):
+    """
+    A class used by `DataFile` and, potentially, user scripts for parsing
+    filenames into components, modifying and reconstructing them. As a mutable
+    class, it may also be used to keep that information synchronized between
+    interested parties.
+
+    Parameters
+    ----------
+
+    path : str or FileName, optional
+        Single filename to parse into a FileName object representation
+        (defaults to an empty string).
+
+    sep : str or None, optional
+        Separator for suffix components (defaults to "_").
+
+    strip : bool, optional
+        Remove any existing prefix and suffixes from the supplied path
+        (prior to adding any specified prefix & suffix)?
+
+    prefix : str or None, optional
+        Prefix string to add before the base filename.
+
+    suffix : str or None, optional
+        Suffix string to add after the base filename (including any initial
+        separator).
+
+    dirname : str or None, optional
+        Directory name to add to the path (replacing any existing directory).
+
+    regex : str or re or None
+        Regular expression matching base filename (without a file extension).
+        By default this is None, causing the value of the package configuration
+        variable "ndmapper.config['filename_regex']" to be used, which
+        defaults to Gemini's "S20150101S0001"-style convention (thus allowing
+        use of other conventions without having to override the regex every
+        time a DataFile is instantiated, as well as optionally allowing the
+        default to be pre-compiled).
+
+
+    Attributes
+    ----------
+
+    dir : str
+        Directory that the file resides in.
+
+    prefix : str
+        Sequence of characters preceding the base name.
+
+    base : str
+        Base filename in a standard format that can be recognized via the
+        regex parameter, eg. S20150307S0001 for Gemini data. This is the
+        original filename without the file extension, before any processing
+        prefix/suffix are added. Not to be confused (due to lack of a clear
+        alternative term) with the Unix "basename", which would be equivalent
+        to root + ext, where root = prefix + base + suffix.
+
+    suffix : list
+        List of one or more suffixes following the base name, including any
+        separator character (eg. _forStack).
+
+    ext : str
+        File extension(s), eg. "fits" or "fits.gz".
+
+    sep : str or None
+        One or more characters specified as a suffix separator.
+
+    orig : str
+        The original filename with no prefix, suffix or directory, equivalent
+        to `base` + `ext` (read only). This is not one of the parsed components
+        and exists for convenience in look-ups, list comprehensions etc.
+
+    dotext : str
+        The file extension as a string, beginning with the separator ('.'),
+        unless blank. This read-only attribute is provided for convenience;
+        the corresponding parsed filename component is `ext` (which excludes
+        the separator and may be None, when there is no extension).
+
+    root : str
+        The root filename (prefix + base + suffix). This read-only attribute
+        is provided for convenience in list comprehensions etc. (eg. to help
+        determine IRAF database names) and is not one of the parsed components.
+
+    """
+
+    def __init__(self, path=None, sep='_', strip=False, prefix=None, \
+        suffix=None, dirname=None, regex=None):
+
+        # Get default regex from package configuration so non-Gemini users
+        # don't have to specify an alternative convention every time this
+        # class is instantiated:
+        if regex is None:
+            regex = config['filename_regex']
+
+        # Compile regular expression if supplied as a string:
+        if isinstance(regex, basestring):
+            self._re = re.compile(regex)
+        else:
+            self._re = regex
+
+        # Record what separator we're using:
+        self.sep = sep
+
+        # If passed an existing instance, reconstruct and re-parse it, since
+        # the regex or separator can differ (and it's simpler to do). Since
+        # almost anything can be converted to a string in Python, accept only
+        # FileName objects & string types, to avoid confusion. Currently,
+        # DataFile instances are excluded to avoid a circular dependency.
+        if isinstance(path, FileName):
+            path = str(path)
+        elif path is not None and not isinstance(path, basestring):
+            raise ValueError('path must be a str or %s instance' % \
+                             str(self.__class__.__name__))
+
+        # Actually parse the path or use placeholder attributes if it's None:
+        if path is None:
+
+            # In this case we want a completely empty string to represent the
+            # file, so that (eg.) DataFile objects instantiated with None
+            # won't get some anomalous default filename.
+            self.dir = ''
+            self.prefix = ''
+            self.base = ''
+            self.suffix = []
+            self.ext = None
+
+        else:
+            # Separate directory, filename root & file extension:
+            self.dir = os.path.dirname(path)
+            # This splits at the first dot, unlike os.path.splitext:
+            froot, self.ext = splitext(os.path.basename(path))
+
+            # Separate any prefix and/or suffixes from the base name:
+            match = self._re.search(froot)
+            if match:
+                self.standard = True
+                self.base = match.group()
+                if strip:
+                    self.prefix = ''
+                    self.suffix = []
+                else:
+                    self.prefix = froot[:match.start()]
+                    self.suffix = self._split(froot[match.end():])
+            else:
+                self.standard = False
+                self.base = froot
+                self.prefix = ''
+                self.suffix = []
+
+        # Add on any specified prefix or suffix:
+        if prefix:
+            self.prefix = prefix + self.prefix
+        if suffix:
+            self.suffix.extend(self._split(suffix))
+
+        # Add or replace any initial directory name if specified:
+        if dirname is not None:
+            self.dir = dirname
+
+    # Split a string (suffix) into a list that includes the separator
+    # character at the start of each element that originally had one (which
+    # the first element is not bound to):
+    def _split(self, suff):
+        ls = suff.split(self.sep)  # always produces at least one element
+        # If string starts with a separator, omit empty initial string
+        # produced by the split:
+        if not ls[0]:
+            result = []
+        # Otherwise, include the beginning of the string before the first
+        # separator as-is:
+        else:
+            result = [ls[0]]
+        # Restore the separator char before any subsequent elements:
+        sep = ' ' if self.sep is None else self.sep
+        result += [sep + s for s in ls[1:]]
+        return result
+
+    @property
+    def re(self):
+        return self._re
+
+    @property
+    def dotext(self):
+        return '' if self.ext is None else os.extsep + self.ext
+
+    @property
+    def root(self):
+        return self.prefix + self.base + string.join(self.suffix, '')
+
+    # Show something meaningful when inspecting an instance:
+    def __repr__(self):
+        return 'FileName \'{0}\''.format(str(self))
+
+    # Reconstruct the filename when printing the instance value (after any
+    # user modifications to the individual components):
+    def __str__(self):
+        return (os.path.join(self.dir, self.root + self.dotext))
+    @property
+    def orig(self):
+        return self.base + self.dotext
+
+    def __deepcopy__(self, memo):
+        # One can't copy a regex, except by re.compile(_re.pattern), but they
+        # look to be immutable anyway so this shouldn't be a problem; likewise
+        # for strings:
+        return FileName(path=str(self), sep=self.sep, regex=self._re)
+
+    def __eq__(self, other):
+        return os.path.abspath(str(self)) == os.path.abspath(str(other))
+
+    def __ne__(self, other):
+        return not self == other
 
 
 class DataFile(object):

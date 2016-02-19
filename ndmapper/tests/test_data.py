@@ -3,8 +3,8 @@ import os.path
 import numpy as np
 from astropy.utils.data import get_pkg_data_filename
 from astropy.nddata import NDDataArray
-from ..io import FileName, NDMapIO
-from ..data import DataFile, DataFileList, NDLater
+from ..io import NDMapIO
+from ..data import FileName, DataFile, DataFileList, NDLater
 
 
 # Data in common to some of the tests below:
