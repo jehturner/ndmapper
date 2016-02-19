@@ -138,12 +138,11 @@ class FileName(object):
         # If passed an existing instance, reconstruct and re-parse it, since
         # the regex or separator can differ (and it's simpler to do). Since
         # almost anything can be converted to a string in Python, accept only
-        # FileName objects & string types, to avoid confusion. Currently,
-        # DataFile instances are excluded to avoid a circular dependency.
-        if isinstance(path, FileName):
+        # FileName, DataFile & string types, to avoid confusion.
+        if isinstance(path, (FileName, DataFile)):
             path = str(path)
         elif path is not None and not isinstance(path, basestring):
-            raise ValueError('path must be a str or %s instance' % \
+            raise ValueError('path must be a str, %s or DataFile instance' % \
                              str(self.__class__.__name__))
 
         # Actually parse the path or use placeholder attributes if it's None:
