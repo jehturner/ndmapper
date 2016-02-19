@@ -24,7 +24,9 @@ from ._util import get_backend_fn
 __all__ = ['FileName', 'NDMapIO', 'TabMapIO']
 
 
-# To do: this class should probably be moved out of here (to a higher level?).
+# To do: this class should be moved out of here, back to data.py, and it
+# should accept DataFile as input, but first the IO module's dependency on
+# FileName needs removing and substituting for libutils.splitext().
 class FileName(object):
     """
     A class for parsing filenames into components, reconstructing them &
