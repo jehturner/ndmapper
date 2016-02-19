@@ -88,8 +88,8 @@ def convert_region(region, convention):
 def to_filename_strings(objects, strip_names=True, strip_dirs=True,
                         use_cal_dict=False):
     """
-    Extract a list of filename strings from one or more str, FileName or
-    DataFile objects (or a DataFileList), by default removing any path and
+    Extract a list of filename strings from one or more `str`, `FileName` or
+    `DataFile` objects (or a `DataFileList`), by default removing any path and
     processing suffix/prefixes. A calibration dictionary may also be given,
     in the format produced by calibrations.init_cal_dict(), if the relevant
     option is enabled. It is the caller's responsibility to ensure that the
@@ -123,30 +123,34 @@ def to_filename_strings(objects, strip_names=True, strip_dirs=True,
 
 def to_datafilelist(arg, mode=None):
     """
-    Convert a filename str, list of str, DataFile or DataFileList argument to
-    a DataFileList object for subsequent manipulation. The `mode` defaults to
-    'read' when given one or more filename strings and to the existing mode
-    for DataFile and DataFileList.
+    Derive a `DataFileList` object from one or a sequence of objects than can
+    be converted to filename strings (eg. `str`, `FileName` or `DataFile`).
+    The ``mode`` defaults to ``'read'`` when given one or more filenames and
+    to the existing mode for `DataFile` and `DataFileList`. Where all of the
+    inputs are existing `DataFile` instances, those are used by reference
+    (``mode`` permitting), instead of opening new copies.
+
+    Beware of feeding this inappropriate argument types, as almost anything can
+    be converted to `str`...
     """
 
     # Return any existing DataFileList as-is:
     if isinstance(arg, DataFileList):
-        outlist = arg
+        return arg
 
-    # Convert a string or list of strings:
-    elif isinstance(arg, basestring) or (arg and hasattr(arg, '__iter__') \
-       and all([isinstance(fn, basestring) for fn in arg])):
+    # Ensure the input is in a list, for iteration:
+    if isinstance(arg, DataFile) or not hasattr(arg, '__iter__'):
+        arg = [arg]
 
-        mode = 'read' if mode is None else mode
-        outlist = DataFileList(filenames=arg, mode=mode)
+    # Instantiate with existing DataFile(s) as the data argument. Currently,
+    # this can only be done by reference if all elements are DataFiles.
+    if arg and all([isinstance(df, DataFile) for df in arg]):
+        outlist = DataFileList(data=arg, mode=mode)
 
-    # Convert a DataFile or list of DataFiles (or any type supported later):
+    # Otherwise, convert inputs to filename strings and instantiate with those:
     else:
-        try:
-            outlist = DataFileList(data=arg, mode=mode)
-        except TypeError:
-            raise TypeError('could not convert {0} to DataFileList'\
-                            .format(type(arg)))
+        mode = 'read' if mode is None else mode
+        outlist = DataFileList(filenames=[str(fn) for fn in arg], mode=mode)
 
     return outlist
 
