@@ -24,6 +24,7 @@ from pyraf import iraf
 from . import config
 from .io import FileName
 from .data import DataFile, DataFileList, temp_saved_datafile
+from .utils import to_datafilelist
 
 
 __all__ = ['run_task', 'get_extname_labels']
@@ -639,23 +640,9 @@ def conv_io_pars(pardict, mode):
     type `DataFileList` and return a `list` of the list lengths (private).
 
     """
-    # To do: change this to use utils.to_datafilelist() now it's been
-    # factored out.
     for param in pardict:
-        # First cast any strings to a DataFile and then any DataFiles
-        # to a DataFileList:
-        parval = pardict[param]
-        if isinstance(parval, basestring):
-            dfmode = 'read' if mode is None else mode
-            parval = DataFile(filename=parval, mode=dfmode)
-        elif parval and hasattr(parval, '__iter__') and \
-             all([isinstance(fn, basestring) for fn in parval]):
-            parval = DataFileList(filenames=parval, mode=mode)
-        try:
-            pardict[param] = DataFileList(data=parval, mode=mode)
-        except TypeError:
-            raise TypeError('could not convert %s to DataFileList' \
-                            % type(parval))
+        pardict[param] = to_datafilelist(pardict[param], mode=mode)
+
     parlen = [len(val) for val in pardict.itervalues()]
     return parlen
 
