@@ -94,6 +94,7 @@ def save_list(filename, data, array_meta, identifiers, types, common_meta):
         hdulist[0] = phu
 
     # Loop over the image extensions/inputs:
+    n = 0
     for n, (arr, meta, (name, ver), arrtype) in \
         enumerate(zip(data, array_meta, identifiers, types), start=1):
 
