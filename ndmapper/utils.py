@@ -134,20 +134,20 @@ def to_datafilelist(arg, mode=None):
     be converted to `str`...
     """
 
-    # Return any existing DataFileList as-is:
-    if isinstance(arg, DataFileList):
-        return arg
-
     # Ensure the input is in a list, for iteration:
     if isinstance(arg, DataFile) or not hasattr(arg, '__iter__'):
         arg = [arg]
 
-    # Instantiate with existing DataFile(s) as the data argument. Currently,
-    # this can only be done by reference if all elements are DataFiles.
+    # If passed existing DataFile(s), use them as the data argument for
+    # instantiation. Currently, DataFiles can only be re-used by reference if
+    # all elements have that type. This case also covers DataFileList, which
+    # needs re-instantating in case a new mode is specified.
     if arg and all([isinstance(df, DataFile) for df in arg]):
         outlist = DataFileList(data=arg, mode=mode)
 
-    # Otherwise, convert inputs to filename strings and instantiate with those:
+    # Otherwise, convert inputs to filename strings and instantiate with those.
+    # Should the acceptable types be enumerated to avoid strange results? That
+    # might impact user creativity in both good and a bad ways...
     else:
         mode = 'read' if mode is None else mode
         outlist = DataFileList(filenames=[str(fn) for fn in arg], mode=mode)
