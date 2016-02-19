@@ -33,63 +33,68 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
              comb_in=False, MEF_ext=True, path_param=None, reprocess=None,
              logfile=None, **params):
     """
-    Wrapper to run an IRAF task on one or more DataFile objects and collect
+    Wrapper to run an IRAF task on one or more `DataFile` objects and collect
     the results.
 
     Parameters
     ----------
 
-    taskname : str
+    taskname : `str`
         Name of the IRAF task to run, optionally (if the package is already
-        loaded) including the package hierarchy (eg. 'gemini.gmos.gfcube'). 
+        loaded) including the package hierarchy (eg. ``gemini.gmos.gfcube``). 
 
-    inputs : dict of str : (DataFile or DataFileList)
-        Dictionary mapping task parameter names to one or more input DataFile
-        instances to pass one at a time to the task (comb_in=False) or all
-        together (comb_in=True). All the named files must already exist.
+    inputs : `dict`
+        Dictionary mapping task parameter names to one or more input `DataFile`
+        instances to pass one at a time to the task (``comb_in is False``) or
+        all together (``comb_in is True``). All the named files must already
+        exist.
 
-    outputs : (dict of str : (DataFile or DataFileList or str)) or None
-        Specify output parameter name(s) and their filename value(s), if any.
-        The files named must not already exist. The same dictionary is
-        returned as output after applying any automatic modifications.
+    outputs : `dict` or `None`, optional
+        Specify output parameter name(s) and their filename value(s), if any,
+        as dictionary keys & values. The files named must not already exist. 
+        The equivalent dictionary is returned as output, after applying any
+        automatic modifications. The `dict` values may have any type that can
+        be converted to a string (eg. `FileName`), either individually or in
+        a sequence.
 
-        If the "prefix" and/or "suffix" parameter is set, the value(s) may
+        If the ``prefix`` and/or ``suffix`` parameter is set, the value(s) may
         name a parameter from the inputs dictionary, prefixed with '@'
-        (eg. "@infiles"), to create the output names based on the
+        (eg. ``@infiles``), to create the output names based on the
         corresponding input names, or prefixed with '!' to create a single
         output name based on the first input name.
 
-    prefix : str or None
+    prefix : `str` or `None`
         A default prefix to add to existing input filename(s) to form the
         output filename(s), if the output parameter value(s) specify this
         behaviour.
 
-    suffix : str or None
+    suffix : `str` or `None`
         A suffix to add to existing input filename(s) to form the output
         filename(s), if the output parameter value(s) specify this behaviour.
 
-    comb_in : bool
+    comb_in : `bool`
         Pass all the inputs to the task at once, in a single call (eg. for
         stacking), instead of the default behaviour of calling the task on
         each file in turn (per input parameter)? This parameter is named
-        obscurely to avoid conflicts with IRAF tasks (eg. imcombine.combine).
+        obscurely to avoid conflicts with IRAF tasks
+        (eg. ``imcombine.combine``).
 
-    MEF_ext : bool
+    MEF_ext : `bool`
         Specify and iterate over FITS image extensions, for tasks expecting
-        simple FITS as input (eg. core IRAF tasks; default = True)? This
-        should be set to False for tasks that already handle multi-extension
-        FITS files (eg. from Gemini IRAF) or when the input files are already
-        simple FITS. The extension names to be iterated over are defined when
-        the input DataFile instances are created, defaulting to values kept in
-        the package "config" dictionary.
+        simple FITS as input (eg. core IRAF tasks; default `True`)? This should
+        be set to `False` for tasks that already handle multi-extension FITS
+        files (eg. from Gemini IRAF) or when the input files are already simple
+        FITS. The extension names to be iterated over are defined when the
+        input DataFile instances are created, defaulting to values kept in the
+        package ``config`` dictionary.
 
-        The number of extensions named config['labels']['data'] (eg. 'SCI')
+        The number of extensions named ``config['labels']['data']`` (eg. 'SCI')
         must be the same for every input file or one (in which case that
         single extension will be re-used for each iteration over the extensions
         of the other input files).
 
-    path_param : str or None
-        Name of a task parameter (eg. 'rawpath') used to specify the location
+    path_param : `str` or `None`
+        Name of a task parameter (eg. ``rawpath``) used to specify the location
         of the input files, instead of including the full path in each input
         filename as usual. The DataFile paths are automatically stripped from
         the inputs and supplied to the task via this parameter instead. Output
@@ -103,61 +108,64 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
         not apply the path_param prefix (usually input calibrations), or the
         task will fail to find some or all of the inputs.
 
-    reprocess : bool or None, optional
-        Overwrite or re-use existing output files? The default of None
+    reprocess : `bool` or `None`, optional
+        Overwrite or re-use existing output files? The default of `None`
         redirects to the value of the package configuration variable
-        "ndmapper.config['reprocess']", which in turn defaults to None,
+        ``ndmapper.config['reprocess']``, which in turn defaults to `None`,
         causing an error to be raised where output files already exist before
-        processing. If the value is set to True, any existing files will be
-        deleted before the IRAF task is run, while False is a no-op for
+        processing. If the value is set to `True`, any existing files will be
+        deleted before the IRAF task is run, while `False` is a no-op for
         existing files, causing them to be re-used as output without repeating
         the processing. If the IRAF task produces any intermediate files that
-        are not included in `outputs` (ie. that are unknown to run_task), it
+        are not included in ``outputs`` (ie. that are unknown to run_task), it
         is the caller's responsibility to delete them before repeating any
         processing. The task is always (re-)run where there are no `outputs`.
 
-    logfile : str or {str : str} or None
+    logfile : `str` or `dict` or `None`, optional
         Optional filename for logging output, which includes any IRAF log
         contents (delimited by run_task status lines) or Python exceptions.
 
-        The default of None causes the value of the package configuration
-        variable "ndmapper.config['logfile']" to be used, which itself
-        defaults to None (in which case no log is written).
+        The default of `None` causes the value of the package configuration
+        variable ``ndmapper.config['logfile']`` to be used, which itself
+        defaults to `None` (in which case no log is written).
 
         Where only a filename string is provided and the IRAF task has a
-        parameter named "logfile", the corresponding IRAF log will be captured
+        parameter named ``logfile``, the corresponding IRAF log will be captured
         automatically, otherwise only status information and Python exceptions
         will get recorded. Where a single-item dictionary is provided, the key
         specifies an alternative IRAF "log file" parameter name to use and the
         value again specifies the output filename [not implemented]. A special
-        key string of 'STDOUT' causes the standard output to be captured in
-        the log (instead of any IRAF log file contents) [not implemented].
+        key string of ``STDOUT`` will cause the standard output to be captured
+        in the log (instead of any IRAF log file contents) [unimplemented].
 
         The IRAF log contents relevant to each file are also appended to the
         corresponding output DataFile's log attribute (whether or not a log
         file is specified here and written to disk).
 
-    params : dict
+    params : `dict`
         Named IRAF task parameters. These may include ancillary input or
         output filenames that don't need to be tracked by the main inputs &
         outputs dictionaries.
 
-    There is no support for mixing MEF- and simple FITS files in a single call.
-
-    In principle, "prefix" & "suffix" could conflict with any like-named IRAF
-    parameters that have a different meaning from the Gemini convention (ie. a
-    string that is added to the start/end of the input filename to provide an
-    output name), but there appears to be only one such case in Ureka
-    (sqiid.getcoo); likewise for "MEF_ext", which has no known uses elsewhere,
-    "path_param" and "reprocess". It is assumed that the widely-used "logfile"
-    will only ever have the usual meaning.
-
     Returns
     -------
 
-    outputs : dict of str : (DataFile or DataFileList or str)
-        The DataFile objects specified by the parameter "outputs", updated
-        with the results from IRAF.
+    outputs : `dict` of `str` : `DataFileList`
+        The DataFile objects named by the parameter ``outputs``, containing
+        the results from IRAF.
+
+    Notes
+    -----
+
+    There is no support for mixing MEF- and simple FITS files in a single call.
+
+    In principle, ``prefix`` & ``suffix`` could conflict with any like-named
+    IRAF parameters that have a different meaning from the Gemini convention
+    (ie. a string that is added to the start/end of the input filename to
+    provide an output name), but there appears to be only one such case in
+    Ureka (sqiid.getcoo); likewise for ``MEF_ext``, which has no known uses
+    elsewhere, ``path_param`` and ``reprocess``. It is assumed that the
+    widely-used ``logfile`` will only ever have the usual meaning.
 
     """
 
@@ -627,8 +635,8 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
 
 def conv_io_pars(pardict, mode):
     """
-    Convert dict of input or output Python file lists/names to dict of
-    type DataFileList and return a list of the list lengths (private).
+    Convert `dict` of input or output Python file lists/names to `dict` of
+    type `DataFileList` and return a `list` of the list lengths (private).
 
     """
     # To do: change this to use utils.to_datafilelist() now it's been
@@ -654,15 +662,15 @@ def conv_io_pars(pardict, mode):
 
 def get_extname_labels(datafiles):
     """
-    Ensure that all DataFile instances in datafiles use the same convention
-    for labelling NDData component arrays (eg. 'SCI', 'VAR', 'DQ') and return
+    Ensure that all `DataFile` instances in datafiles use the same convention
+    for labelling `NDData` component arrays (eg. 'SCI', 'VAR', 'DQ') and return
     the corresponding labels dictionary. The dictionary values can then be
     used to specify the EXTNAME conventions for IRAF tasks that operate on
-    multi-extension FITS files (which is unnecessary in Python, where NDData
+    multi-extension FITS files (which is unnecessary in Python, where `NDData`
     defines which array is which). An empty dictionary is returned if the input
     list is empty.
 
-    Raises ValueError if the constituent label dictionaries differ.
+    Raises `ValueError` if the constituent label dictionaries differ.
     """
     if isinstance(datafiles, DataFile):
         datafiles = [datafiles]
