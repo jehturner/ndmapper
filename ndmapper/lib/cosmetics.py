@@ -1,18 +1,20 @@
 # Copyright(c) 2015 Association of Universities for Research in Astronomy, Inc.
 # by James E.H. Turner.
 
+import os.path
+
 import numpy as np
 
 from ndmapper import config, ndprocess_defaults
 from ndmapper.data import DataFile, NDLater
-from ndmapper.utils import convert_region as _convert_region
+from ndmapper.utils import convert_region
 
 __all__ = ['init_bpm']
 
 
 @ndprocess_defaults
 def init_bpm(reference, regions, convention='numpy', value=None,
-             filename=None):
+             filename=None, reprocess=None):
     """
     Initialize a bad pixel mask array from a string listing the corresponding
     regions in NumPy or IRAF/FITS syntax.
@@ -61,8 +63,14 @@ def init_bpm(reference, regions, convention='numpy', value=None,
     labels['data'] = labels['flags']
     labels['flags'] = None
 
-    # New object for the output:
-    output = DataFile(filename, mode='new', labels=labels)
+    # New object for the output (or from existing file if not reprocessing):
+    mode = 'new' if reprocess is None else \
+           'update' if reprocess is False and os.path.exists(str(filename)) \
+           else 'overwrite'
+    output = DataFile(filename, mode=mode, labels=labels)
+
+    if mode == 'update':
+        return output
 
     # Create an empty integer array of the same shape as each reference
     # NDData instance:
@@ -75,7 +83,7 @@ def init_bpm(reference, regions, convention='numpy', value=None,
     # corresponding pixels:
     for ndd, reglist in zip(output, regions):
         for region in reglist:
-            slices = _convert_region(region, convention)
+            slices = convert_region(region, convention)
             ndd.data[slices] = value
 
     return output
