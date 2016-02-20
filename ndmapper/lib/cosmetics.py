@@ -63,7 +63,9 @@ def init_bpm(reference, regions, convention='numpy', value=None,
     labels['data'] = labels['flags']
     labels['flags'] = None
 
-    # New object for the output (or from existing file if not reprocessing):
+    # Create (or read from disk, if not reprocessing) the output DataFile.
+    # This is provisional, until a more definitive method is implemented,
+    # possibly as part of the decorator.
     mode = 'new' if reprocess is None else \
            'update' if reprocess is False and os.path.exists(str(filename)) \
            else 'overwrite'
