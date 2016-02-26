@@ -2,12 +2,13 @@
 # by James E.H. Turner.
 
 import os.path
+from copy import copy
 
 import numpy as np
 
 from ndmapper import config, ndprocess_defaults
-from ndmapper.data import DataFile, NDLater
-from ndmapper.utils import convert_region
+from ndmapper.data import FileName, DataFile, DataFileList, NDLater
+from ndmapper.utils import convert_region, to_datafilelist
 
 __all__ = ['init_bpm']
 
@@ -89,4 +90,90 @@ def init_bpm(reference, regions, convention='numpy', value=None,
             ndd.data[slices] = value
 
     return output
+
+
+@ndprocess_defaults
+def add_bpm(inputs, bpm, outputs=None, reprocess=None):
+    """
+    Incorporate an existing bad pixel mask into the corresponding flags
+    attributes of the input DataFile instances.
+
+    Parameters
+    ----------
+
+    inputs : `DataFileList` or `DataFile`
+        Input images to which the bad pixel mask is to be added (via logical
+        OR with any existing ``flags`` information).
+
+    bpm : `DataFileList` or `DataFile`
+        Bad pixel mask, as produced by `init_bpm`, with integer data quality
+        flags stored in the main data array of each constituent NDLater
+        instance. The length (number of NDLater instances) and shape of each
+        constituent array must match the ``inputs``.
+
+    outputs : convertible to `str`, optional
+        Output filenames. If None (default), the names will be constructed
+        from those of the input files, prefixed with 'b'.
+
+
+    Returns
+    -------
+
+    DataFileList
+        Copies of the ``inputs``, with the bad pixel mask values included in
+        the flags attribute of each constituent `NDLater` instance.
+
+
+    Package 'config' options
+    ------------------------
+
+    reprocess : bool or None
+        Re-generate and overwrite any existing output files on disk or skip
+        processing and re-use existing results, where available? The default
+        of None instead raises an exception where outputs already exist
+        (requiring the user to delete them explicitly). The processing is
+        always performed for outputs that aren't already available.
+
+    """
+
+    # Some of this bookeeping should be replaced by a standard wrapper.
+    # Also, logging needs to be implemented, as for IRAF.
+    inputs = to_datafilelist(inputs)
+    if outputs is None:
+        outputs = [FileName(df, prefix='b', dirname='') for df in inputs]
+
+    mode = 'new' if reprocess is None else 'overwrite'
+    outlist = DataFileList(mode=mode)
+
+    # Here the wrapper would ensure that input/output lengths are the same.
+
+    len_bpm = len(bpm)
+
+    # Loop over the files:
+    for in_df, out_name in zip(inputs, outputs):
+
+        if len(in_df) != len_bpm:
+            raise ValueError('input {0} and BPM have different lengths'\
+                             .format(str(in_df)))
+
+        # Read and use any existing file if not reprocessing:
+        if reprocess is False and os.path.exists(str(out_name)):
+            out_df = DataFile(out_name, mode='update')
+
+        # Otherwise, OR each NDLater instance of the BPM with the corresponding
+        # flags extension of the input file:
+        else:
+            # Make a copy the inputs, re-using the data by reference since
+            # replacing the flags attribute won't affect the inputs.
+            out_df = DataFile(out_name, data=in_df, mode=mode)
+
+            # Set flags to the logical OR of the BPM & any existing flags:
+            for out_ndd, bpm_ndd in zip(out_df, bpm):
+
+                out_ndd.flags = copy(bpm_ndd.data) if out_ndd.flags is None \
+                                else bpm_ndd.data | out_ndd.flags
+
+        outlist.append(out_df)
+
+    return outlist
 

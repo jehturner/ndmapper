@@ -126,7 +126,7 @@ def to_datafilelist(arg, mode=None):
     be converted to filename strings (eg. `str`, `FileName` or `DataFile`).
     The ``mode`` defaults to ``'read'`` when given one or more filenames and
     to the existing mode for `DataFile` and `DataFileList`. Where all of the
-    inputs are existing `DataFile` instances, those are used by reference
+    inputs are existing `DataFile` instances, those are re-used by reference
     (``mode`` permitting), instead of opening new copies.
 
     Beware of feeding this inappropriate argument types, as almost anything can

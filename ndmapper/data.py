@@ -462,6 +462,8 @@ class DataFile(object):
         # the mode doesn't change to 'new' as when replacing the filename.
         return self._mode
 
+    # To do: this needs a corresponding setter adding, to allow copying the
+    # header from another instance.
     @property
     def meta(self):
         self._unloaded = False
