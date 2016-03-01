@@ -269,10 +269,11 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
                         namerange = slice(0, 1)        # use first filename
                     else:
                         namerange = slice(None, None)  # use all filenames
-                    preflist = DataFileList()
+                    preflist = DataFileList(mode='overwrite')
                     if refpar in inputs:
                         for datafile in inputs[refpar][namerange]:
-                            newfile = DataFile(filename=datafile.filename)
+                            newfile = DataFile(filename=datafile.filename,
+                                               mode='overwrite')
                             newfile.filename.dir=''  # output goes in CWD
                             if prefix is not None:
                                 newfile.filename.prefix = \
