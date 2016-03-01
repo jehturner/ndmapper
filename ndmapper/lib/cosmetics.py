@@ -10,7 +10,7 @@ from ndmapper import config, ndprocess_defaults
 from ndmapper.data import FileName, DataFile, DataFileList, NDLater
 from ndmapper.utils import convert_region, to_datafilelist
 
-__all__ = ['init_bpm']
+__all__ = ['init_bpm', 'add_bpm']
 
 
 @ndprocess_defaults
