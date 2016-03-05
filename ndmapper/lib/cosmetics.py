@@ -112,8 +112,9 @@ def add_bpm(inputs, bpm, outputs=None, reprocess=None):
         constituent array must match the ``inputs``.
 
     outputs : convertible to `str`, optional
-        Output filenames. If None (default), the names will be constructed
-        from those of the input files, prefixed with 'b'.
+        Output filenames. If None (default), the names of the DataFile
+        instances returned will be constructed from those of the input files,
+        prefixed with 'b'.
 
 
     Returns

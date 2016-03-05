@@ -35,8 +35,8 @@ biases, traces, arcs, flats, standards = {}, {}, {}, {}, {}
 def calibrate_flux(inputs, outputs=None, reference=None, lookup_dir=None,
                    reprocess=None, interact=None):
     """
-    Generate an instrumental sensitivity spectrum from the 1D integrated
-    spectrum of a spectrophotometric standard star.
+    Generate an instrumental sensitivity spectrum in magnitudes from the 1D
+    integrated spectrum of a spectrophotometric standard star.
 
     Parameters
     ----------
@@ -46,10 +46,10 @@ def calibrate_flux(inputs, outputs=None, reference=None, lookup_dir=None,
         standard star. Usually there will just be one input and output, but
         multiple files are accepted.
 
-    outputs : DataFileList or DataFile, optional
-        Output sensitivity spectra in magnitudes. If None (default), a new
-        DataFileList will be returned, whose names are constructed from those
-        of the input files, with '_sens' appended.
+    outputs : `str`-like or list of `str`-like, optional
+        Names of output sensitivity spectra. If None (default), the names of
+        the DataFile instances returned will be constructed from those of the
+        input files, with '_sens' appended.
 
     reference : str or None, optional
         The name of a text file containing tabulated fluxes. This is usually
@@ -175,10 +175,10 @@ def apply_flux_cal(inputs, outputs=None, reprocess=None, interact=None):
         'specphot' in its `cals` dictionary, corresponding to the measured
         instrumental sensitivity spectrum.
 
-    outputs : DataFileList or DataFile, optional
-        Output spectra with units of flux. If None (default), a new
-        DataFileList will be returned, whose names are constructed from those
-        of the input files, prefixed with 'c' as in the Gemini IRAF package.
+    outputs : `str`-like or list of `str`-like, optional
+        Names of flux-calibrated output spectra. If None (default), the names
+        of the DataFile instances returned will be constructed from those of
+        the input files, prefixed with 'c' as in the Gemini IRAF package.
 
 
     Returns

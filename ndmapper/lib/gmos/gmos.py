@@ -41,10 +41,10 @@ def make_bias(inputs, bias=None, bpm=None, ovs_function='spline3',
     inputs : DataFileList
         Input raw bias images.
 
-    bias : DataFile, optional
-        Output combined bias image. If None (default), a new DataFile will be
-        returned whose name is constructed from that of the first input file,
-        by appending '_bias'.
+    bias : str-like, optional
+        Output combined bias image name. If None (default), a new DataFile
+        will be returned whose name is constructed from that of the first input
+        file, by appending '_bias'.
 
     bpm : DataFile or DataFileList, optional
         A bad pixel mask, used if 'use_uncert' and/or 'use_flags' is enabled.

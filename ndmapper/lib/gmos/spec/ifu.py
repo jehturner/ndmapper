@@ -29,10 +29,10 @@ def prepare(inputs, outputs=None, mdf=None, reprocess=None):
         (MDF) extension, describing the slit mapping to sky, and performing
         meta-data updates.
 
-    outputs: DataFileList or DataFile, optional
-        Output "prepared" files. If None (default), a new DataFileList
-        will be returned, whose names are constructed from those of the input
-        files, prefixed with 'g' as in the Gemini IRAF package.
+    outputs : `str`-like or list of `str`-like, optional
+        Names of the output "prepared" files. If None (default), the names
+        of the DataFile instances returned will be constructed from those of
+        the input files, prefixed with 'g' as in the Gemini IRAF package.
 
     mdf : str, optional
         Name of a FITS mask definition file to be attached as a FITS extension
@@ -131,10 +131,10 @@ def subtract_bias(inputs, outputs=None, ovs_function='spline3', ovs_order=1,
         attribute); these bias images should already have their overscan levels
         subtracted and overscan columns removed.
 
-    outputs: DataFileList or DataFile, optional.
-        Output bias subtracted files. If None (default), a new DataFileList
-        will be returned, whose names are constructed from those of the input
-        files, prefixed with 'r' as in the Gemini IRAF package.
+    outputs : `str`-like or list of `str`-like, optional
+        Names of output bias-subtracted files. If None (default), the names
+        of the DataFile instances returned will be constructed from those of
+        the input files, prefixed with 'r' as in the Gemini IRAF package.
 
     ovs_function : str
         Function to use for fitting the overscan region in IRAF (default
@@ -268,9 +268,9 @@ def extract_spectra(inputs, outputs=None, startpos=None, reprocess=None,
         every input must have an entry named 'trace' in its `cals` dictionary,
         pointing to a previous output file from this step.
 
-    outputs : DataFileList or DataFile, optional
-        Output files containing extracted & flat-fielded spectra. If None
-        (default), a new DataFileList will be returned, whose names are
+    outputs : `str`-like or list of `str`-like, optional
+        Names of output files containing extracted & flat-fielded spectra. If
+        None (default), the names of the DataFile instances returned will be
         constructed from those of the input files, prefixed with 'e' as in the
         Gemini IRAF package.
 
@@ -530,11 +530,11 @@ def rectify_wavelength(inputs, outputs=None, start_wl=None, end_wl=None,
         `cals` dictionary (whose name is used by gftransform, in the current
          implementation, to find the corresponding IRAF database files).
 
-    outputs : DataFileList or DataFile, optional
-        Output images with a constant increment in wavelength per pixel. If
-        None (default), a new DataFileList will be returned, whose names are
-        constructed from those of the input files, prefixed with 't' as in the
-        Gemini IRAF package.
+    outputs : `str`-like or list of `str`-like, optional
+        Names of output images with a constant increment in wavelength per
+        pixel. If None (default), the names of the DataFile instances returned
+        will be constructed from those of the input files, prefixed with 't' as
+        in the Gemini IRAF package.
 
     start_wl, end_wl, delta_wl : float, optional
         Starting & ending wavelengths (at the centre of the first/last column)
@@ -644,10 +644,10 @@ def make_flat(inputs, flats=None, order=45, sample='*', reprocess=None,
         associated entry named 'arc' in its `cals` dictionary (whose name is
         currently used to find the corresponding IRAF database files).
 
-    outputs : DataFileList or DataFile, optional
-        Output normalized flat-field images, one per input. If None (default),
-        a new DataFileList will be returned, whose names are constructed from
-        those of the input files by appending '_flat'.
+    outputs : `str`-like or list of `str`-like, optional
+        Names of output normalized flat-field images, one per input. If None
+        (default), the names of the DataFile instances returned will be
+        constructed from those of the input files by appending '_flat'.
         [To do: should this combine the inputs & produce only one output?]
 
     order : int, optional
@@ -730,12 +730,12 @@ def subtract_sky(inputs, outputs=None, reprocess=None):
         Input images, containing extracted, row-stacked fibre spectra with
         linearized wavelength co-ordinates.
 
-    outputs : DataFileList or DataFile, optional
-        Output images containing the sky-subtracted spectra, along with the
+    outputs : `str`-like or list of `str`-like, optional
+        Names of output images, containing the sky-subtracted spectra and the
         1D sky spectrum used for each slit [currently only on disk until
-        DataFile propagates "extras" properly]. If None (default), a new
-        DataFileList will be returned, whose names are constructed from those
-        of the input files, prefixed with 's' as in the Gemini IRAF package.
+        DataFile propagates "extras" properly]. If None (default), the names
+        of the DataFile instances returned will be constructed from those of
+        the input files, prefixed with 's' as in the Gemini IRAF package.
 
     See "help gfskysub" in IRAF for more detailed information.
 
@@ -807,11 +807,9 @@ def resample_to_cube(inputs, outputs=None, bitmask=8, use_uncert=None,
         Input images, containing extracted, row-stacked fibre spectra with
         linearized wavelength co-ordinates.
 
-    outputs : DataFileList or DataFile, optional
-        Output images, each containing a 3D "data cube" with 0.1" pixels
-        spatially and the flux units of the input converted to values per
-        square arcsecond. If None (default), a new DataFileList will be
-        returned, whose names are constructed from those of the input files,
+    outputs : `str`-like or list of `str`-like, optional
+        Names of output images. If None (default), the names of the DataFile
+        instances returned will be constructed from those of the input files,
         prefixed with 'd' as in the Gemini IRAF package.
 
     bitmask : int, optional
@@ -832,7 +830,9 @@ def resample_to_cube(inputs, outputs=None, bitmask=8, use_uncert=None,
     -------
 
     outimages : DataFileList
-        The 3D images produced by gfcube.
+        The 3D images produced by gfcube, each containing a 3D "data cube" with
+        0.1" pixels spatially and the flux units of the input converted to
+        values per square arcsecond.
 
 
     Package 'config' options
@@ -886,10 +886,11 @@ def sum_spectra(inputs, outputs=None, reprocess=None):
         Input images, containing extracted, row-stacked fibre spectra with
         linearized wavelength co-ordinates.
 
-    outputs : DataFileList or DataFile, optional
-        Output images, each containing a 1D spectrum. If None (default), a new
-        DataFileList will be returned, whose names are constructed from those
-        of the input files, prefixed with 'a' as in the Gemini IRAF package.
+    outputs : `str`-like or list of `str`-like, optional
+        Names of output images, each containing a 1D spectrum. If None
+        (default), the names of the DataFile instances returned will be
+        constructed from those of the corresponding input files, prefixed with
+        'a' as in the Gemini IRAF package.
 
     See "help gfapsum" in IRAF for more detailed information.
 
