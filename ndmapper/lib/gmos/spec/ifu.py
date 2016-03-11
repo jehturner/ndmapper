@@ -16,7 +16,7 @@ __all__ = __all__ + ['prepare', 'subtract_bias', 'extract_spectra',
 
 
 @ndprocess_defaults
-def prepare(inputs, outputs=None, mdf=None, reprocess=None):
+def prepare(inputs, out_names=None, mdf=None, reprocess=None):
     """
     Update the meta-data from raw GMOS images in preparation for subsequent
     processing.
@@ -29,7 +29,7 @@ def prepare(inputs, outputs=None, mdf=None, reprocess=None):
         (MDF) extension, describing the slit mapping to sky, and performing
         meta-data updates.
 
-    outputs : `str`-like or list of `str`-like, optional
+    out_names : `str`-like or list of `str`-like, optional
         Names of the output "prepared" files. If None (default), the names
         of the DataFile instances returned will be constructed from those of
         the input files, prefixed with 'g' as in the Gemini IRAF package.
@@ -62,8 +62,8 @@ def prepare(inputs, outputs=None, mdf=None, reprocess=None):
 
     # Use default prefix if output filename unspecified:
     prefix = 'g'
-    if not outputs:
-        outputs = '@inimages'
+    if not out_names:
+        out_names = '@inimages'
 
     # Get a few common Gemini IRAF defaults.:
     gemvars = gemini_iraf_helper()
@@ -84,7 +84,7 @@ def prepare(inputs, outputs=None, mdf=None, reprocess=None):
     # that the MDF is determined in the same way as in my CL example, though
     # that logic seems to be duplicated in gprepare (argh).
     result = run_task('gemini.gmos.gfreduce', inputs={'inimages' : inputs},
-        outputs={'outimages' : outputs}, prefix=prefix, comb_in=False,
+        outputs={'outimages' : out_names}, prefix=prefix, comb_in=False,
         MEF_ext=False, path_param='rawpath', reprocess=reprocess,
         outpref='default', slits='header', exslits='*', fl_nodshuffl=False,
         fl_inter=False, fl_vardq=gemvars['vardq'], fl_addmdf=True,
@@ -111,7 +111,7 @@ def prepare(inputs, outputs=None, mdf=None, reprocess=None):
 
 
 @ndprocess_defaults
-def subtract_bias(inputs, outputs=None, ovs_function='spline3', ovs_order=1,
+def subtract_bias(inputs, out_names=None, ovs_function='spline3', ovs_order=1,
                   ovs_lsigma=2.0, ovs_hsigma=2.0, ovs_niter=5, reprocess=None,
                   interact=None):
 
@@ -131,7 +131,7 @@ def subtract_bias(inputs, outputs=None, ovs_function='spline3', ovs_order=1,
         attribute); these bias images should already have their overscan levels
         subtracted and overscan columns removed.
 
-    outputs : `str`-like or list of `str`-like, optional
+    out_names : `str`-like or list of `str`-like, optional
         Names of output bias-subtracted files. If None (default), the names
         of the DataFile instances returned will be constructed from those of
         the input files, prefixed with 'r' as in the Gemini IRAF package.
@@ -191,8 +191,8 @@ def subtract_bias(inputs, outputs=None, ovs_function='spline3', ovs_order=1,
 
     # Use default prefix if output filename unspecified:
     prefix = 'r'
-    if not outputs:
-        outputs = '@inimages'
+    if not out_names:
+        out_names = '@inimages'
 
     # Get a list of biases to use from the input file "cals" dictionaries.
     # If the entry exists, assume the value is already a valid DataFile.
@@ -213,7 +213,7 @@ def subtract_bias(inputs, outputs=None, ovs_function='spline3', ovs_order=1,
     # don't change anything and so we can easily copy this when wrapping
     # other operations with gfreduce later:
     result = run_task('gemini.gmos.gfreduce', inputs={'inimages' : inputs,
-        'bias' : bias}, outputs={'outimages' : outputs}, prefix=prefix,
+        'bias' : bias}, outputs={'outimages' : out_names}, prefix=prefix,
         comb_in=False, MEF_ext=False, path_param='rawpath',
         reprocess=reprocess, outpref='default', slits='header', exslits='*',
         fl_nodshuffl=False, fl_inter=interact, fl_vardq=gemvars['vardq'],
@@ -241,7 +241,7 @@ def subtract_bias(inputs, outputs=None, ovs_function='spline3', ovs_order=1,
 
 
 @ndprocess_defaults
-def extract_spectra(inputs, outputs=None, startpos=None, reprocess=None,
+def extract_spectra(inputs, out_names=None, startpos=None, reprocess=None,
                     interact=None):
 
     """
@@ -268,7 +268,7 @@ def extract_spectra(inputs, outputs=None, startpos=None, reprocess=None,
         every input must have an entry named 'trace' in its `cals` dictionary,
         pointing to a previous output file from this step.
 
-    outputs : `str`-like or list of `str`-like, optional
+    out_names : `str`-like or list of `str`-like, optional
         Names of output files containing extracted & flat-fielded spectra. If
         None (default), the names of the DataFile instances returned will be
         constructed from those of the input files, prefixed with 'e' as in the
@@ -334,8 +334,8 @@ def extract_spectra(inputs, outputs=None, startpos=None, reprocess=None,
 
     # Use default prefix if output filename unspecified:
     prefix = 'e'
-    if not outputs:
-        outputs = '@inimage'
+    if not out_names:
+        out_names = '@inimage'
 
     # Use apall starting column default if not specified:
     if startpos is None:
@@ -397,7 +397,7 @@ def extract_spectra(inputs, outputs=None, startpos=None, reprocess=None,
 
     result = run_task(
         'gemini.gmos.gfextract', inputs=task_inputs,
-        outputs={'outimage' : outputs}, prefix=prefix, comb_in=False,
+        outputs={'outimage' : out_names}, prefix=prefix, comb_in=False,
         MEF_ext=False, path_param=None, reprocess=reprocess, outpref='e',
         title='', exslits='*', line=startpos, nsum=10, trace=trace,
         recenter=False, thresh=200., function='spline3', order=21, t_nsum=10,
@@ -507,7 +507,7 @@ def calibrate_wavelength(inputs, order=4, line_list=None, interact=None):
 
 
 @ndprocess_defaults
-def rectify_wavelength(inputs, outputs=None, start_wl=None, end_wl=None,
+def rectify_wavelength(inputs, out_names=None, start_wl=None, end_wl=None,
                        delta_wl=None, npix=None, reprocess=None):
     """
     Resample ("transform") fibre spectra onto a pixel array with a linear
@@ -530,7 +530,7 @@ def rectify_wavelength(inputs, outputs=None, start_wl=None, end_wl=None,
         `cals` dictionary (whose name is used by gftransform, in the current
          implementation, to find the corresponding IRAF database files).
 
-    outputs : `str`-like or list of `str`-like, optional
+    out_names : `str`-like or list of `str`-like, optional
         Names of output images with a constant increment in wavelength per
         pixel. If None (default), the names of the DataFile instances returned
         will be constructed from those of the input files, prefixed with 't' as
@@ -581,8 +581,8 @@ def rectify_wavelength(inputs, outputs=None, start_wl=None, end_wl=None,
 
     # Use default prefix if output filename unspecified:
     prefix = 't'
-    if not outputs:
-        outputs = '@inimages'
+    if not out_names:
+        out_names = '@inimages'
 
     # Make a list of arcs from each input's "cals" dictionary. Every file must
     # have one associated. The wavtraname parameter for gftransform is an
@@ -610,7 +610,7 @@ def rectify_wavelength(inputs, outputs=None, start_wl=None, end_wl=None,
     result = run_task(
         'gemini.gmos.gftransform',
         inputs={'inimages' : inputs, 'wavtraname' : arcs},
-        outputs={'outimages' : outputs}, prefix=prefix, suffix=None,
+        outputs={'outimages' : out_names}, prefix=prefix, suffix=None,
         comb_in=False, MEF_ext=False, path_param=None, reprocess=reprocess,
         database='database', w1=start_wl, w2=end_wl, dw=delta_wl, nw=npix,
         dqthresh=0.1, fl_vardq=gemvars['vardq'], fl_flux='yes',
@@ -622,7 +622,7 @@ def rectify_wavelength(inputs, outputs=None, start_wl=None, end_wl=None,
 
 
 @ndprocess_defaults
-def make_flat(inputs, flats=None, order=45, sample='*', reprocess=None,
+def make_flat(inputs, flat_names=None, order=45, sample='*', reprocess=None,
               interact=None):
     """
     Generate a normalized flat field calibration spectrum that includes both
@@ -644,7 +644,7 @@ def make_flat(inputs, flats=None, order=45, sample='*', reprocess=None,
         associated entry named 'arc' in its `cals` dictionary (whose name is
         currently used to find the corresponding IRAF database files).
 
-    outputs : `str`-like or list of `str`-like, optional
+    flat_names : `str`-like or list of `str`-like, optional
         Names of output normalized flat-field images, one per input. If None
         (default), the names of the DataFile instances returned will be
         constructed from those of the input files by appending '_flat'.
@@ -684,8 +684,8 @@ def make_flat(inputs, flats=None, order=45, sample='*', reprocess=None,
     """
 
     # Default to appending "_flat" if an output filename is not specified:
-    if not flats:
-        flats = '@inimage'
+    if not flat_names:
+        flat_names = '@inimage'
 
     # Make a list of arcs from each input's "cals" dictionary. Every file must
     # have one associated.
@@ -703,7 +703,7 @@ def make_flat(inputs, flats=None, order=45, sample='*', reprocess=None,
     result = run_task(
         'gemini.gmos.gfresponse',
         inputs={'inimage' : inputs, 'wavtraname' : arcs},
-        outputs={'outimage' : flats}, prefix=None, suffix='_flat',
+        outputs={'outimage' : flat_names}, prefix=None, suffix='_flat',
         comb_in=False, MEF_ext=False, path_param=None, reprocess=reprocess,
         title='', skyimage='', database='database', fl_inter=interact,
         fl_fit=False, function='chebyshev', order=order, sample=sample,
@@ -715,7 +715,7 @@ def make_flat(inputs, flats=None, order=45, sample='*', reprocess=None,
 
 
 @ndprocess_defaults
-def subtract_sky(inputs, outputs=None, reprocess=None):
+def subtract_sky(inputs, out_names=None, reprocess=None):
     """
     Create an average sky spectrum over rows corresponding to the background
     IFU field and subtract it from each fibre spectrum (image row). This is
@@ -730,7 +730,7 @@ def subtract_sky(inputs, outputs=None, reprocess=None):
         Input images, containing extracted, row-stacked fibre spectra with
         linearized wavelength co-ordinates.
 
-    outputs : `str`-like or list of `str`-like, optional
+    out_names : `str`-like or list of `str`-like, optional
         Names of output images, containing the sky-subtracted spectra and the
         1D sky spectrum used for each slit [currently only on disk until
         DataFile propagates "extras" properly]. If None (default), the names
@@ -760,8 +760,8 @@ def subtract_sky(inputs, outputs=None, reprocess=None):
     """
     # Use default prefix if output filename unspecified:
     prefix = 's'
-    if not outputs:
-        outputs = '@inimages'
+    if not out_names:
+        out_names = '@inimages'
 
     # Get a few common Gemini IRAF defaults.:
     gemvars = gemini_iraf_helper()
@@ -775,7 +775,7 @@ def subtract_sky(inputs, outputs=None, reprocess=None):
     # output, but so far so good here.
     result = run_task(
         'gemini.gmos.gfskysub',
-        inputs={'inimages' : inputs}, outputs={'outimages' : outputs},
+        inputs={'inimages' : inputs}, outputs={'outimages' : out_names},
         prefix=prefix, suffix=None, comb_in=False, MEF_ext=False,
         path_param=None, reprocess=reprocess, apertures="", expr='default',
         combine='average', reject='avsigclip', scale='none', zero='none',
@@ -791,7 +791,7 @@ def subtract_sky(inputs, outputs=None, reprocess=None):
 
 
 @ndprocess_defaults
-def resample_to_cube(inputs, outputs=None, bitmask=8, use_uncert=None,
+def resample_to_cube(inputs, out_names=None, bitmask=8, use_uncert=None,
                      reprocess=None):
     """
     Resample fibre spectra onto a 3D "data cube", interpolating spatially over
@@ -807,7 +807,7 @@ def resample_to_cube(inputs, outputs=None, bitmask=8, use_uncert=None,
         Input images, containing extracted, row-stacked fibre spectra with
         linearized wavelength co-ordinates.
 
-    outputs : `str`-like or list of `str`-like, optional
+    out_names : `str`-like or list of `str`-like, optional
         Names of output images. If None (default), the names of the DataFile
         instances returned will be constructed from those of the input files,
         prefixed with 'd' as in the Gemini IRAF package.
@@ -854,8 +854,8 @@ def resample_to_cube(inputs, outputs=None, bitmask=8, use_uncert=None,
     """
     # Use default prefix if output filename unspecified:
     prefix = 'd'
-    if not outputs:
-        outputs = '@inimage'
+    if not out_names:
+        out_names = '@inimage'
 
     # Determine input DataFile EXTNAME convention, to pass to the task:
     labels = get_extname_labels(inputs)
@@ -863,7 +863,7 @@ def resample_to_cube(inputs, outputs=None, bitmask=8, use_uncert=None,
     # Always generate output DQ since it tracks the interpolation bounds.
     result = run_task(
         'gemini.gmos.gfcube',
-        inputs={'inimage' : inputs}, outputs={'outimage' : outputs},
+        inputs={'inimage' : inputs}, outputs={'outimage' : out_names},
         prefix=prefix, suffix=None, comb_in=False, MEF_ext=False,
         path_param=None, reprocess=reprocess, ssample=0.1, bitmask=bitmask,
         fl_atmdisp=True, fl_flux=True, fl_var=use_uncert, fl_dq=True
@@ -873,7 +873,7 @@ def resample_to_cube(inputs, outputs=None, bitmask=8, use_uncert=None,
 
 
 @ndprocess_defaults
-def sum_spectra(inputs, outputs=None, reprocess=None):
+def sum_spectra(inputs, out_names=None, reprocess=None):
     """
     Sum over fibre spectra in the main "object" IFU field to produce a 1D
     output spectrum.
@@ -886,7 +886,7 @@ def sum_spectra(inputs, outputs=None, reprocess=None):
         Input images, containing extracted, row-stacked fibre spectra with
         linearized wavelength co-ordinates.
 
-    outputs : `str`-like or list of `str`-like, optional
+    out_names : `str`-like or list of `str`-like, optional
         Names of output images, each containing a 1D spectrum. If None
         (default), the names of the DataFile instances returned will be
         constructed from those of the corresponding input files, prefixed with
@@ -915,8 +915,8 @@ def sum_spectra(inputs, outputs=None, reprocess=None):
     """
     # Use default prefix if output filename unspecified:
     prefix = 'a'
-    if not outputs:
-        outputs = '@inimages'
+    if not out_names:
+        out_names = '@inimages'
 
     # Get a few common Gemini IRAF defaults.:
     gemvars = gemini_iraf_helper()
@@ -928,7 +928,7 @@ def sum_spectra(inputs, outputs=None, reprocess=None):
     # right with the level of contrast involved can be tricky.
     result = run_task(
         'gemini.gmos.gfapsum',
-        inputs={'inimages' : inputs}, outputs={'outimages' : outputs},
+        inputs={'inimages' : inputs}, outputs={'outimages' : out_names},
         prefix=prefix, suffix=None, comb_in=False, MEF_ext=False,
         path_param=None, reprocess=reprocess, apertures='', expr='default',
         combine='sum', reject='none', scale='none', zero='none', weight='none',

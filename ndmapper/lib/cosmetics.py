@@ -93,7 +93,7 @@ def init_bpm(reference, regions, convention='numpy', value=None,
 
 
 @ndprocess_defaults
-def add_bpm(inputs, bpm, outputs=None, reprocess=None):
+def add_bpm(inputs, bpm, out_names=None, reprocess=None):
     """
     Incorporate an existing bad pixel mask into the corresponding flags
     attributes of the input DataFile instances.
@@ -111,7 +111,7 @@ def add_bpm(inputs, bpm, outputs=None, reprocess=None):
         instance. The length (number of NDLater instances) and shape of each
         constituent array must match the ``inputs``.
 
-    outputs : convertible to `str`, optional
+    out_names : convertible to `str`, optional
         Output filenames. If None (default), the names of the DataFile
         instances returned will be constructed from those of the input files,
         prefixed with 'b'.
@@ -140,8 +140,8 @@ def add_bpm(inputs, bpm, outputs=None, reprocess=None):
     # Some of this bookeeping should be replaced by a standard wrapper.
     # Also, logging needs to be implemented, as for IRAF.
     inputs = to_datafilelist(inputs)
-    if outputs is None:
-        outputs = [FileName(df, prefix='b', dirname='') for df in inputs]
+    if out_names is None:
+        out_names = [FileName(df, prefix='b', dirname='') for df in inputs]
 
     mode = 'new' if reprocess is None else 'overwrite'
     outlist = DataFileList(mode=mode)
@@ -151,7 +151,7 @@ def add_bpm(inputs, bpm, outputs=None, reprocess=None):
     len_bpm = len(bpm)
 
     # Loop over the files:
-    for in_df, out_name in zip(inputs, outputs):
+    for in_df, out_name in zip(inputs, out_names):
 
         if len(in_df) != len_bpm:
             raise ValueError('input {0} and BPM have different lengths'\

@@ -32,7 +32,7 @@ biases, traces, arcs, flats, standards = {}, {}, {}, {}, {}
 
 
 @ndprocess_defaults
-def calibrate_flux(inputs, outputs=None, reference=None, lookup_dir=None,
+def calibrate_flux(inputs, out_names=None, reference=None, lookup_dir=None,
                    reprocess=None, interact=None):
     """
     Generate an instrumental sensitivity spectrum in magnitudes from the 1D
@@ -46,7 +46,7 @@ def calibrate_flux(inputs, outputs=None, reference=None, lookup_dir=None,
         standard star. Usually there will just be one input and output, but
         multiple files are accepted.
 
-    outputs : `str`-like or list of `str`-like, optional
+    out_names : `str`-like or list of `str`-like, optional
         Names of output sensitivity spectra. If None (default), the names of
         the DataFile instances returned will be constructed from those of the
         input files, with '_sens' appended.
@@ -91,12 +91,12 @@ def calibrate_flux(inputs, outputs=None, reference=None, lookup_dir=None,
 
     # Use default prefix if output filename unspecified & convert to a list:
     suffix = '_sens'
-    if not outputs:
-        outputs = ['@input'] * len(inputs)
-    elif isinstance(outputs, basestring) or isinstance(outputs, DataFile):
-        outputs = [outputs]
-    if len(outputs) != len(inputs):
-        raise ValueError('inputs & outputs have unmatched lengths')
+    if not out_names:
+        out_names = ['@input'] * len(inputs)
+    elif isinstance(out_names, basestring) or isinstance(out_names, DataFile):
+        out_names = [out_names]
+    if len(out_names) != len(inputs):
+        raise ValueError('inputs & out_names have unmatched lengths')
 
     # Default to finding the look-up table in the CWD:
     if not lookup_dir:
@@ -111,7 +111,7 @@ def calibrate_flux(inputs, outputs=None, reference=None, lookup_dir=None,
     # Loop over the files explicitly, rather than letting run_task do it,
     # since we need to modify or delete the "sfile" output each time:
     outlist = DataFileList(mode='update')
-    for indf, outname in zip(inputs, outputs):
+    for indf, outname in zip(inputs, out_names):
 
         # Default to obtaining the look-up table filename from the target
         # name in the header:
@@ -132,7 +132,7 @@ def calibrate_flux(inputs, outputs=None, reference=None, lookup_dir=None,
         # and the main 'sfunction' output does not exist. It's probably best to
         # remove the file in that case too, given that this particular output
         # is only informational, but wait until we have more logic for
-        # determining 'outputs' in pure Python steps.
+        # determining 'out_names' in pure Python steps.
         if reprocess and os.path.exists(sfile):
             os.remove(sfile)
 
@@ -161,7 +161,7 @@ def calibrate_flux(inputs, outputs=None, reference=None, lookup_dir=None,
 
 
 @ndprocess_defaults
-def apply_flux_cal(inputs, outputs=None, reprocess=None, interact=None):
+def apply_flux_cal(inputs, out_names=None, reprocess=None, interact=None):
     """
     Apply a previously-measured sensitivity spectrum to each input to
     convert the data values to spectrophotometric flux units.
@@ -175,7 +175,7 @@ def apply_flux_cal(inputs, outputs=None, reprocess=None, interact=None):
         'specphot' in its `cals` dictionary, corresponding to the measured
         instrumental sensitivity spectrum.
 
-    outputs : `str`-like or list of `str`-like, optional
+    out_names : `str`-like or list of `str`-like, optional
         Names of flux-calibrated output spectra. If None (default), the names
         of the DataFile instances returned will be constructed from those of
         the input files, prefixed with 'c' as in the Gemini IRAF package.
@@ -208,8 +208,8 @@ def apply_flux_cal(inputs, outputs=None, reprocess=None, interact=None):
 
     # Use default prefix if output filename unspecified:
     prefix = 'c'
-    if not outputs:
-        outputs = '@input'
+    if not out_names:
+        out_names = '@input'
 
     # Get a list of sensitivity spectra to use from the input file "cals"
     # dictionaries.
@@ -229,7 +229,7 @@ def apply_flux_cal(inputs, outputs=None, reprocess=None, interact=None):
     result = run_task(
         'gemini.gmos.gscalibrate',
         inputs={'input' : inputs, 'sfunction' : sensspec},
-        outputs={'output' : outputs}, prefix=prefix, suffix=None,
+        outputs={'output' : out_names}, prefix=prefix, suffix=None,
         comb_in=False, MEF_ext=False, path_param=None, reprocess=reprocess,
         sci_ext=labels['data'], var_ext=labels['uncertainty'],
         dq_ext=labels['flags'], key_airmass=gemvars['key_airmass'],
