@@ -56,6 +56,12 @@ class NDMapIO(object):
         # otherwise lazy loading of data not yet in memory will fail when
         # changing the filename of a DataFile instance and trying to save it.
 
+        # This should perhaps be changed to cache a reference to its data so
+        # that one NDLater instance instantiated from another will share the
+        # same data arrays independently of whether lazy loading is triggered
+        # before or after instantiation. Once one of them is saved, it will
+        # still get re-mapped independently.
+
         if not isinstance(filename, basestring):
             raise ValueError('filename must be supplied as a string')
 
@@ -192,4 +198,13 @@ class TabMapIO(object):
         if not self._table:
             self.load_table()
         return self._table
+
+    def copy(self):
+        """
+        Generate a new instance that shares any already-loaded data but can
+        be re-mapped independently.
+        """
+        newinst = TabMapIO(self.filename, self.idx, self.label, self.ident)
+        newinst._table = self._table
+        return newinst
 

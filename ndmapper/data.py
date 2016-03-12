@@ -358,8 +358,10 @@ class DataFile(object):
         strip=False, prefix=None, suffix=None, dirname=None, labels=None):
 
         if isinstance(data, DataFile):  # create new copy of existing obj
-            self._data = data._data
-            self._tables = data._tables
+            # New NDLater instances & a new table proxy list allow later
+            # re-mapping when saving without changing the original DataFile.
+            self._data = [NDLater(data=d) for d in data]
+            self._tables = [tp for tp in data._tables]
             self._meta = deepcopy(data._meta)
             self._filename = deepcopy(data.filename)
             self._labels = copy(data._labels)
@@ -1227,6 +1229,17 @@ class NDLater(NDDataArray):
             self.unit = self._unit
 
         else:
+            # If instantiating from NDLater, copy its iomap (unless given one).
+            # This can be a copy by reference, as it gets replaced when saving
+            # and re-mapping.
+            if self._io is None and hasattr(data, '_io'):
+                self._io = data._io
+
+            # Instantiating one NDLater from another probably triggers lazy
+            # loading inadvertently in the parent __init__ below, because the
+            # uncertainty setter causes a comparison with data.shape. Need to
+            # do something about this.
+
             # When passed data as well as a filename, let our parent class
             # populate the class attributes and then we'll lazily load anything
             # that wasn't provided. It's the caller's responsibility to avoid
@@ -1240,11 +1253,6 @@ class NDLater(NDDataArray):
             # duck type this because numpy also has a different "flags".
             if flags is None and isinstance(data, NDDataArray):
                 self._flags = data.flags
-
-            # Don't copy any existing NDLater _io attribute, require it to be
-            # specified explicitly. If we're making a copy we probably want to
-            # write somewhere different from the original and DataFile can
-            # take care of this.
 
         # Don't bother loading the header lazily, but still get it via NDMapIO,
         # to avoid adding I/O logic in more places than necessary. We also need

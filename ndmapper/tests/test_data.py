@@ -114,12 +114,15 @@ def test_DataFileList_len_mismatch_1():
 def test_DataFileList_broadcast_data_1():
 
     # But we can map the same dataset to multiple files:
-    dfl = DataFileList([fn_mefnodq, 'test_name'], data=DataFile(),
-        mode='overwrite')
+    dfl = DataFileList([fn_mefnodq, 'test_name'],
+                       data=DataFile(data=NDDataArray([1,2,3])),
+                       mode='overwrite')
 
-    # Produces 2 separate DataFiles referring to the same data array.
+    # Produces 2 separate DataFiles referring to the same data array (as
+    # long as the data aren't lazily-loaded separately).
     assert len(dfl) == 2 and dfl[0] is not dfl[1] \
-        and dfl[0]._data is dfl[1]._data
+        and len(dfl[0]) == len(dfl[1])\
+        and [ndda.data is nddb.data for ndda, nddb in zip(dfl[0], dfl[1])]
 
 
 def test_DataFileList_copy_self_1():
