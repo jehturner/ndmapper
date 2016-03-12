@@ -2,6 +2,12 @@ NDMapper change log
 ===================
 
 
+0.1.2 (unreleased)
+------------------
+
+- Nothing changed yet.
+
+
 0.1.1 (2016-03-12)
 ------------------
 
