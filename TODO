@@ -1,9 +1,20 @@
 o Sketch out process & at some point split it out from ndmapper.
+o Use NDData .mask instead of .flags?
+  - Is NDDataArray still needed?
+o Add Python meta-decorator for iterating over files, copying ref headers etc.?
+o Make sure lazy loading is not triggered when instantiating NDLater from
+  another instance.
+o Should NDMapIO keep a reference to its data so they can be shared between
+  NDLater instances whether or not they have already been loaded?
+o Add save() & reload() methods to DataFileList.  
 
 Later
 
 o IRAF tests with additional files (inc. VAR/DQ).
+o Override other list methods properly in DataFileList.
+  - Should it inherit from ABCs instead?
 o User interface to Table instances & organization of Table idents.
+o Add calibration association persistence.
 o Complete IRAF logging behaviour.
 o Add auto .fits (and other known types) in DataFile?
 o Capture stdout/stderr?
