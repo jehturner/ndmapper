@@ -30,6 +30,8 @@ from .libutils import splitext, new_filename
 __all__ = ['FileName', 'DataFile', 'DataFileList', 'NDLater', 'load_file_list',
            'temp_saved_datafile']
 
+__doctest_skip__ = ['load_file_list']
+
 
 class FileName(object):
     """
