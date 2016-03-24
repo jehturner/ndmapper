@@ -5,7 +5,20 @@ NDMapper change log
 0.1.2 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Fix ``libutils.splitext`` to ignore the path when splitting on the first dot,
+  in case directory names contain dots (specifically temp directories created
+  by py.test).
+
+- Include FITS data in MANIFEST.in & setup.py so the tests can be run from an
+  installed copy of the package (in particular one created by py.test).
+
+- Configure py.test not to capture stdout (which causes importing pyraf to fail
+  due to incompatible redirection) and to skip a doctest with no data, avoiding
+  failures when using py.test instead of nose.
+
+- Determine the path to FITS data in the tests without using astropy
+  ``get_pkg_data_filename``, to avoid remote data errors from py.test.
+
 
 
 0.1.1 (2016-03-12)
