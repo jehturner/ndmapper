@@ -1,14 +1,18 @@
 import pytest
 import os.path
 import numpy as np
-from astropy.utils.data import get_pkg_data_filename
+from astropy.utils import find_current_module
 from astropy.nddata import NDDataArray
 from ..io import NDMapIO
 from ..data import FileName, DataFile, DataFileList, NDLater
 
-
-# Data in common to some of the tests below:
-fn_mefnodq = get_pkg_data_filename('data/eqbprgS20120827S0069_flat.fits')
+# Determine path to data in common to some of the tests below:
+# Using get_pkg_data_filename() from astropy here was causing problems with
+# py.test expecting remote data.
+#fn_mefnodq = get_pkg_data_filename('data/eqbprgS20120827S0069_flat.fits')
+module = find_current_module(0, True)
+module_path = os.path.dirname(module.__file__)
+fn_mefnodq = os.path.join(module_path, 'data', 'eqbprgS20120827S0069_flat.fits')
 
 
 def test_FileName_gemini_IRAF_1():
