@@ -18,9 +18,11 @@ def splitext(path):
     to avoid incorrect reconstruction of 'file.' as 'file' or vice versa.
     """
 
-    components = os.path.basename(path).split(os.extsep, 1) # always produces root name
+    components = os.path.basename(path).split(os.extsep, 1)  # len always 1->2
+    ext = None if len(components) == 1 else components[1]
+    root = path if ext is None else path[:-len(os.extsep+ext)]
 
-    return components[0], None if len(components) == 1 else components[1]
+    return root, ext
 
 
 def addext(path, ext):
