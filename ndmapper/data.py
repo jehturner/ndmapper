@@ -790,26 +790,25 @@ class DataFileList(list):
     Parameters
     ----------
 
-    filenames : str or list of str, optional
+    filenames : `str` or `list` of `str`, optional
         The filename(s) on disk of the dataset(s) to be represented. There
         should either be as many filenames as data or None (but lists of
         NDData can be nested to associate subsets with fewer filenames).
 
-    data : NDData or list of NDData or list of lists of NDData or DataFile
-           or DataFileList, optional
+    data : `DataFile` or `DataFileList` or (nested list of) `NDData`, optional
         NDData/DataFile instance(s) for the dataset(s) to be represented (or
         an existing DataFileList instance). Any member DataFile instances will
         become new copies if any of the filename-modifying parameters are set,
         otherwise the DataFileList will simply hold references to the original
         instances (allowing manipulation of existing DataFiles via new lists).
 
-    meta : dict-like or list of dict-like or None, optional
+    meta : `dict`-like or `list` of `dict`-like or `None`, optional
         The header/meta-data associated with each file as a whole (eg. the
         primary FITS header) rather than with individual nddata instances.
         There should be one instance per file or None (which preserves any
         information from an existing file).
 
-    mode : str, optional
+    mode : `str`, optional
         'read' (default), 'new', 'update' or 'overwrite'
         Specifies whether the file should exist on disk already and be used to
         initialize this DataFile (if a filename is provided) and whether it can
@@ -822,18 +821,18 @@ class DataFileList(list):
         they are all the same (raising an exception if not), defaulting to
         'read' if no DataFile instances are provided.
 
-    strip : bool
+    strip : `bool`
         Remove any existing prefix and suffixes from the supplied filename
         (prior to adding any specified prefix & suffix)?
 
-    prefix : str, None
+    prefix : `str`, None
         Prefix string to add before the base filename.
 
-    suffix : str, None
+    suffix : `str`, None
         Suffix string to add after the base filename (including any initial
         separator).
 
-    dirname : str, None
+    dirname : `str`, None
         Directory name to add to the filename (replacing any existing dir).
 
     """
