@@ -173,7 +173,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
     dt = datetime.datetime.now()
     logstart = '-----\nSTART run_task(%s)  %s' % \
         (taskname, dt.strftime('%Y-%m-%d %H:%M:%S'))
-    print logstart
+    print(logstart)
 
     # Start the log file:
     if logfile is None:
@@ -520,7 +520,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
                     else:
                         templog = None
 
-                    # print 'pars', params
+                    # print('pars', params)
 
                     # Execute with Python inputs converted to IRAF-style pars:
                     try:
@@ -578,20 +578,20 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
                         df.log += msg
                 if userlog:
                     userlog.write('{0}\n'.format(msg))
-                print msg
+                print(msg)
 
         # Print final run_task() delimiter:
         dt = datetime.datetime.now()
         logend='END   run_task(%s)  %s\n-----\n' % \
             (taskname, dt.strftime('%Y-%m-%d %H:%M:%S'))
         if userlog: userlog.write('%s' % logend)
-        print logend
+        print(logend)
 
         # Add delimiter to individual DataFile log attributes as well:
         for dfl in outputs.itervalues():
             for df in dfl:
                 df.log += '\n%s\n' % logend
-                # print 'dfl', df.log
+                # print('dfl', df.log)
 
     except:
         if userlog:

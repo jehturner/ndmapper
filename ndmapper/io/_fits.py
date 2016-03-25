@@ -176,7 +176,7 @@ def map_file(filename, labels):
             # else:
             #     ignore any extensions with unrecognized names
 
-            # print idx_dict
+            # print(idx_dict)
 
         # Also collect any table extensions for separate propagation. Any
         # more exotic extensions are currently ignored but should really also
