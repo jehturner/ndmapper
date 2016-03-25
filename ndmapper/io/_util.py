@@ -33,7 +33,7 @@ def get_backend_fn(funcname, filename):
         if fext in vals:
             # Import back-end module if not done already; just assume it
             # exists if defined in formats dict, otherwise we have a bug.
-            exec('import _{0} as {0}'.format(fmt))
+            exec('from . import _{0} as {0}'.format(fmt))
             # Try to get the back-end function from the module:
             try:
                 backend_fn = eval(fmt+'.'+funcname)

@@ -220,7 +220,7 @@ class FileName(object):
 
     @property
     def root(self):
-        return self.prefix + self.base + string.join(self.suffix, '')
+        return self.prefix + self.base + ''.join(self.suffix)
 
     # Show something meaningful when inspecting an instance:
     def __repr__(self):
@@ -937,7 +937,8 @@ class DataFileList(list):
 
             # Expand out data, filenames & meta to lists of the same length,
             # to avoid repetition below.
-            listlen = max(len_fn, len_data, len_meta)
+            lens = (l for l in (len_fn, len_data, len_meta) if l is not None)
+            listlen = max(lens) if lens else None
 
             if listlen is None:
                 filenames, data, meta = [], [], []
@@ -948,12 +949,12 @@ class DataFileList(list):
                 # expected to be unique within any given list:
                 filenames = filenames if filenames else \
                             [None for item in listrange]
-                data = data if len_data > 1 \
+                data = data if (len_data and len_data > 1) \
                        else [data[0] for item in listrange] if data \
                        else [data for item in listrange]
                        # This last line can produce [None] or [[]], the latter
                        # of which overrides any existing data in the DataFile.
-                meta = meta if len_meta > 1 \
+                meta = meta if (len_meta and len_meta > 1) \
                        else [meta[0] for item in listrange] if meta \
                        else [meta for item in listrange]
 
