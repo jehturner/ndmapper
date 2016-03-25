@@ -936,7 +936,8 @@ class DataFileList(list):
 
             # Expand out data, filenames & meta to lists of the same length,
             # to avoid repetition below.
-            lens = (l for l in (len_fn, len_data, len_meta) if l is not None)
+            lens = tuple(l for l in (len_fn, len_data, len_meta) \
+                         if l is not None)
             listlen = max(lens) if lens else None
 
             if listlen is None:
