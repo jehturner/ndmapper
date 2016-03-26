@@ -2,7 +2,7 @@ NDMapper change log
 ===================
 
 
-0.1.2 (unreleased)
+0.1.2 (2016-03-26)
 ------------------
 
 - Fix ``libutils.splitext`` to ignore the path when splitting on the first dot,
@@ -19,6 +19,9 @@ NDMapper change log
 - Determine the path to FITS data in the tests without using astropy
   ``get_pkg_data_filename``, to avoid remote data errors from py.test.
 
+- Enabled testing with Travis.
+
+- Initial Python 3 compatibility changes, mainly for the `data` submodule.
 
 
 0.1.1 (2016-03-12)
