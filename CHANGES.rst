@@ -1,6 +1,11 @@
 NDMapper change log
 ===================
 
+0.2 (unreleased)
+----------------
+
+- No changes yet. Planning to split out NDProcess module.
+
 
 0.1.2 (2016-03-26)
 ------------------
