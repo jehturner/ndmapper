@@ -15,3 +15,6 @@ prototype nears completion.
 NDMapper is built on the AstroPy affiliated package template but has no
 official association with AstroPy at present.
 
+.. image:: https://travis-ci.org/jehturner/ndmapper.svg
+    :target: https://travis-ci.org/jehturner/ndmapper
+
