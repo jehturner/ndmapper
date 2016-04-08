@@ -90,3 +90,15 @@ def new_filename(purpose='tmp', base='', ext='', full_path=False):
 
     return tmpname if full_path else os.path.basename(tmpname)
 
+
+def map_API_enum(name, value, map_dict):
+    """
+    Convert an enumerable parameter value from the Python API to its equivalent
+    IRAF value in the supplied dictionary (where such a mapping exists),
+    raising an appropriate exception if it's not recognized.
+    """
+    try:
+        return map_dict[value]
+    except KeyError:
+        raise ValueError('unrecognized value for \'{0}\''.format(name))
+
