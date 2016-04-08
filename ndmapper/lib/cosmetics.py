@@ -114,7 +114,7 @@ def add_bpm(inputs, bpm, out_names=None, reprocess=None):
     out_names : convertible to `str`, optional
         Output filenames. If None (default), the names of the DataFile
         instances returned will be constructed from those of the input files,
-        prefixed with 'b'.
+        prefixed with 'k'.
 
 
     Returns
@@ -141,7 +141,7 @@ def add_bpm(inputs, bpm, out_names=None, reprocess=None):
     # Also, logging needs to be implemented, as for IRAF.
     inputs = to_datafilelist(inputs)
     if out_names is None:
-        out_names = [FileName(df, prefix='b', dirname='') for df in inputs]
+        out_names = [FileName(df, prefix='k', dirname='') for df in inputs]
 
     mode = 'new' if reprocess is None else 'overwrite'
     outlist = DataFileList(mode=mode)
