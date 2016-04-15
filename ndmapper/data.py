@@ -1491,6 +1491,11 @@ class NDLater(NDDataArray):
     def __invert__(self):
         return self.invert()
 
+    # For these operators that wrap NDArithmeticMixin methods, bad pixel mask
+    # propagation isn't going to work properly until we revert to using `mask`
+    # instead of `flags`, at which point they should specify `bitwise_or`
+    # rather than `logical_or` for `handle_mask`.
+
     def __add__(self, operand):
         return self.add(operand, propagate_uncertainties=True,
                         handle_meta='first_found')
