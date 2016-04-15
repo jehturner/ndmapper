@@ -1122,6 +1122,21 @@ class NDLater(NDDataArray):
     uncertainty : `~astropy.nddata.NDUncertainty`, optional
         Uncertainties on the data.
 
+    mask : `~numpy.ndarray`-like, optional
+        Mask for the data, given as a boolean Numpy array or any object that
+        can be converted to a boolean Numpy array with a shape
+        matching that of the data. The values must be ``False`` where
+        the data is *valid* and ``True`` when it is not (like Numpy
+        masked arrays). If ``data`` is a numpy masked array, providing
+        ``mask`` here will causes the mask from the masked array to be
+        ignored.
+
+        .. warning::
+            This option is provided for compatibility with `NDData` but the
+            `mask` attribute is currently unused in NDMapper (though it may
+            still be manipulated by user code); information about bad pixels
+            is instead propagated in `flags`. This may change in future.
+
     flags : `~numpy.ndarray`-like or `~astropy.nddata.FlagCollection`, optional
         Flags giving information about each pixel. These can be specified
         either as a Numpy array of any type (or an object which can be converted
@@ -1129,11 +1144,22 @@ class NDLater(NDDataArray):
         `~astropy.nddata.FlagCollection` instance which has a shape matching
         that of the data.
 
+    wcs : undefined, optional
+        WCS-object containing the world coordinate system for the data.
+
+        .. warning::
+            This is not yet defind because the discussion of how best to
+            represent this class's WCS system generically is still under
+            consideration. For now just leave it as None.
+
     meta : `dict`-like object, optional
         Metadata for this object.  "Metadata" here means all information that
         is included with this object but not part of any other attribute
         of this particular object. e.g., creation date, unique identifier,
         simulation parameters, exposure time, telescope name, etc.
+
+    unit : `~astropy.units.UnitBase` instance or str, optional
+        The units of the data.
 
     ident : `int` (`str` to be supported later), optional
         File-independent identifier for this NDLater instance (eg. MOS slit
@@ -1176,8 +1202,8 @@ class NDLater(NDDataArray):
 
     # This is based on the NDData & NDDataArray __init__ but avoids referencing
     # array attributes here, instead storing an obj that knows how to get them.
-    def __init__(self, data=None, uncertainty=None, flags=None, meta=None,
-                 ident=None, iomap=None):
+    def __init__(self, data=None, uncertainty=None, mask=None, wcs=None,
+                 flags=None, meta=None, unit=None, ident=None, iomap=None):
 
         if iomap and not isinstance(iomap, NDMapIO):
             raise TypeError('iomap must be an NDMapIO instance')
@@ -1195,7 +1221,7 @@ class NDLater(NDDataArray):
         # looks like a bug in NDDataArray), as the latter calls the uncertainty
         # setter, which uses the unit getter.
         self._mask = None
-        self._wcs = None
+        self._wcs = wcs
         self._unit = None
 
         # Initializing the data (& uncertainty/flags) to None indicates that
@@ -1228,8 +1254,8 @@ class NDLater(NDDataArray):
             # Initialize attributes via the upstream setter logic of the public
             # API where possible (wcs doesn't have one yet). Some of these
             # setters expect the private attribute version to be defined first:
-            self.mask = self._mask
-            self.unit = self._unit
+            self.mask = mask
+            self.unit = unit
 
         else:
             # If instantiating from NDLater, copy its iomap (unless given one).
@@ -1249,8 +1275,8 @@ class NDLater(NDDataArray):
             # overriding inconsistent subsets of what's already in the file
             # (eg. data without the corresponding uncertainty) but the DataFile
             # class can help take care of that.
-            self._parent.__init__(data, uncertainty=uncertainty, mask=None,
-                flags=flags, wcs=None, meta=meta, unit=None)
+            self._parent.__init__(data, uncertainty=uncertainty, mask=mask,
+                                  flags=flags, wcs=wcs, meta=meta, unit=unit)
 
             # NDDataArray doesn't copy flags from data when it should. We can't
             # duck type this because numpy also has a different "flags".
@@ -1368,6 +1394,122 @@ class NDLater(NDDataArray):
     @property
     def unloaded(self):
         return self._unloaded
+
+    def _bitwise_arith(self, operand, operation):
+        """
+        {name} another dataset (``operand``) to/from/with/by this dataset.
+
+        Parameters
+        ----------
+        operand : `~astropy.nddata.NDData` or None
+            The second operand in the operation a {operator} b.
+            This should be None for unary operators.
+
+        Returns
+        -------
+        result : `~astropy.nddata.NDData`
+            The resulting dataset.
+
+        Notes
+        -----
+        For bit-wise arithmetic (where the use case is generally combining bad
+        pixel masks), any uncertainty & flags are currently dropped. Any WCS
+        is ignored and propagated from ``self``.
+        """
+
+        # NDArithmeticMixin._arithmetic() cannot be used here because it
+        # imposes units (for the main data array); the resulting Quantity
+        # converts the array dtype to floating point and NumPy's bitwise
+        # operators don't work on floating point data. Just assume for now
+        # that there is no uncertainty propagation for bitwise ops.
+
+        # Distinguish unary & binary operations:
+        if operand is None:
+            args = (self.data,)
+        else:
+            args = (self.data, operand)  # operand can be numpy-like
+
+        # Do the calculation with NumPy:
+        try:
+            data = operation(*args)
+        except TypeError:
+            raise TypeError('bit-wise operators can only be used on '\
+                            'integer-type arrays')
+
+        # Construct an output NDLater instance:
+        result = self.__class__(data, uncertainty=None,
+                                mask=None, wcs=deepcopy(self.wcs),
+                                flags=None, meta=deepcopy(self.meta),
+                                unit=None)
+
+        return result
+
+    def bitwise_or(self, operand):
+        return self._bitwise_arith(operand, np.bitwise_or)
+
+    bitwise_or.__doc__ = \
+        _bitwise_arith.__doc__.format(name="OR", operator="|")
+
+    def __or__(self, operand):
+        return self.bitwise_or(operand)
+
+    def bitwise_and(self, operand):
+        return self._bitwise_arith(operand, np.bitwise_and)
+
+    bitwise_and.__doc__ = \
+        _bitwise_arith.__doc__.format(name="AND", operator="&")
+
+    def __and__(self, operand):
+        return self.bitwise_and(operand)
+
+    def bitwise_xor(self, operand):
+        return self._bitwise_arith(operand, np.bitwise_xor)
+
+    bitwise_xor.__doc__ = \
+        _bitwise_arith.__doc__.format(name="XOR", operator="^")
+
+    def __xor__(self, operand):
+        return self.bitwise_xor(operand)
+
+    def invert(self):
+        """
+        Calculate the bit-wise NOT of this dataset.
+
+        Returns
+        -------
+        result : `~astropy.nddata.NDData`
+            The resulting dataset.
+
+        Notes
+        -----
+        For bit-wise arithmetic (where the use case is generally combining bad
+        pixel masks), any uncertainty & flags are currently dropped. Any WCS
+        is ignored and propagated from ``self``.
+        """
+        return self._bitwise_arith(None, np.invert)
+
+    def __invert__(self):
+        return self.invert()
+
+    def __add__(self, operand):
+        return self.add(operand, propagate_uncertainties=True,
+                        handle_meta='first_found')
+
+    def __sub__(self, operand):
+        return self.subtract(operand, propagate_uncertainties=True,
+                             handle_meta='first_found')
+
+    def __mul__(self, operand):
+        return self.multiply(operand, propagate_uncertainties=True,
+                             handle_meta='first_found')
+
+    def __div__(self, operand):
+        return self.divide(operand, propagate_uncertainties=True,
+                           handle_meta='first_found')
+
+    def __truediv__(self, operand):
+        return self.divide(operand, propagate_uncertainties=True,
+                           handle_meta='first_found')
 
 
 def load_file_list(filename):
