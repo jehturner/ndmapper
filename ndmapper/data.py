@@ -18,8 +18,10 @@ import numpy as np
 
 #from astropy.units import Unit, Quantity
 from astropy.nddata import NDDataBase, NDData, NDDataArray
+# from astropy.nddata.mixins.ndarithmetic import _arit_doc
 from astropy.table import Table
 from astropy.utils.compat.odict import OrderedDict
+# from astropy.utils import format_doc
 
 from . import config
 from . import io as ndmio
@@ -761,6 +763,100 @@ class DataFile(object):
 
         self._unloaded = False
 
+    def _arith(self, operand, operation, **kwargs):
+
+        # Distinguish unary & binary operators by presence/absence of operand:
+        if operand is None:
+            operand = []
+            binary = False
+        else:
+            binary = True
+
+        # If the second operand isn't already a DataFile, try to converting it
+        # to one via NDData, so we can iterate over things uniformly below:
+        if not isinstance(operand, DataFile):
+            operand = self.__class__(data=NDLater(data=operand))
+
+        len_data = len(self)
+        len_operand = len(operand)
+
+        # Make sure the operand lengths match:
+        if len_operand == 1:
+            operand_data = len_data * operand._data
+        elif len_operand == len_data:
+            operand_data = operand._data
+        else:
+            raise ValueError('operands have unmatched lengths')
+
+        # Create an unnamed output DataFile based on this one (first operand):
+        outdf = self.__class__(meta=deepcopy(self.meta), mode='new',
+                               labels=copy(self._labels))
+        outdf._tables = [tp for tp in self._tables]
+        outdf._cals = self._cals   # Should this be a copy (also in __init__)?
+
+        # Combine each pair of NDData instances in the 2 lists (files) using
+        # the first instance's own operator:
+        for op1, op2 in zip(self, operand_data):
+            op_fn = getattr(op1, operation)
+            if binary:
+                result = op_fn(op2, **kwargs)
+            else:
+                result = op_fn(**kwargs)
+            outdf.append(result)
+
+        return outdf
+
+    def add(self, operand, **kwargs):
+        return self._arith(operand, 'add', **kwargs)
+
+    def __add__(self, operand):
+        return self.add(operand)
+
+    def subtract(self, operand, **kwargs):
+        return self._arith(operand, 'subtract', **kwargs)
+
+    def __sub__(self, operand):
+        return self.subtract(operand)
+
+    def multiply(self, operand, **kwargs):
+        return self._arith(operand, 'multiply', **kwargs)
+
+    def __mul__(self, operand):
+        return self.multiply(operand)
+
+    def divide(self, operand, **kwargs):
+        return self._arith(operand, 'divide', **kwargs)
+
+    def __div__(self, operand):
+        return self.divide(operand)
+
+    def __truediv__(self, operand):
+        return self.divide(operand)
+
+    def bitwise_or(self, operand):
+        return self._arith(operand, 'bitwise_or')
+
+    def __or__(self, operand):
+        return self.bitwise_or(operand)
+
+    def bitwise_and(self, operand):
+        return self._arith(operand, 'bitwise_and')
+
+    def __and__(self, operand):
+        return self.bitwise_and(operand)
+
+    def bitwise_xor(self, operand):
+        return self._arith(operand, 'bitwise_xor')
+
+    def __xor__(self, operand):
+        return self.bitwise_xor(operand)
+
+    def invert(self):
+        return self._arith(None, 'invert')
+
+    def __invert__(self):
+        return self.invert()
+
 
 def as_int_or_none(val):
     """
@@ -1196,6 +1292,11 @@ class NDLater(NDDataArray):
 
     _id_key = 'NDM_ID'
 
+    _arith_defaults = {'propagate_uncertainties' : True,
+                       'handle_mask' : np.bitwise_or,
+                       'handle_meta' : 'first_found'
+                      }
+
     # After implementing lazy loading with NDLater instead of loading
     # everything in _load_nddata_from_FITS, 11 tests now take ~2.3s total to
     # run instead of ~1.2s (I think with 2 tests that read 2 SCI exts each).
@@ -1395,6 +1496,12 @@ class NDLater(NDDataArray):
     def unloaded(self):
         return self._unloaded
 
+    # Combine subclass-modified argument defaults with those specified by user:
+    def _arith_args(self, kwargs):
+        arith_args = self._arith_defaults.copy()
+        arith_args.update(kwargs)
+        return arith_args
+
     def _bitwise_arith(self, operand, operation):
         """
         {name} another dataset (``operand``) to/from/with/by this dataset.
@@ -1493,28 +1600,36 @@ class NDLater(NDDataArray):
 
     # For these operators that wrap NDArithmeticMixin methods, bad pixel mask
     # propagation isn't going to work properly until we revert to using `mask`
-    # instead of `flags`, at which point they should specify `bitwise_or`
-    # rather than `logical_or` for `handle_mask`.
+    # instead of `flags`. NB. The corresponding parent class methods could do
+    # with a bit more checking of parameter values (they can produce some
+    # pretty obscure errors).
+
+    def add(self, operand, **kwargs):
+        return self._parent.add(operand, **self._arith_args(kwargs))
 
     def __add__(self, operand):
-        return self.add(operand, propagate_uncertainties=True,
-                        handle_meta='first_found')
+        return self.add(operand)
+
+    def subtract(self, operand, **kwargs):
+        return self._parent.subtract(operand, **self._arith_args(kwargs))
 
     def __sub__(self, operand):
-        return self.subtract(operand, propagate_uncertainties=True,
-                             handle_meta='first_found')
+        return self.subtract(operand)
+
+    def multiply(self, operand, **kwargs):
+        return self._parent.multiply(operand, **self._arith_args(kwargs))
 
     def __mul__(self, operand):
-        return self.multiply(operand, propagate_uncertainties=True,
-                             handle_meta='first_found')
+        return self.multiply(operand)
+
+    def divide(self, operand, **kwargs):
+        return self._parent.divide(operand, **self._arith_args(kwargs))
 
     def __div__(self, operand):
-        return self.divide(operand, propagate_uncertainties=True,
-                           handle_meta='first_found')
+        return self.divide(operand)
 
     def __truediv__(self, operand):
-        return self.divide(operand, propagate_uncertainties=True,
-                           handle_meta='first_found')
+        return self.divide(operand)
 
 
 def load_file_list(filename):
