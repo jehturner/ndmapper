@@ -763,7 +763,7 @@ class DataFile(object):
 
         self._unloaded = False
 
-    def _arith(self, operand, operation, **kwargs):
+    def _arith(self, operand, operation, filename=None, **kwargs):
 
         # Distinguish unary & binary operators by presence/absence of operand:
         if operand is None:
@@ -789,8 +789,8 @@ class DataFile(object):
             raise ValueError('operands have unmatched lengths')
 
         # Create an unnamed output DataFile based on this one (first operand):
-        outdf = self.__class__(meta=deepcopy(self.meta), mode='new',
-                               labels=copy(self._labels))
+        outdf = self.__class__(filename=filename, meta=deepcopy(self.meta),
+                               mode='new', labels=copy(self._labels))
         outdf._tables = [tp for tp in self._tables]
         outdf._cals = self._cals   # Should this be a copy (also in __init__)?
 
@@ -833,26 +833,26 @@ class DataFile(object):
     def __truediv__(self, operand):
         return self.divide(operand)
 
-    def bitwise_or(self, operand):
-        return self._arith(operand, 'bitwise_or')
+    def bitwise_or(self, operand, **kwargs):
+        return self._arith(operand, 'bitwise_or', **kwargs)
 
     def __or__(self, operand):
         return self.bitwise_or(operand)
 
-    def bitwise_and(self, operand):
-        return self._arith(operand, 'bitwise_and')
+    def bitwise_and(self, operand, **kwargs):
+        return self._arith(operand, 'bitwise_and', **kwargs)
 
     def __and__(self, operand):
         return self.bitwise_and(operand)
 
-    def bitwise_xor(self, operand):
-        return self._arith(operand, 'bitwise_xor')
+    def bitwise_xor(self, operand, **kwargs):
+        return self._arith(operand, 'bitwise_xor', **kwargs)
 
     def __xor__(self, operand):
         return self.bitwise_xor(operand)
 
-    def invert(self):
-        return self._arith(None, 'invert')
+    def invert(self, **kwargs):
+        return self._arith(None, 'invert', **kwargs)
 
     def __invert__(self):
         return self.invert()
