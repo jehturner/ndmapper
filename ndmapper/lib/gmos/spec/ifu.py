@@ -1046,6 +1046,18 @@ def clean_pixels(inputs, out_names=None, method='global', grow=1.5,
     # Get a few common Gemini IRAF defaults.:
     gemvars = gemini_iraf_helper()
 
+    # Keep a copy of each input MDF table, because an IRAF bug mangles them
+    # when running gemfix, causing subsequent steps to fail (eg. with only one
+    # of the two slits getting processed).
+    mdfs = {}
+    for indf in inputs:
+        filename = indf.filename.orig
+        mdfs[filename] = None
+        for tp in indf._tables:  # to do: add/use a public API
+            if str(tp.label).upper() == 'MDF':
+                mdfs[filename] = tp.table
+                break
+
     # Use a simple summation, at least for now, as getting the rejection etc.
     # right with the level of contrast involved can be tricky.
     result = run_task(
@@ -1058,5 +1070,18 @@ def clean_pixels(inputs, out_names=None, method='global', grow=1.5,
         verbose=gemvars['verbose']
     )
 
-    return result['outimages']
+    outlist = result['outimages']
+
+    # Restore the original MDF extensions to the output files:
+    for outdf in outlist:
+        filename = outdf.filename.orig
+        mdf = mdfs[filename]
+        if mdf:
+            for tp in outdf._tables:
+                if str(tp.label).upper() == 'MDF':
+                    tp.table = mdfs[filename]
+                    outdf.save()
+                    break
+
+    return outlist
 
