@@ -1,7 +1,10 @@
 # Copyright(c) 2015 Association of Universities for Research in Astronomy, Inc.
 # by James E.H. Turner.
 
+import os.path
+
 from ndmapper import config, ndprocess_defaults
+from ndmapper.data import FileName
 from ndmapper.libutils import map_API_enum
 from ndmapper.iraf_task import run_task
 
@@ -142,10 +145,14 @@ def clean_pixels(inputs, out_names=None, method='global', grow=1.5,
         This may be overridden by the step's own "interact" parameter.
 
     """
-    # Use default prefix if output filename unspecified:
+    # Use default prefix if output filename unspecified. We have to do some
+    # extra work here, normally done by run_task, to allow for the IRAF bug
+    # fix below to behave according to the reprocess flag.
     prefix = 'p'
     if not out_names:
-        out_names = '@inimages'
+        out_names = [FileName(indf, prefix=prefix) for indf in inputs]
+    elif len(out_names) != len(inputs):
+        raise ValueError('inputs & out_names have unmatched lengths')
 
     # Map some Python API values to equivalent IRAF ones:
     method = map_API_enum('method', method, \
@@ -160,13 +167,14 @@ def clean_pixels(inputs, out_names=None, method='global', grow=1.5,
     # when running gemfix, causing subsequent steps to fail (eg. with only one
     # of the two slits getting processed).
     mdfs = {}
-    for indf in inputs:
+    for indf, outname in zip(inputs, out_names):
         filename = indf.filename.orig
         mdfs[filename] = None
-        for tp in indf._tables:  # to do: add/use a public API
-            if str(tp.label).upper() == 'MDF':
-                mdfs[filename] = tp.table
-                break
+        if reprocess or not os.path.exists(str(outname)):
+            for tp in indf._tables:  # to do: add/use a public API
+                if str(tp.label).upper() == 'MDF':
+                    mdfs[filename] = tp.table
+                    break
 
     # Use a simple summation, at least for now, as getting the rejection etc.
     # right with the level of contrast involved can be tricky.
@@ -182,7 +190,7 @@ def clean_pixels(inputs, out_names=None, method='global', grow=1.5,
 
     outlist = result['outimages']
 
-    # Restore the original MDF extensions to the output files:
+    # Restore the original MDF extensions to the output files, if applicable:
     for outdf in outlist:
         filename = outdf.filename.orig
         mdf = mdfs[filename]
