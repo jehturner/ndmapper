@@ -201,13 +201,21 @@ class TabMapIO(object):
 
     @table.setter
     def table(self, value):
+
         # Should this preserve the existing label & ident? Should it update
         # them in the new Table's meta (which would mean making a copy)?
         # EXTNAME & EXTVER should probably be removed while in memory instead.
-        try:
-            self._table = Table(value, copy=False)
-        except ValueError:
-            raise TypeError('value of table attribute must be a Table object')
+
+        # Avoid converting existing Table instances to Table because that
+        # converts .meta from an io.fits header to an OrderedDict, which it
+        # turns out can choke on some odd values such as HISTORY.
+        if not isinstance(value, Table):
+            try:
+                value = Table(value, copy=False)
+            except ValueError:
+                raise TypeError('value of .table must be convertible to Table')
+
+        self._table = value
 
     def copy(self):
         """
