@@ -199,6 +199,16 @@ class TabMapIO(object):
             self.load_table()
         return self._table
 
+    @table.setter
+    def table(self, value):
+        # Should this preserve the existing label & ident? Should it update
+        # them in the new Table's meta (which would mean making a copy)?
+        # EXTNAME & EXTVER should probably be removed while in memory instead.
+        try:
+            self._table = Table(value, copy=False)
+        except ValueError:
+            raise TypeError('value of table attribute must be a Table object')
+
     def copy(self):
         """
         Generate a new instance that shares any already-loaded data but can
