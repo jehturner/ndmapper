@@ -10,7 +10,7 @@ from ..gemini import *
 # Redefine explicitly what to expose from our parent module here, rather than
 # appending to its __all__ (as at lower levels of the tree), since it contains
 # observatory-specific helper functions that are not processing steps.
-__all__ = ['CAL_DEPS', 'make_bias']
+__all__ = ['CAL_DEPS', 'make_bias', 'clean_pixels']
 
 # These functions are intended to represent logical processing steps, rather
 # than strict one-to-one wrappers for existing IRAF tasks; the aim is not to
