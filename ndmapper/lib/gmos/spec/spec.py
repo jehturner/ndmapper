@@ -13,7 +13,7 @@ from ndmapper.lib.gemini import gemini_iraf_helper
 from ..gmos import *
 from ..gmos import __all__
 
-__all__ = __all__ + ['CAL_DEPS', 'biases', 'traces', 'arcs', 'flats',
+__all__ = __all__ + ['CAL_DEPS', 'biases', 'traces', 'arcs', 'flats', 'bg_reg',
                      'standards', 'calibrate_flux', 'apply_flux_cal']
 
 
@@ -28,7 +28,7 @@ CAL_DEPS = {'target' : ['specphot', 'flat', 'arc', 'bias'],
 
 # For convenience & avoidance of visual noise, initialize these dictionaries
 # that can be used for managing calibrations within user scripts:
-biases, traces, arcs, flats, standards = {}, {}, {}, {}, {}
+biases, traces, arcs, flats, bg_reg, standards = {}, {}, {}, {}, {}, {}
 
 
 @ndprocess_defaults

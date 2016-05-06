@@ -1,18 +1,22 @@
 # Copyright(c) 2015 Association of Universities for Research in Astronomy, Inc.
 # by James E.H. Turner.
 
+import os
 from pyraf import iraf
+
 from ndmapper import config, ndprocess_defaults
 from ndmapper.data import DataFileList
 from ndmapper.iraf_task import run_task, get_extname_labels
-from ndmapper.lib.gemini import gemini_iraf_helper
+from ndmapper.libutils import new_filename
 
+from ...gemini import gemini_iraf_helper
 from .spec import *
 from .spec import __all__
 
 __all__ = __all__ + ['prepare', 'subtract_bias', 'extract_spectra',
                      'calibrate_wavelength', 'rectify_wavelength', 'make_flat',
-                     'subtract_sky', 'resample_to_cube', 'sum_spectra']
+                     'subtract_sky', 'resample_to_cube', 'sum_spectra',
+                     'background_regions']
 
 
 @ndprocess_defaults
@@ -935,4 +939,75 @@ def sum_spectra(inputs, out_names=None, reprocess=None):
     )
 
     return result['outimages']
+
+
+@ndprocess_defaults
+def background_regions(input_ref):
+    """
+    Determine unilluminated regions of the detector, which can subsequently
+    be used (with optional user modifications) to estimate an instrumental
+    background or scattered light level as a function of position.
+
+    Parameters
+    ----------
+
+    input_ref : DataFileList or DataFile
+        Input image with the dimensions of the raw data. This must have an
+        entry named 'trace' in its `cals` dictionary, from which the
+        illuminated and unilluminated detector regions can be determined.
+
+    See "help gffindblocks" in IRAF for more detailed information.
+
+
+    Returns
+    -------
+
+    mask : list of list of int
+        List of rectangular regions in the format [[x1, x2, y1, y2], ...]
+        (currently FITS convention).
+
+    """
+
+    # Get the reference traces from the input.
+    try:
+        trace = input_ref.cals['trace']
+    except KeyError:
+        raise KeyError('input_ref is missing an associated reference trace')
+
+    # Get a few common Gemini IRAF defaults.:
+    gemvars = gemini_iraf_helper()
+
+    # Determine input DataFile EXTNAME convention, to pass to the task:
+    labels = get_extname_labels(input_ref)
+
+    # Generate a temp filename in which to store the output mask:
+    outfn = new_filename(base=trace.filename.base+'_gaps', ext='')
+
+    run_task(
+        'gemini.gmos.gffindblocks',
+        inputs={'image' : input_ref, 'extspec' : trace}, outputs=None,
+        prefix=None, suffix=None, comb_in=False, MEF_ext=False,
+        path_param=None, reprocess=None, mask=outfn
+    )
+
+    # Read & parse the regions from the output text file:
+    regions = []
+    with open(outfn, 'r') as outfile:
+        for line in outfile:
+            line = line.strip()
+            if not line or line[0] == '#':
+                continue
+            # fields = [int(field)-1 for field in line.split()]  # NumPy conv?
+            fields = [int(field) for field in line.split()]
+            if len(fields) != 4:
+                raise ValueError('unexpected format for gffindblocks output '\
+                                 '{0}'.format(outfn))
+
+            # regions.append(fields[2:4] + fields[0:2])  # use NumPy conv?
+            regions.append(fields)
+
+    # Don't need the output file after reading it into memory:
+    os.remove(outfn)
+
+    return regions
 
