@@ -5,9 +5,10 @@ import os
 from pyraf import iraf
 
 from ndmapper import config, ndprocess_defaults
-from ndmapper.data import DataFileList
+from ndmapper.data import FileName, DataFileList
 from ndmapper.iraf_task import run_task, get_extname_labels
 from ndmapper.libutils import new_filename
+from ndmapper.utils import to_datafilelist
 
 from ...gemini import gemini_iraf_helper
 from .spec import *
@@ -16,7 +17,7 @@ from .spec import __all__
 __all__ = __all__ + ['prepare', 'subtract_bias', 'extract_spectra',
                      'calibrate_wavelength', 'rectify_wavelength', 'make_flat',
                      'subtract_sky', 'resample_to_cube', 'sum_spectra',
-                     'background_regions']
+                     'background_regions', 'subtract_bg']
 
 
 @ndprocess_defaults
@@ -974,12 +975,6 @@ def background_regions(input_ref):
     except KeyError:
         raise KeyError('input_ref is missing an associated reference trace')
 
-    # Get a few common Gemini IRAF defaults.:
-    gemvars = gemini_iraf_helper()
-
-    # Determine input DataFile EXTNAME convention, to pass to the task:
-    labels = get_extname_labels(input_ref)
-
     # Generate a temp filename in which to store the output mask:
     outfn = new_filename(base=trace.filename.base+'_gaps', ext='')
 
@@ -1010,4 +1005,143 @@ def background_regions(input_ref):
     os.remove(outfn)
 
     return regions
+
+
+@ndprocess_defaults
+def subtract_bg(inputs, out_names=None, x_order=None, y_order=None,
+                reprocess=None):
+    """
+    Model the instrumental background or scattered light level as a function
+    of position in the input files (based on the counts within specified
+    nominally-unilluminated regions) and subtract the result from each input
+    to remove the estimated contamination.
+
+    Parameters
+    ----------
+
+    inputs : DataFileList or DataFile
+        Input, bias-subtracted images, in the raw data format, each of which
+        must have an entry named 'bg_reg' in its `cals` dictionary, specifying
+        the unilluminated detector regions to use for background estimation;
+        see ``background_regions``.
+
+    out_names : `str`-like or list of `str`-like, optional
+        Names of output images containing the background-subtracted spectra. If
+         None (default), the names of the DataFile instances returned will be
+        constructed from those of the corresponding input files, prefixed with
+        'b' as in the Gemini IRAF package.
+
+    x_order, y_order : int or list of int, optional
+        Order of the Legendre surface fit along rows and columns, respectively,
+        for each CCD (or all CCDs if a single integer). With the default of
+        None, orders of [5,9,5] or [5,5,9,5,5,5] are used for x and [5,7,5] or
+        [5,5,7,5,5,5] for columns, as appropriate. The index of the higher
+        number may need adjusting by the user to match the CCD where the IFU
+        slits overlap (if applicable). This logic will probably be made a bit
+        more intelligent in a future version.
+
+    See "help gfscatsub" in IRAF for more detailed information.
+
+
+    Returns
+    -------
+
+    outimage : DataFileList
+        The background-subtracted images produced by gfscatsub.
+
+
+    Package 'config' options
+    ------------------------
+
+    reprocess : bool or None
+        Re-generate and overwrite any existing output files on disk or skip
+        processing and re-use existing results, where available? The default
+        of None instead raises an exception where outputs already exist
+        (requiring the user to delete them explicitly). The processing is
+        always performed for outputs that aren't already available.
+
+    """
+
+    # Here we have to expand out the output filenames instead of letting
+    # run_task do it because it currently doesn't recognize text files as main
+    # inputs. This should be replaced by run-task-like decorator functionality
+    # in the longer run.
+
+    # Convert inputs to a DataFileList if needed:
+    inputs = to_datafilelist(inputs)
+
+    # Use default prefix if the output filenames are unspecified:
+    prefix = 'b'
+    if not out_names:
+        out_names = [FileName(indf, prefix=prefix) for indf in inputs]
+    elif len(out_names) != len(inputs):
+        raise ValueError('inputs & out_names have unmatched lengths')
+
+    # Get lists of bg regions to use from the input file "cals" dictionaries:
+    try:
+        bg_reg_list = [df.cals['bg_reg'] for df in inputs]
+    except KeyError:
+        raise KeyError('one or more inputs is missing associated list of '\
+                       'background regions')
+
+    # Avoid raising obscure errors if the wrong thing gets attached as bg_reg.
+    # To do: consider writing a more generic type-checking function.
+    if not all(bg_reg and hasattr(bg_reg, '__iter__') and \
+               all(reg and hasattr(reg, '__iter__') and \
+                   all(isinstance(n, (int, long, basestring)) for n in reg) \
+                 for reg in bg_reg \
+               ) for bg_reg in bg_reg_list
+           ):
+        raise ValueError('cals[\'bg_reg\'] should be a list of limit lists')
+
+    # Loop over the inputs explicitly, since run_task currently can't recognize
+    # lists of text files as inputs:
+    mode = 'update' if not reprocess else 'overwrite'
+    outputs = DataFileList(mode=mode)
+    for indf, bg_reg, outname in zip(inputs, bg_reg_list, out_names):
+
+        # Save the background regions for each instance as a temporary file
+        # for IRAF:
+        gapfn = new_filename(base=indf.filename.base+'_gaps', ext='')
+        with open(gapfn, 'w') as gapfile:
+            for reg in bg_reg:
+                gapfile.write('{0}\n'.format(' '.join(str(n) for n in reg)))
+
+        # Generate default orders appropriate for the number of detectors in
+        # each DataFile, if unspecified:
+        len_df = len(indf)
+        if x_order is None:
+            xorder = [5] * len_df
+            xorder[(len_df-1)//2] = 9
+        else:
+            xorder = x_order if hasattr(x_order, '__iter__') else (x_order,)
+        if y_order is None:
+            yorder = [5] * len_df
+            yorder[(len_df-1)//2] = 7
+        else:
+            yorder = y_order if hasattr(y_order, '__iter__') else (y_order,)
+
+        # Convert list of orders to comma-separated IRAF syntax:
+        xorder = ','.join(str(n) for n in xorder)
+        yorder = ','.join(str(n) for n in yorder)
+
+        result = run_task(
+            'gemini.gmos.gfscatsub',
+            inputs={'image' : indf}, outputs={'outimage' : outname},
+            prefix=None, suffix=None, comb_in=False, MEF_ext=False,
+            path_param=None, reprocess=reprocess, mask=gapfn,
+            xorder=xorder, yorder=yorder, cross=True
+        )
+
+        # Finished with the temporary file:
+        os.remove(gapfn)
+
+        # Accumulate the output DataFileList, copying the dictionary of cals
+        # from each input to the output until persistence is implemented, since
+        # the same ones are usually needed at the next step:
+        outdf = result['outimage'][0]
+        outdf.cals.update(indf.cals)
+        outputs.append(outdf)
+
+    return outputs
 
