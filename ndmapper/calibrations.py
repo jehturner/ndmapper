@@ -10,7 +10,7 @@ import os.path
 import json
 
 from ndmapper.libutils import splitext, addext
-from ndmapper.data import DataFile, DataFileList
+from ndmapper.data import FileName, DataFile, DataFileList
 
 __all__ = ['init_cal_dict', 'save_cal_dict', 'add_cal_entry', 'cal_entries',
            'associate_cals']
@@ -321,15 +321,17 @@ def associate_cals(cals, inputs, cal_type, from_type=None, cal_dict=None):
     Associate a given type of processed calibrations with the data they will
     subsequently be used to calibrate (both as `DataFile` instances).
 
-    cals : `DataFileList` or `DataFile` or `dict` of `str` : `DataFile`
+    cals : `DataFileList` or `DataFile` or `dict`
         A list/dict of processed calibrations, available for association with
-        zero or more matching ``inputs``. If a dictionary (with filename
-        strings as the keys) is provided, it is used directly to look up
-        available calibration `DataFile` instances by name, otherwise such
-        a dictionary is created internally from the parameter value. Any
-        existing keys are ignored if ``from_type`` is set to ``self``. An
-        entry must exist in ``cals`` for every match found in ``cal_dict`` for
-        ``inputs``.
+        zero or more matching ``inputs``. These are normally `DataFile`
+        instances but, in the case of a dictionary, the values can also be
+        objects of some other type (such as a list of background regions). If
+        a `dict` is provided, with filename strings as the keys, calibrations
+        are retrieved from it directly, using the names determined by
+        calibration dictionary (or self) matching, otherwise such a dictionary
+        is created internally from the supplied DataFile instances, keyed by
+        their filenames. An entry must exist in ``cals`` for every match to
+        ``inputs`` found in ``cal_dict``.
 
     inputs : `DataFileList` or `DataFile`
         DataFile instances with which processed calibrations are to be
@@ -377,7 +379,9 @@ def associate_cals(cals, inputs, cal_type, from_type=None, cal_dict=None):
     # Convert cals to a dict keyed by name if not already in that format (to
     # avoid searching the list for matches repeatedly). Distinguish
     # DataFile(List) explicitly in case they have keys attributes added later.
-    # This is a bit fiddly to make more concise.
+    # When associating with 'self', convert keys to original filenames, as
+    # otherwise found when looking up matches in the cal dict, to ignore
+    # different processing stages. This is a bit fiddly to make more concise.
     if isinstance(cals, (DataFileList, DataFile)) or not hasattr(cals, 'keys'):
         if from_self:
             cals = {str(df.filename.orig) : df \
@@ -385,9 +389,10 @@ def associate_cals(cals, inputs, cal_type, from_type=None, cal_dict=None):
         else:
             cals = {str(df.filename) : df for df in DataFileList(data=cals)}
 
-    # If passed a dict & associating with 'self', regenerate appropriate keys:
+    # If passed a dict and associating with 'self', convert keys to original
+    # filenames, as discussed above:
     elif from_self:
-        cals = {str(df.filename.orig) : df for df in cals.itervalues()}
+        cals = {FileName(key).orig : df for key, df in cals.iteritems()}
 
     # Default to using same cal_dict type convention as for associated type.
     # Could `from_type` be removed in favour of a brute-force look-up of files
