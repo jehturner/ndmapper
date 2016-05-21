@@ -14,7 +14,8 @@ from ..gmos import *
 from ..gmos import __all__
 
 __all__ = __all__ + ['CAL_DEPS', 'biases', 'traces', 'arcs', 'flats', 'bg_reg',
-                     'standards', 'calibrate_flux', 'apply_flux_cal']
+                     'standards', 'calibrate_flux', 'apply_flux_cal',
+                     'normalize_QE']
 
 
 # Default calibration dependence for GMOS spectroscopy. The 'spectwilight'
@@ -240,4 +241,93 @@ def apply_flux_cal(inputs, out_names=None, reprocess=None, interact=None):
     )
 
     return result['output']
+
+
+@ndprocess_defaults
+def normalize_QE(inputs, out_names=None, reprocess=None, interact=None):
+    """
+    Correct for relative differences in quantum efficiency as a function of
+    wavelength between the constituent GMOS CCDs (to avoid discontinuities
+    between the detectors etc.).
+
+    Parameters
+    ----------
+
+    inputs : DataFileList or DataFile
+        Bias-subtracted, unmosaicked input images, containing spectra whose
+        fluxes are to be  normalized to a smooth function of QE(lambda) across
+        the CCDs (equivalent to the response of the central CCD). Each input
+        DataFile must already have an associated entry named 'arc' in its
+        `cals` dictionary, identifying a corresponding arc exposure that has
+        had its individual fibre spectra extracted and calibrated in wavelength
+        (this information can be used in conjunction with meta-data to evaluate
+        a pre-determined QE(wavelength) function on the original pixel grid).
+
+    out_names : `str`-like or list of `str`-like, optional
+        Names of corrected output images. If None (default), the names of the
+        DataFile instances returned will be constructed from those of the input
+        files, prefixed with 'q', as in the Gemini IRAF package.
+
+
+    Returns
+    -------
+
+    output : DataFileList
+        The corrected images produced by gqecorr.
+
+
+    Package 'config' options
+    ------------------------
+
+    use_uncert : bool
+        Enable NDData 'uncertainty' (variance) propagation (default True)?
+
+    use_flags : bool
+        Enable NDData 'flags' (data quality) propagation (default True)?
+
+    reprocess : bool or None
+        Re-generate and overwrite any existing output files on disk or skip
+        processing and re-use existing results, where available? The default
+        of None instead raises an exception where outputs already exist
+        (requiring the user to delete them explicitly). The processing is
+        always performed for outputs that aren't already available.
+
+    """
+
+    # Use default prefix if output filename unspecified:
+    prefix = 'q'
+    if not out_names:
+        out_names = '@inimages'
+
+    # Get a list of arcs from each input's "cals" dictionary.
+    try:
+        arcs = DataFileList(data=[df.cals['arc'] for df in inputs])
+    except KeyError:
+        raise KeyError('one or more inputs is missing an associated arc')
+
+    # Get a few common Gemini IRAF defaults.:
+    gemvars = gemini_iraf_helper()
+
+    # Determine input DataFile EXTNAME convention, to pass to the task:
+    labels = get_extname_labels(inputs)
+
+    # We don't need to define corrimages unless fl_keep=True, in which case it
+    # would need making into a run_task output so reprocess handles it properly.
+    # The corrections should be derivable by dividing the input & output anyway.
+    result = run_task(
+        'gemini.gmos.gqecorr',
+        inputs={'inimages' : inputs, 'refimages' : arcs},
+        outputs={'outimages' : out_names}, prefix=prefix,
+        suffix=None, comb_in=False, MEF_ext=False, path_param=None,
+        reprocess=reprocess, fl_correct=True, fl_keep=False, corrimages="",
+        ifu_preced=1, fl_vardq=gemvars['vardq'], sci_ext=labels['data'],
+        var_ext=labels['uncertainty'], dq_ext=labels['flags'],
+        mdf_ext=gemvars['mask_table_name'], key_detsec=gemvars['key_detsec'],
+        key_ccdsec=gemvars['key_ccdsec'], key_datasec=gemvars['key_datasec'],
+        key_biassec=gemvars['key_biassec'], key_ccdsum=gemvars['key_ccdsum'],
+        qecorr_data=gemvars['gmosdata']+'gmosQEfactors.dat',
+        database='database/', verbose=gemvars['verbose']
+    )
+
+    return result['outimages']
 
