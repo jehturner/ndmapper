@@ -2,7 +2,7 @@
 # by James E.H. Turner.
 
 import os.path
-from copy import copy
+from copy import copy, deepcopy
 
 import numpy as np
 
@@ -10,7 +10,7 @@ from ndmapper import config, ndprocess_defaults
 from ndmapper.data import FileName, DataFile, DataFileList, NDLater
 from ndmapper.utils import convert_region, to_datafilelist
 
-__all__ = ['init_bpm', 'add_bpm']
+__all__ = ['init_bpm', 'add_bpm', 'lacosmic_spec']
 
 
 @ndprocess_defaults
@@ -177,4 +177,101 @@ def add_bpm(inputs, bpm, out_names=None, reprocess=None):
         outlist.append(out_df)
 
     return outlist
+
+
+def lacosmic_spec(input_ndd, sigclip=4.5, sigfrac=0.32, objlim=1.0, niter=5,
+                  sepmed=True, cleantype='meanmask'):
+    """
+    Detect and clean cosmic rays in a wavelength-dispersed image, using the
+    well-known LA Cosmic algorithm of van Dokkum (2001)*, as implemented in
+    McCully's optimized version for Python, "lacosmicx"+.
+
+    * LA Cosmic: http://www.astro.yale.edu/dokkum/lacosmic
+    + lacosmicx: https://github.com/cmccully/lacosmicx
+
+    lacosmicx is an optional dependency, whose absence will cause this
+    function to fail with an ImportError.
+
+    Currently, input and output bad pixel masks are expected to be found in
+    the NDDataArray `flags` attribute, but this will likely change to `mask`
+    in future (throughout NDMapper).
+
+    Parameters
+    ----------
+
+    input_ndd : NDDataArray-like
+        Input image in which cosmic rays are to be detected.
+
+    sigclip : float, optional
+        Laplacian-to-noise limit for cosmic ray detection. Lower values will
+        flag more pixels as cosmic rays. Default: 4.5.
+
+    sigfrac : float, optional
+        Fractional detection limit for neighboring pixels. For cosmic ray
+        neighbor pixels, a lapacian-to-noise detection limit of
+        sigfrac * sigclip will be used. Default: 0.32.
+
+    objlim : float, optional
+        Minimum contrast between Laplacian image and the fine structure image.
+        Increase this value if cores of bright stars are flagged as cosmic
+        rays. Default: 1.0.
+
+    niter : int, optional
+        Number of iterations of the LA Cosmic algorithm to perform. Default: 5.
+
+    sepmed : boolean, optional
+        Use the separable median filter instead of the full median filter.
+        The separable median is not identical to the full median filter, but
+        they are approximately the same and the separable median filter is
+        significantly faster and still detects cosmic rays well. Default: True
+
+    cleantype : {'median', 'medmask', 'meanmask', 'idw'}, optional
+        Set which clean algorithm is used:
+        'median': An umasked 5x5 median filter
+        'medmask': A masked 5x5 median filter
+        'meanmask': A masked 5x5 mean filter
+        'idw': A masked 5x5 inverse distance weighted interpolation
+        Default: "meanmask".
+
+    Returns
+    -------
+
+    NDLater
+        A cleaned copy of the input, with cosmic ray detections added to
+        its `flags` array.
+
+    """
+
+    # This can fail if the optional dependency is missing:
+    from lacosmicx import lacosmicx
+
+    # For this function to be general-purpose, it should use a meta-data
+    # abstraction for the gain, read noise & saturation, based on a
+    # configuration database of recognized instruments, but until that's
+    # implemented they are required to be called GAIN and RNOISE in meta-data
+    # and the assumed read-noise is fixed at 65k.
+    gain = input_ndd.meta['GAIN']
+    read_noise = input_ndd.meta['RDNOISE']
+    saturation = 65535.
+
+    # Convert DQ to a boolean array of pixels for lacosmicx to treat as bad
+    # from the beginning:
+    bitmask = 65535  # do we want to include everything?
+    inmask = (input_ndd.flags & bitmask) > 0
+
+    # Set pssl from the fit once added here. It's documented to be a float but
+    # an array should also work, looking at the code.
+
+    # Delegate all the actual identification and cleaning to lacosmicx:
+    cr_mask, clean_data = lacosmicx(
+        input_ndd.data, inmask=inmask, sigclip=sigclip, sigfrac=sigfrac,
+        objlim=objlim, gain=gain, readnoise=read_noise, satlevel=saturation,
+        pssl=0.0, niter=niter, sepmed=sepmed, cleantype=cleantype,
+        fsmode='median', verbose=True
+    )
+
+    # Construct an NDData-like object from the lacosmicx output, plus the
+    # original variance and bad pixel mask, and return it,
+    return NDLater(data=clean_data, uncertainty=deepcopy(input_ndd.uncertainty),
+            flags=input_ndd.flags|cr_mask, meta=input_ndd.meta)
 
