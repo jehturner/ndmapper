@@ -1,14 +1,16 @@
-# Copyright(c) 2015 Association of Universities for Research in Astronomy, Inc.
+# Copyright(c) 2015-2016 Association of Universities for Research in Astronomy, Inc.
 # by James E.H. Turner.
 
 import os.path
 from copy import copy, deepcopy
 
 import numpy as np
+from astropy.modeling import models, fitting
 
 from ndmapper import config, ndprocess_defaults
 from ndmapper.data import FileName, DataFile, DataFileList, NDLater
 from ndmapper.utils import convert_region, to_datafilelist
+from .fitting import fit_1D
 
 __all__ = ['init_bpm', 'add_bpm', 'lacosmic_spec']
 
@@ -179,10 +181,11 @@ def add_bpm(inputs, bpm, out_names=None, reprocess=None):
     return outlist
 
 
-def lacosmic_spec(input_ndd, sigclip=4.5, sigfrac=0.32, objlim=1.0, niter=5,
-                  sepmed=True, cleantype='meanmask'):
+def lacosmic_spec(input_ndd, x_order=None, y_order=None, sigclip=4.5,
+                  sigfrac=0.32, objlim=1.0, niter=5, sepmed=True,
+                  cleantype='meanmask'):
     """
-    Detect and clean cosmic rays in a wavelength-dispersed image, using the
+    Detect and clean cosmic rays in a 2D wavelength-dispersed image, using the
     well-known LA Cosmic algorithm of van Dokkum (2001)*, as implemented in
     McCully's optimized version for Python, "lacosmicx"+.
 
@@ -201,6 +204,12 @@ def lacosmic_spec(input_ndd, sigclip=4.5, sigfrac=0.32, objlim=1.0, niter=5,
 
     input_ndd : NDDataArray-like
         Input image in which cosmic rays are to be detected.
+
+    x_order, y_order : int or None, optional
+        Order for fitting and subtracting object continuum and sky line models,
+        prior to running the main cosmic ray detection algorithm. When None,
+        defaults are used, according to the image size (as in the IRAF task
+        gemcrspec). When 0, no fit is done.
 
     sigclip : float, optional
         Laplacian-to-noise limit for cosmic ray detection. Lower values will
@@ -259,16 +268,45 @@ def lacosmic_spec(input_ndd, sigclip=4.5, sigfrac=0.32, objlim=1.0, niter=5,
     bitmask = 65535  # do we want to include everything?
     inmask = (input_ndd.flags & bitmask) > 0
 
-    # Set pssl from the fit once added here. It's documented to be a float but
-    # an array should also work, looking at the code.
+    # Use default orders from gemcrspec (from Bryan):
+    ny, nx = input_ndd.shape
+    if x_order is None:
+        x_order = 9
+    if y_order is None:
+        y_order = 2 if ny < 50 else 3 if ny < 80 else 5
 
-    # Delegate all the actual identification and cleaning to lacosmicx:
+    # To do: use dispaxis below, rather than -1.
+
+    # Fit and subtract the object spectrum. For some reason, subtracting the
+    # model directly from the NDData instance here resets .flags to None.
+    if x_order > 0:
+        objfit = fit_1D(input_ndd.data, function='legendre', order=x_order,
+                        axis=1, lsigma=4.0, hsigma=4.0, iterations=3)
+        input_ndd.data -= objfit
+    else:
+        objfit = np.zeros_like(input_ndd.data)
+
+    # Fit sky lines:
+    if y_order > 0:
+        skyfit = fit_1D(input_ndd.data, function='legendre', order=y_order,
+                        axis=0, lsigma=4.0, hsigma=4.0, iterations=3)
+        input_ndd.data -= skyfit
+        objfit += skyfit  # keep combined fits for later restoration
+        del skyfit
+
+    # Delegate all the actual identification and cleaning to lacosmicx (a
+    # version to which I've added a bgsub parameter that allows for a
+    # previously-subtracted spectroscopic object+sky model to be included in
+    # the noise estimates, as in the original):
     cr_mask, clean_data = lacosmicx(
-        input_ndd.data, inmask=inmask, sigclip=sigclip, sigfrac=sigfrac,
-        objlim=objlim, gain=gain, readnoise=read_noise, satlevel=saturation,
-        pssl=0.0, niter=niter, sepmed=sepmed, cleantype=cleantype,
-        fsmode='median', verbose=True
+        input_ndd.data, inmask=inmask, bgsub=objfit, sigclip=sigclip,
+        sigfrac=sigfrac, objlim=objlim, gain=gain, readnoise=read_noise,
+        satlevel=saturation, pssl=0.0, niter=niter, sepmed=sepmed,
+        cleantype=cleantype, fsmode='median', verbose=True
     )
+
+    # Add object & sky signal back in, after cleaning what's left:
+    clean_data += objfit
 
     # Construct an NDData-like object from the lacosmicx output, plus the
     # original variance and bad pixel mask, and return it,
