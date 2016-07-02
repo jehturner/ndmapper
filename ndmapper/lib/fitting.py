@@ -5,6 +5,8 @@ import math
 import numpy as np
 from astropy.modeling import models, fitting
 
+__all__ = ['fit_1D']
+
 function_map = {
     'chebyshev' : models.Chebyshev1D,
     'legendre' : models.Legendre1D,
@@ -62,6 +64,10 @@ def fit_1D(image, function='legendre', order=1, axis=-1, lsigma=3.0, hsigma=3.0,
         raise ValueError('axis={0} out of range for input shape {1}'\
                          .format(axis, image.shape))
 
+    # Record input dtype so we can cast the evaluated fits back to it, since
+    # modelling always seems to return float64:
+    intype = image.dtype
+
     # To support fitting any axis of an N-dimensional array, first convert the
     # input array to a 2D stack of 1D rows (a no-op for 2D images with axis=-1)
     # -- make a list of dimension numbers, move the specified dim to the end,
@@ -79,7 +85,7 @@ def fit_1D(image, function='legendre', order=1, axis=-1, lsigma=3.0, hsigma=3.0,
 
     # Prepare to perform the fits "simultaneously" with AstroPy modelling:
     nfits = image.shape[0]
-    points = np.arange(npix)
+    points = np.arange(npix, dtype=np.int16)
     points_2D = np.tile(points, (nfits,1))
     models = function_map[function](degree=order-1, n_models=nfits)
     fitter = fitting.LinearLSQFitter()
@@ -94,7 +100,7 @@ def fit_1D(image, function='legendre', order=1, axis=-1, lsigma=3.0, hsigma=3.0,
         models = fitter(models, points, clean)
 
         # Evaluate the fits at each pixel:
-        fitvals = models(points_2D)
+        fitvals = models(points_2D).astype(intype)
 
         # Replace deviant pixels in each row with the fitted values:
         for n, (row, fit, mask) in enumerate(zip(clean, fitvals, mask_2D)):
