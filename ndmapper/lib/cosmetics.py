@@ -267,7 +267,10 @@ def lacosmic_spec(input_ndd, x_order=None, y_order=None, sigclip=4.5,
     # Convert DQ to a boolean array of pixels for lacosmicx to treat as bad
     # from the beginning:
     bitmask = 65535  # do we want to include everything?
-    inmask = (input_ndd.flags & bitmask) > 0
+    if input_ndd.flags is None:
+        inmask = None
+    else:
+        inmask = (input_ndd.flags & bitmask) > 0
 
     # Use default orders from gemcrspec (from Bryan):
     ny, nx = input_ndd.shape
@@ -309,8 +312,18 @@ def lacosmic_spec(input_ndd, x_order=None, y_order=None, sigclip=4.5,
     # Add object & sky signal back in, after cleaning what structure is left:
     clean_data += objfit
 
+    # Obey config options for whether to propagate uncertainty & flags:
+    if input_ndd.uncertainty is not None and config['use_uncert']:
+        uncertainty = deepcopy(input_ndd.uncertainty)
+    else:
+        uncertainty = None
+    if input_ndd.flags is not None and config['use_flags']:
+        flags = input_ndd.flags | cr_mask
+    else:
+        flags = None
+
     # Construct an NDData-like object from the lacosmicx output, plus the
     # original variance and bad pixel mask, and return it,
-    return NDLater(data=clean_data, uncertainty=deepcopy(input_ndd.uncertainty),
-            flags=input_ndd.flags|cr_mask, meta=input_ndd.meta)
+    return NDLater(data=clean_data, uncertainty=uncertainty, flags=flags,
+                   meta=input_ndd.meta)
 
