@@ -248,7 +248,7 @@ def lacosmic_spec(input_ndd, x_order=None, y_order=None, sigclip=4.5,
 
     NDLater
         A cleaned copy of the input, with cosmic ray detections added to
-        its `flags` array.
+        its `flags` array (with a value of 8).
 
     """
 
@@ -318,7 +318,8 @@ def lacosmic_spec(input_ndd, x_order=None, y_order=None, sigclip=4.5,
     else:
         uncertainty = None
     if input_ndd.flags is not None and config['use_flags']:
-        flags = input_ndd.flags | cr_mask
+        # To do: abstract the DQ convention somewhere instead of using "8":
+        flags = input_ndd.flags | (np.array(cr_mask, dtype=np.uint16) * 8)
     else:
         flags = None
 
