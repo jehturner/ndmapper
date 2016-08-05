@@ -193,7 +193,8 @@ def lacosmic_spec(input_ndd, x_order=None, y_order=None, sigclip=4.5,
     + lacosmicx: https://github.com/cmccully/lacosmicx
 
     lacosmicx is an optional dependency, whose absence will cause this
-    function to fail with an ImportError.
+    function to fail with an ImportError. For the time being, the slightly
+    modified fork at https://github.com/jehturner/lacosmicx must be used.
 
     Currently, input and output bad pixel masks are expected to be found in
     the NDDataArray `flags` attribute, but this will likely change to `mask`
@@ -258,7 +259,7 @@ def lacosmic_spec(input_ndd, x_order=None, y_order=None, sigclip=4.5,
     # abstraction for the gain, read noise & saturation, based on a
     # configuration database of recognized instruments, but until that's
     # implemented they are required to be called GAIN and RNOISE in meta-data
-    # and the assumed read-noise is fixed at 65k.
+    # and the assumed saturation level is fixed at 65k.
     gain = input_ndd.meta['GAIN']
     read_noise = input_ndd.meta['RDNOISE']
     saturation = 65535.
@@ -305,7 +306,7 @@ def lacosmic_spec(input_ndd, x_order=None, y_order=None, sigclip=4.5,
         cleantype=cleantype, fsmode='median', verbose=True
     )
 
-    # Add object & sky signal back in, after cleaning what's left:
+    # Add object & sky signal back in, after cleaning what structure is left:
     clean_data += objfit
 
     # Construct an NDData-like object from the lacosmicx output, plus the
