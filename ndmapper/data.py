@@ -496,6 +496,14 @@ class DataFile(object):
     def __getitem__(self, key):
         return self._data[key]
 
+    # Replacement of an existing ~NDData instance:
+    def __setitem__(self, key, value):
+        # Disallow non-trivial indexing when setting values, for the time
+        # being, which can have strange results unless implemented carefully:
+        if not isinstance(key, (int, long)):
+            raise IndexError('may only assign to a single numeric index')
+        self._data[key] = NDLater(data=value)
+
     # Deletion of an item from the DataFile:
     # This is a simplistic implementation for now; it will probably need to
     # handle some cleaning up etc.
