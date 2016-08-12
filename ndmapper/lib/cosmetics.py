@@ -12,7 +12,7 @@ from ndmapper.data import FileName, DataFile, DataFileList, NDLater
 from ndmapper.utils import convert_region, to_datafilelist
 from .fitting import fit_1D
 
-__all__ = ['init_bpm', 'add_bpm', 'lacosmic_spec']
+__all__ = ['init_bpm', 'add_bpm', 'lacosmic_spec', 'clean_cosmic_rays']
 
 
 @ndprocess_defaults
@@ -327,4 +327,117 @@ def lacosmic_spec(input_ndd, x_order=None, y_order=None, sigclip=4.5,
     # original variance and bad pixel mask, and return it,
     return NDLater(data=clean_data, uncertainty=uncertainty, flags=flags,
                    meta=input_ndd.meta)
+
+
+@ndprocess_defaults
+def clean_cosmic_rays(inputs, out_names=None, x_order=None, y_order=None,
+                      sigma=4.5, sigfrac=0.32, objlim=1.0, iterations=5,
+                      reprocess=None):
+    """
+    Identify pixels contaminated by cosmic ray flux, using McCully's version
+    of the LACosmic algorithm (see `lacosmic_spec`), record the detections in
+    a copy of the input `flags` array and replace bad values with an estimate
+    of the clean value, based on a masked mean of surrounding pixels. This
+    works on 2D images (with fitting disabled) and spectra.
+
+
+    Parameters
+    ----------
+
+    inputs : DataFileList or DataFile
+        2D bias-subtracted input images to be cleaned.
+
+    out_names : `str`-like or list of `str`-like, optional
+        Names of cleaned output images. If None (default), the names of the
+        DataFile instances returned will be constructed from those of the
+        corresponding input files, prefixed with 'x', as in Gemini IRAF.
+
+    x_order, y_order : int or None, optional
+        Order for fitting and subtracting object continuum and sky line models,
+        prior to running the main cosmic ray detection algorithm. When None,
+        defaults are used, according to the image size (as in the IRAF task
+        gemcrspec). When 0, no fit is done.
+
+    sigma : float, optional
+        Laplacian-to-noise limit for cosmic ray detection. Lower values will
+        flag more pixels as cosmic rays. Default: 4.5.
+
+    sigfrac : float, optional
+        Fractional detection limit for neighboring pixels. For cosmic ray
+        neighbour pixels, a lapacian-to-noise detection limit of
+        sigfrac * sigclip will be used. Default: 0.32.
+
+    objlim : float, optional
+        Minimum contrast between Laplacian image and the fine structure image.
+        Increase this value if cores of bright stars are flagged as cosmic
+        rays. Default: 1.0.
+
+    iterations : int, optional
+        Number of iterations of the detection algorithm to perform. Default: 5.
+
+
+    Returns
+    -------
+
+    DataFileList
+        A copy of the input data with cosmic ray detections included in its
+        `flags` arrays and the corresponding `data` values replaced by local
+        masked mean values.
+
+
+    Package 'config' options
+    ------------------------
+
+    reprocess : bool or None
+        Re-generate and overwrite any existing output files on disk or skip
+        processing and re-use existing results, where available? The default
+        of None instead raises an exception where outputs already exist
+        (requiring the user to delete them explicitly). The processing is
+        always performed for outputs that aren't already available.
+
+    """
+    # Default prefix if output filenames unspecified:
+    prefix = 'x'
+
+    inputs = to_datafilelist(inputs)
+    if not out_names:
+        out_names = [FileName(indf, prefix=prefix) for indf in inputs]
+    elif len(out_names) != len(inputs):
+        raise ValueError('inputs & out_names have unmatched lengths')
+
+    mode = 'new' if reprocess is None else 'overwrite'
+    outlist = DataFileList(mode=mode)
+
+    # For now, GAIN & RDNOISE are hard-wired into lacosmic_spec, but should
+    # be abstracted at some point. We don't use gemvars in Python and the
+    # config options to use uncertainty & flags are picked up directly by
+    # lacosmic_spec().
+
+    # Loop over the files:
+    for in_df, out_name in zip(inputs, out_names):
+
+        # Read and use any existing file if not reprocessing:
+        # To do: move this sort of logic into shared infrastructure.
+        if reprocess is False and os.path.exists(str(out_name)):
+            out_df = DataFile(out_name, mode='update')
+
+        # Otherwise do/repeat the cosmic ray detection:
+        else:
+            # Make a new copy of the input file (copied by reference, as the
+            # actual NDData instances get overwritten below and higher-level
+            # attributes get deep-copied anyway -- though not any MDF tables):
+            out_df = DataFile(out_name, data=in_df, mode=mode)
+
+            # Run lacosmic_spec() on each NDData instance of the current file:
+            for n, in_ndd in enumerate(in_df):
+
+                out_df[n] = lacosmic_spec(in_ndd, x_order=x_order,
+                                          y_order=y_order, sigclip=sigma,
+                                          sigfrac=sigfrac, objlim=objlim,
+                                          niter=iterations, sepmed=True,
+                                          cleantype='meanmask')
+
+        outlist.append(out_df)
+
+    return outlist
 
