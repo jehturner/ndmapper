@@ -1158,6 +1158,18 @@ class DataFileList(list):
         # Call the usual list.extend() method to finish the job:
         list.extend(self, initlist)
 
+    def save(self):
+        """
+        Save each constituent DataFile to its pre-defined filename.
+        """
+        for df in self:
+            df.save()
+
+        # Consider checking what the DataFile instances did here and using
+        # that instead of making this same assumption in 2 places:
+        if self._mode in ['new', 'overwrite']:
+            self._mode = 'update'
+
 
 def seqlen(arg, convert_empty=False):
     """
