@@ -1501,6 +1501,18 @@ class NDLater(NDDataArray):
         self._unloaded = False
         return self._meta
 
+    # This is needed because __init__ assigns to self.meta in astropy 1.2.1,
+    # but should probably be updated in future to wrap (or use a sub-class of)
+    # the MetaData descriptor now used by NDData, once 1.1 support is dropped?
+    @meta.setter
+    def meta(self, value):
+        self._unloaded = False
+        if value is None:
+            value = OrderedDict()
+        if not hasattr(meta, 'keys'):
+            raise TypeError('value to assign to meta must be dict-like')
+        self._meta = value
+
     @property
     def ident(self):
         val = self._meta.get(self._id_key, None)
