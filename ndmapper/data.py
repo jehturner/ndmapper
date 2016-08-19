@@ -1158,6 +1158,16 @@ class DataFileList(list):
         # Call the usual list.extend() method to finish the job:
         list.extend(self, initlist)
 
+    def reload(self):
+        """
+        Reload each constituent DataFile (eg. after the file is modified by
+        an IRAF task).
+        """
+        for df in self:
+            df.reload()
+
+        self._update_mode()
+
     def save(self):
         """
         Save each constituent DataFile to its pre-defined filename.
@@ -1165,10 +1175,15 @@ class DataFileList(list):
         for df in self:
             df.save()
 
-        # Consider checking what the DataFile instances did here and using
-        # that instead of making this same assumption in 2 places:
-        if self._mode in ['new', 'overwrite']:
-            self._mode = 'update'
+        self._update_mode()
+
+    # Re-calculate the DataFileList mode from its constituent files after
+    # loading or saving them:
+    def _update_mode(self):
+
+        dfmodes = set([df.mode for df in self])
+
+        self._mode = dfmodes.pop() if len(dfmodes)==1 else 'update'
 
 
 def seqlen(arg, convert_empty=False):
