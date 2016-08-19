@@ -17,7 +17,8 @@ from .spec import __all__
 __all__ = __all__ + ['prepare', 'subtract_bias', 'extract_spectra',
                      'calibrate_wavelength', 'rectify_wavelength', 'make_flat',
                      'subtract_sky', 'resample_to_cube', 'sum_spectra',
-                     'background_regions', 'subtract_bg']
+                     'background_regions', 'subtract_bg', 'align_wcs',
+                     'mosaic']
 
 
 @ndprocess_defaults
@@ -1144,4 +1145,62 @@ def subtract_bg(inputs, out_names=None, x_order=None, y_order=None,
         outputs.append(outdf)
 
     return outputs
+
+
+@ndprocess_defaults
+def align_wcs(inputs, method='correlate'):
+    """
+    Measure spatial offsets between IFU data cubes, by comparing their image
+    features (summed over wavelength), and update their WCS zero points
+    accordingly, to match the first cube in ``inputs``. This provides the
+    alignment information needed for subsequent co-addition with ``mosaic``.
+
+    This function depends on the ``pyfu`` PyRAF/Python package, which must be
+    installed separately.
+
+
+    Parameters
+    ----------
+
+    inputs : DataFileList or DataFile
+        Reduced data cubes, normally from ``resample_to_cube`` or gfcube in
+        IRAF, with any cosmic ray flux removed. For meaningful results, their
+        fields of view must overlap sufficiently to identify one or more
+        spatial peaks in common.
+
+    method : {'correlate', 'centroid'}
+        Spatial registration algorithm to use (after collapsing each cube in
+        wavelength to form an image). The default of 'correlate' should always
+        be used where image structure is nebulous or multi-peaked. The simple
+        'centroid' algorithm can be used for sources that have a single 
+        well-defined peak (but is unreliable in the presence of cosmic rays).
+        In limited testing to date, 'correlate' has been found to work
+        comparably well to the original 'centroid' for single-peaked sources,
+        so has been made the default in this wrapper.
+
+    Processing is currently performed using the PyFU function "pyfalign".
+
+
+    Returns
+    -------
+
+    outimage : DataFileList
+        The input images with their WCS zero-points adjusted. Pyfalign modifies
+        its inputs, rather than creating a new copy (since no information is
+        lost in the process, with the first file retaining the original WCS).
+        The files are consequently always re-processed. It is possible that
+        this will change in future.
+
+    """
+
+    import pyfu
+
+    inputs = to_datafilelist(inputs)
+    names = [str(df) for df in inputs]
+
+    pyfu.pyfalign(names, method=method)
+
+    inputs.reload()  # sync with output saved by pyfalign
+
+    return inputs
 
