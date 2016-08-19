@@ -1509,7 +1509,7 @@ class NDLater(NDDataArray):
         self._unloaded = False
         if value is None:
             value = OrderedDict()
-        if not hasattr(meta, 'keys'):
+        if not hasattr(value, 'keys'):
             raise TypeError('value to assign to meta must be dict-like')
         self._meta = value
 
