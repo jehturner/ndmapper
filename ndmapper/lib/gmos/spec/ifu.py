@@ -5,7 +5,7 @@ import os
 from pyraf import iraf
 
 from ndmapper import config, ndprocess_defaults
-from ndmapper.data import FileName, DataFileList
+from ndmapper.data import FileName, DataFile, DataFileList
 from ndmapper.iraf_task import run_task, get_extname_labels
 from ndmapper.libutils import new_filename
 from ndmapper.utils import to_datafilelist
@@ -1155,6 +1155,10 @@ def align_wcs(inputs, method='correlate'):
     accordingly, to match the first cube in ``inputs``. This provides the
     alignment information needed for subsequent co-addition with ``mosaic``.
 
+    Users should compare the registration of output WCSs carefully (for which
+    the ``mosaic.separate`` option may be useful) and adjust the CRVAL keywords
+    manually in case of errors.
+
     This function depends on the ``pyfu`` PyRAF/Python package, which must be
     installed separately.
 
@@ -1163,9 +1167,9 @@ def align_wcs(inputs, method='correlate'):
     ----------
 
     inputs : DataFileList or DataFile
-        Reduced data cubes, normally from ``resample_to_cube`` or gfcube in
-        IRAF, with any cosmic ray flux removed. For meaningful results, their
-        fields of view must overlap sufficiently to identify one or more
+        Reduced data cubes (normally from ``resample_to_cube`` or Gemini IRAF's
+        gfcube), with any cosmic ray flux removed. For meaningful results,
+        their fields of view must overlap sufficiently to identify one or more
         spatial peaks in common.
 
     method : {'correlate', 'centroid'}
@@ -1184,7 +1188,7 @@ def align_wcs(inputs, method='correlate'):
     Returns
     -------
 
-    outimage : DataFileList
+    DataFileList
         The input images with their WCS zero-points adjusted. Pyfalign modifies
         its inputs, rather than creating a new copy (since no information is
         lost in the process, with the first file retaining the original WCS).
@@ -1203,4 +1207,96 @@ def align_wcs(inputs, method='correlate'):
     inputs.reload()  # sync with output saved by pyfalign
 
     return inputs
+
+
+@ndprocess_defaults
+def mosaic(inputs, out_name=None, separate=False, use_uncert=None,
+           reprocess=None):
+    """
+    Resample and co-add IFU data cubes onto a single, mosaicked output cube
+    (with registration determined by their WCS zero-point differences).
+
+    This function depends on the ``pyfu`` PyRAF/Python package, which must be
+    installed separately.
+
+
+    Parameters
+    ----------
+
+    inputs : DataFileList or DataFile
+        Reduced data cubes (normally from ``resample_to_cube`` or Gemini IRAF's
+        gfcube) whose WCS zero points have been adjusted onto a common system
+        (normally by ``align_wcs``, PyFU's "pyfalign" or manual determination).
+
+    out_name : `str`-like or list of `str`-like, optional
+        Names of output file, containing the datacube mosaic. If None
+        (default), the name of the DataFile instance returned will be
+        constructed from that of the first input file, with '_add' appended.
+
+    separate : `bool`
+        Write one output cube per input to separate NDData arrays in the
+        output (separate FITS extensions), instead of co-adding the cubes onto
+        a single array (default False)? This option is used for inspecting the
+        registration of the resampled component cubes (or to allow co-addition
+        with another program).
+
+    Processing is currently performed using the PyFU function "pyfmosaic".
+
+
+    Returns
+    -------
+
+    outimage : DataFileList
+        The output datacube mosaic.
+
+
+    Package 'config' options
+    ------------------------
+
+    use_uncert : bool
+        Enable NDData 'uncertainty' (variance) propagation (default True)?
+
+    reprocess : bool or None
+        Re-generate and overwrite any existing output files on disk or skip
+        processing and re-use existing results, where available? The default
+        of None instead raises an exception where outputs already exist
+        (requiring the user to delete them explicitly). The processing is
+        always performed for outputs that aren't already available.
+
+    """
+
+    import pyfu
+
+    suffix='_add'
+
+    inputs = to_datafilelist(inputs)
+    inlist = [str(df) for df in inputs]
+    if len(inputs) < 1:
+        raise ValueError('inputs cannot be empty')
+
+    if out_name is None:
+        out_name = FileName(inlist[0], suffix=suffix, dirname='')
+    elif isinstance(out_name, list):
+        if len(out_name) == 1:
+            out_name = out_name[0]
+        else:
+            raise ValueError('out_name should have one value, if specified')
+    out_name = str(out_name)
+
+    mode = 'new' if reprocess is None else \
+           'update' if reprocess is False and os.path.exists(out_name) \
+           else 'overwrite'
+
+    outdf = DataFile(out_name, mode=mode)
+
+    if mode != 'update':
+
+        # NB. The posangle option seems to have been broken for a while
+        # (rotation about the wrong centre).
+        pyfu.pyfmosaic(inlist, outimage=out_name, posangle=None,
+                       separate=separate, propvar=use_uncert)
+
+        outdf.reload()
+
+    return outdf
 
