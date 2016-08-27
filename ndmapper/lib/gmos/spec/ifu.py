@@ -1,4 +1,4 @@
-# Copyright(c) 2015 Association of Universities for Research in Astronomy, Inc.
+# Copyright(c) 2015-2016 Association of Universities for Research in Astronomy, Inc.
 # by James E.H. Turner.
 
 import os
@@ -18,7 +18,7 @@ __all__ = __all__ + ['prepare', 'subtract_bias', 'extract_spectra',
                      'calibrate_wavelength', 'rectify_wavelength', 'make_flat',
                      'subtract_sky', 'resample_to_cube', 'sum_spectra',
                      'background_regions', 'subtract_bg', 'align_wcs',
-                     'mosaic']
+                     'mosaic', 'log_rebin']
 
 
 @ndprocess_defaults
@@ -1246,7 +1246,7 @@ def mosaic(inputs, out_name=None, separate=False, use_uncert=None,
     Returns
     -------
 
-    outimage : DataFileList
+    DataFileList
         The output datacube mosaic.
 
 
@@ -1299,4 +1299,103 @@ def mosaic(inputs, out_name=None, separate=False, use_uncert=None,
         outdf.reload()
 
     return outdf
+
+
+@ndprocess_defaults
+def log_rebin(inputs, out_names=None, conserve_flux=False, use_uncert=None,
+              reprocess=None):
+    """
+    Resample the wavelength axis of each x-y-lambda data cube onto constant
+    increments in log(wavelength), ie. constant redshift per pixel. The output
+    WCS is defined according to the FITS paper III convention (equation 5).
+
+    This function depends on the ``pyfu`` PyRAF/Python package, which must be
+    installed separately.
+
+
+    Parameters
+    ----------
+
+    inputs : DataFileList or DataFile
+        Data cubes with linear WCSs in wavelength (each one mapped to a FITS
+        extension named 'SCI' for compatibility with PyFU), as produced by
+        ``resample_to_cube`` or  ``mosaic``.
+
+    out_names : `str`-like or list of `str`-like, optional
+        Names of output files containing the re-binned datacubes. If None
+        (default), the names of the DataFile instances returned will be
+        constructed from those of the corresponding input files, prefixed
+        with 'l'.
+
+    conserve_flux : `bool`
+        Conserve flux per pixel? The default of False conserves flux density,
+        which is appropriate for data that have been calibrated in physical
+        flux units (per Angstrom, nm or micron), as opposed to counts or
+        electrons per pixel.
+
+
+    Processing is currently performed using the PyFU function "pyflogbin".
+
+
+    Returns
+    -------
+
+    DataFileList
+        The output data cubes, resampled to logarithmic increments in
+        wavelength.
+
+
+    Package 'config' options
+    ------------------------
+
+    use_uncert : bool
+        Enable NDData 'uncertainty' (variance) propagation (default True)?
+
+    reprocess : bool or None
+        Re-generate and overwrite any existing output files on disk or skip
+        processing and re-use existing results, where available? The default
+        of None instead raises an exception where outputs already exist
+        (requiring the user to delete them explicitly). The processing is
+        always performed for outputs that aren't already available.
+
+    """
+
+    import pyfu
+
+    inputs = to_datafilelist(inputs)  # To do: check if these are unsaved
+    if len(inputs) < 1:
+        raise ValueError('inputs cannot be empty')
+
+    # Use default prefix if the output filenames are unspecified:
+    prefix = 'l'
+    if out_names is None:
+        out_names = [FileName(indf, prefix=prefix) for indf in inputs]
+    elif len(out_names) != len(inputs):
+        raise ValueError('inputs & out_names have unmatched lengths')
+
+    # Create a list to hold the outputs:
+    outputs = DataFileList(mode='overwrite')
+
+    # Loop over the input/output pairs:
+    for indf, outname in zip(inputs, out_names):
+
+        outname = str(outname)
+
+        mode = 'new' if reprocess is None else \
+               'update' if reprocess is False and os.path.exists(outname) \
+                else 'overwrite'
+
+        outdf = DataFile(outname, mode=mode)
+
+        if mode != 'update':
+
+            # Use PyFU to resample the saved cube:
+            pyfu.pyflogbin(str(indf), outname, fluxcons=conserve_flux,
+                           propvar=use_uncert)
+
+            outdf.reload()
+
+        outputs.append(outdf)
+
+    return outputs
 
