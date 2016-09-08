@@ -247,8 +247,8 @@ def subtract_bias(inputs, out_names=None, ovs_function='spline3', ovs_order=1,
 
 
 @ndprocess_defaults
-def extract_spectra(inputs, out_names=None, startpos=None, reprocess=None,
-                    interact=None):
+def extract_spectra(inputs, out_names=None, startpos=None, threshold=1000.,
+                    order=21, reprocess=None, interact=None):
 
     """
     Extract one spectrum per IFU fibre from each 2D spectrogram to produce
@@ -293,6 +293,16 @@ def extract_spectra(inputs, out_names=None, startpos=None, reprocess=None,
         parameter is likely to change in a future version, such that the value
         will be an offset relative to the default column (currently awkward to
         implement, as the regions cut out by gfextract are unknown beforehand).
+
+    threshold : float, optional
+        Feature detection threshold for centring around initial peak positions.
+        This is the minimum difference required between the lowest & highest
+        pixel values in the surrounding region in order for the peak to be
+        considered a feature (see IRAF center1d).
+
+    order : int, optional
+        Order of the fit used to trace each fibre centre as a function of
+        position along the dispersion axis.
 
     interact : bool, None
         Identify the fibres interactively in IRAF? If None (default),
@@ -406,9 +416,10 @@ def extract_spectra(inputs, out_names=None, startpos=None, reprocess=None,
         outputs={'outimage' : out_names}, prefix=prefix, comb_in=False,
         MEF_ext=False, path_param=None, reprocess=reprocess, outpref='e',
         title='', exslits='*', line=startpos, nsum=10, trace=trace,
-        recenter=False, thresh=200., function='spline3', order=21, t_nsum=10,
-        weights='none', bpmfile=gemvars['gmosdata']+'chipgaps.dat', grow=1.5,
-        gaindb='default', gratingdb=gemvars['gmosdata']+'GMOSgratings.dat',
+        recenter=False, thresh=threshold, function='spline3', order=order,
+        t_nsum=10, weights='none', bpmfile=gemvars['gmosdata']+'chipgaps.dat',
+        grow=1.5, gaindb='default',
+        gratingdb=gemvars['gmosdata']+'GMOSgratings.dat',
         filterdb=gemvars['gmosdata']+'GMOSfilters.dat', xoffset=iraf.INDEF,
         perovlap=10., sci_ext=labels['data'], var_ext=labels['uncertainty'],
         dq_ext=labels['flags'], fl_inter=interact, fl_vardq=gemvars['vardq'],
