@@ -248,7 +248,8 @@ def subtract_bias(inputs, out_names=None, ovs_function='spline3', ovs_order=1,
 
 @ndprocess_defaults
 def extract_spectra(inputs, out_names=None, startpos=None, threshold=1000.,
-                    order=21, reprocess=None, interact=None):
+                    order=21, overlap_buffer=0.1, reprocess=None,
+                    interact=None):
 
     """
     Extract one spectrum per IFU fibre from each 2D spectrogram to produce
@@ -304,6 +305,12 @@ def extract_spectra(inputs, out_names=None, startpos=None, threshold=1000.,
         Order of the fit used to trace each fibre centre as a function of
         position along the dispersion axis.
 
+    overlap_buffer : float, optional
+        Amount by which to extend the removal of any region where the slits
+        overlap in 2-slit mode, as a fraction of the overlap (gfextract
+        perovlap parameter). The default of 0.1 will remove 110% of the nominal
+        overlap, while negative values will include some of the overlap region.
+
     interact : bool, None
         Identify the fibres interactively in IRAF? If None (default),
         interactivity is instead controlled by the package configuration
@@ -356,6 +363,10 @@ def extract_spectra(inputs, out_names=None, startpos=None, threshold=1000.,
     # Use apall starting column default if not specified:
     if startpos is None:
         startpos = iraf.INDEF
+
+    # Convert overlap parameter to IRAF convention, deliberately allowing
+    # negative values etc.
+    peroverlap = 10. * overlap_buffer
 
     # Make a list of flats from each input's "cals" dictionary. If NO files
     # have flats associated, the response parameter is omitted and no flat
@@ -421,11 +432,11 @@ def extract_spectra(inputs, out_names=None, startpos=None, threshold=1000.,
         grow=1.5, gaindb='default',
         gratingdb=gemvars['gmosdata']+'GMOSgratings.dat',
         filterdb=gemvars['gmosdata']+'GMOSfilters.dat', xoffset=iraf.INDEF,
-        perovlap=10., sci_ext=labels['data'], var_ext=labels['uncertainty'],
-        dq_ext=labels['flags'], fl_inter=interact, fl_vardq=gemvars['vardq'],
-        fl_novlap=True, fl_gnsskysub=False, fl_fixnc=False, fl_fixgaps=True,
-        fl_gsappwave=True, fl_fulldq=True, dqthresh=0.1,
-        verbose=gemvars['verbose']
+        perovlap=perovlap, sci_ext=labels['data'],
+        var_ext=labels['uncertainty'], dq_ext=labels['flags'],
+        fl_inter=interact, fl_vardq=gemvars['vardq'], fl_novlap=True,
+        fl_gnsskysub=False, fl_fixnc=False, fl_fixgaps=True, fl_gsappwave=True,
+        fl_fulldq=True, dqthresh=0.1, verbose=gemvars['verbose']
     )
 
     return result['outimage']
