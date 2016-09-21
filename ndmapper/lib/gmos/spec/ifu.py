@@ -41,8 +41,11 @@ def prepare(inputs, out_names=None, mdf=None, reprocess=None):
         the input files, prefixed with 'g' as in the Gemini IRAF package.
 
     mdf : str, optional
-        Name of a FITS mask definition file to be attached as a FITS extension
-        of each output file.
+        Name of a FITS mask definition file (in the current working directory)
+        to be attached as a FITS extension of each output file. If None and all
+        the inputs have mdf associations in their `cals` dictionaries, those
+        mdfs are used, otherwise, if there are no such associations, the GMOS
+        package default is used.
 
     See "help gfreduce" in IRAF for more detailed information.
 
@@ -77,19 +80,31 @@ def prepare(inputs, out_names=None, mdf=None, reprocess=None):
     # Determine input DataFile EXTNAME convention, to pass to the task:
     labels = get_extname_labels(inputs)
 
-    # Get MDF from gmos$data by default or, if specified, from the CWD:
+    task_inputs = {'inimages' : inputs}
+    optargs = {}
+
+    # Get MDF from calibration associations if present, otherwise look in
+    # gmos$data by default or the CWD if a file is specified via the parameter:
     if mdf is None:
-        mdf = 'default'
-        mdfdir = gemvars['gmosdata']
+        mdfs = [df.cals['mdf'] if 'mdf' in df.cals else None for df in inputs]
+        missing = [entry is None for entry in mdfs]
+        if all(missing):
+            optargs['mdffile'] = 'default'
+            optargs['mdfdir'] = gemvars['gmosdata']
+        elif any(missing):
+            raise KeyError('all or no inputs must have associated mdf tables')
+        else:
+            task_inputs['mdffile'] = DataFileList(data=mdfs)
     else:
-        mdfdir = ''
+        optargs['mdffile'] = mdf
+        optargs['mdfdir'] = ''
 
     # Here some "unnecessary" parameters are defined just to be certain they
     # don't change anything and so we can easily copy this when wrapping
     # other operations with gfreduce later. Using gfreduce for this ensures
     # that the MDF is determined in the same way as in my CL example, though
     # that logic seems to be duplicated in gprepare (argh).
-    result = run_task('gemini.gmos.gfreduce', inputs={'inimages' : inputs},
+    result = run_task('gemini.gmos.gfreduce', inputs=task_inputs,
         outputs={'outimages' : out_names}, prefix=prefix, comb_in=False,
         MEF_ext=False, path_param='rawpath', reprocess=reprocess,
         outpref='default', slits='header', exslits='*', fl_nodshuffl=False,
@@ -97,10 +112,10 @@ def prepare(inputs, out_names=None, mdf=None, reprocess=None):
         fl_over=False, fl_trim=False, fl_bias=False, fl_gscrrej=False,
         fl_gnsskysub=False, fl_extract=False, fl_gsappwave=False,
         fl_wavtran=False, fl_skysub=False, fl_fluxcal=False, fl_fulldq=True,
-        dqthresh=0.1, key_mdf='', mdffile=mdf, mdfdir=mdfdir,
-        key_biassec=gemvars['key_biassec'], key_datasec=gemvars['key_datasec'],
-        bpmfile=gemvars['gmosdata']+'chipgaps.dat', grow=1.5,
-        reference='', response='', wavtraname='', sfunction='', extinction='',
+        dqthresh=0.1, key_mdf='', key_biassec=gemvars['key_biassec'],
+        key_datasec=gemvars['key_datasec'], 
+        bpmfile=gemvars['gmosdata']+'chipgaps.dat', grow=1.5, reference='',
+        response='', wavtraname='', sfunction='', extinction='',
         fl_fixnc=False, fl_fixgaps=True, fl_novlap=True, perovlap=10.0,
         nbiascontam='default', biasrows='default', order='default',
         low_reject=3.0, high_reject=3.0, niterate=2, line=iraf.INDEF, nsum=10,
@@ -111,7 +126,7 @@ def prepare(inputs, out_names=None, mdf=None, reprocess=None):
         expr='default', sepslits=False, w1=iraf.INDEF, w2=iraf.INDEF,
         dw=iraf.INDEF, nw=iraf.INDEF, observatory=gemvars['observatory'],
         sci_ext=labels['data'], var_ext=labels['uncertainty'],
-        dq_ext=labels['flags'], verbose=gemvars['verbose'])
+        dq_ext=labels['flags'], verbose=gemvars['verbose'], **optargs)
 
     return result['outimages']
 
@@ -366,7 +381,7 @@ def extract_spectra(inputs, out_names=None, startpos=None, threshold=1000.,
 
     # Convert overlap parameter to IRAF convention, deliberately allowing
     # negative values etc.
-    peroverlap = 10. * overlap_buffer
+    perovlap = 10. * overlap_buffer
 
     # Make a list of flats from each input's "cals" dictionary. If NO files
     # have flats associated, the response parameter is omitted and no flat
