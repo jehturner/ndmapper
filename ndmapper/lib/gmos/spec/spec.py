@@ -55,8 +55,10 @@ def calibrate_flux(inputs, out_names=None, reference=None, lookup_dir=None,
     reference : str or None, optional
         The name of a text file containing tabulated fluxes. This is usually
         the name of the standard star, in lower case. If None, a table matching
-        the OBJECT header keyword will be sought. The precise bandpasses to be
-        used can be adjusted by editing a copy of this file.
+        the OBJECT header keyword will be sought (with any 'LTT' prefix
+        abbreviated to 'L', to match the "noao$onedstds" convention). The
+        precise bandpasses to be  used can be adjusted by editing a copy of
+        this file.
 
     lookup_dir : str or None, optional
         Directory name in which to find the `reference` file with tabulated
@@ -119,6 +121,9 @@ def calibrate_flux(inputs, out_names=None, reference=None, lookup_dir=None,
         status = indf.unloaded
         if not reference and 'OBJECT' in indf.meta:
             ref = str(indf.meta['OBJECT']).lower()
+            # Map normal/Gemini naming to NOAO onedstds convention:
+            if ref.startswith('ltt'):
+                ref = 'l' + ref[3:]
         else:
             ref = reference
         # Avoid run_task making an unnecessary temp copy pending a more
