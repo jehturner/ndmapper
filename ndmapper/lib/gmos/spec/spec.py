@@ -8,6 +8,7 @@ from ndmapper import config, ndprocess_defaults
 from ndmapper.data import DataFileList
 from ndmapper.utils import to_datafilelist
 from ndmapper.iraf_task import run_task, get_extname_labels
+from ndmapper.iraf_db import add_db_entry
 from ndmapper.lib.gemini import gemini_iraf_helper
 
 from ..gmos import *
@@ -15,7 +16,7 @@ from ..gmos import __all__
 
 __all__ = __all__ + ['CAL_DEPS', 'biases', 'traces', 'arcs', 'flats', 'bg_reg',
                      'standards', 'calibrate_flux', 'apply_flux_cal',
-                     'normalize_QE']
+                     'normalize_QE', 'shift_spectra']
 
 
 # Default calibration dependence for GMOS spectroscopy. The 'spectwilight'
@@ -335,4 +336,63 @@ def normalize_QE(inputs, out_names=None, reprocess=None, interact=None):
     )
 
     return result['outimages']
+
+
+@ndprocess_defaults
+def shift_spectra(inputs, shift=0.0):
+    """
+    Apply a zero-point shift to the wavelength calibrations of the input
+    spectra, eg. to correct the solution from a day-time arc spectrum for
+    flexure with respect to science exposures, as determined from sky lines.
+
+    Currently, this is a bit of a placeholder step that just corrects zero
+    points in an IRAF database and must be run prior to ``rectify_wavelength``.
+    This is useful for making a first-order correction to the arc, eg. so that
+    QE correction will be performed accurately. It may additionally be
+    necessary to correct for (a smaller amount of) mutual flexure between
+    science exposures; at some point, this function will likely be generalized
+    to allow adjusting the WCS as well, after rectification to linear
+    wavelength.
+
+    The database file(s) to which the shifts are added are those corresponding
+    to the 'REFSPEC1' header keyword. Corrections can thus be applied to an arc
+    database via any spectra referencing it, but doing so will overwrite any
+    shift applied previously for other spectra referencing the same arc.
+
+    [To do: consider having this clone the solution and use the copy?]
+
+
+    Parameters
+    ----------
+
+    inputs : DataFileList or DataFile
+        Spectra on which ``calibrate_wavelength`` (or IRAF gswavelength) has
+        been run, to generate a wavelength database file.
+
+    shift : float
+        Shift to apply to each aperture, in the units of the database file 
+        (normally Angstroms). Defaults to 0.
+
+
+    Returns
+    -------
+
+    DataFileList
+        The inputs, with adjusted wavelength zero points (currently just in the
+        IRAF database).
+
+    """
+
+    inputs = to_datafilelist(inputs)
+
+    for df in inputs:
+        for n, ndd in enumerate(df):
+            if 'REFSPEC1' in ndd.meta:
+                dbfile = os.path.join('database', 'id' + ndd.meta['REFSPEC1'])
+                add_db_entry(dbfile, 'shift', shift)
+            else:
+                raise KeyError('missing REFSPEC1 in {0} (#{1})'\
+                               .format(str(df.filename)), n)
+
+    return inputs
 
