@@ -557,7 +557,7 @@ def rectify_wavelength(inputs, out_names=None, start_wl=None, end_wl=None,
     patched with respect to the public version 1.13.1, to accept ".fits" in
     the filenames passed to its `wavtraname` parameter. This change is
     available in the "ifudrgmos" version of the GMOS package (r145+) and is
-    likely to be included in the public Gemini IRAF package in mid 2016.
+    likely to be included in the public Gemini IRAF package in 2017.
 
 
     Parameters
@@ -634,6 +634,14 @@ def rectify_wavelength(inputs, out_names=None, start_wl=None, end_wl=None,
         arcs = DataFileList(data=[df.cals['arc'] for df in inputs])
     except KeyError:
         raise KeyError('one or more inputs is missing an associated arc')
+
+    # The reference arcs must all have been saved to disk and not be flagged
+    # as dirty, otherwise run_task will save them with a temp filename that
+    # doesn't match the database. We could guard against this by saving the
+    # files and resetting the "unloaded" (dirty) flag here, though it would
+    # want restoring again afterwards, since external references that can be
+    # used to modify the data may already exist. This problem will go away as
+    # and when the "dirty flag logic" can be made more sophisticated.
 
     # Get a few common Gemini IRAF defaults.:
     gemvars = gemini_iraf_helper()

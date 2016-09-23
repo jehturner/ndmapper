@@ -339,7 +339,7 @@ def normalize_QE(inputs, out_names=None, reprocess=None, interact=None):
 
 
 @ndprocess_defaults
-def shift_spectra(inputs, shift=0.0):
+def shift_spectra(inputs, shift=None):
     """
     Apply a zero-point shift to the wavelength calibrations of the input
     spectra, eg. to correct the solution from a day-time arc spectrum for
@@ -354,10 +354,14 @@ def shift_spectra(inputs, shift=0.0):
     to allow adjusting the WCS as well, after rectification to linear
     wavelength.
 
-    The database file(s) to which the shifts are added are those corresponding
-    to the 'REFSPEC1' header keyword. Corrections can thus be applied to an arc
-    database via any spectra referencing it, but doing so will overwrite any
-    shift applied previously for other spectra referencing the same arc.
+    The database file(s) to which the shifts are added will be those
+    corresponding to the 'REFSPEC1' header keyword, if present, otherwise each
+    database file is expected to have the same name as the input file, prefixed
+    with 'id' and with its filename extension replaced by a 3-digit integer
+    suffix (eg. '_001'), corresponding to the slit number. Where a reference
+    spectrum is defined, corrections can be applied to it via any spectra that
+    reference it, but doing so will overwrite any shift applied previously for
+    other spectra that reference the same arc.
 
     [To do: consider having this clone the solution and use the copy?]
 
@@ -369,9 +373,11 @@ def shift_spectra(inputs, shift=0.0):
         Spectra on which ``calibrate_wavelength`` (or IRAF gswavelength) has
         been run, to generate a wavelength database file.
 
-    shift : float
+    shift : float or None, optional
         Shift to apply to each aperture, in the units of the database file 
-        (normally Angstroms). Defaults to 0.
+        (normally Angstroms). If None, the 'shift' value from each input's
+        ``cals`` dictionary is used, where present, otherwise the value
+        defaults to 0.
 
 
     Returns
@@ -386,13 +392,27 @@ def shift_spectra(inputs, shift=0.0):
     inputs = to_datafilelist(inputs)
 
     for df in inputs:
-        for n, ndd in enumerate(df):
+
+        if shift is None:
+            shift = float(df.cals['shift']) if 'shift' in df.cals else 0.0
+
+        for n, ndd in enumerate(df, start=1):
+
+            unloaded = ndd.unloaded
+
+            # If a reference spectrum is defined, edit its database, otherwise
+            # look for one named after the input file:
             if 'REFSPEC1' in ndd.meta:
-                dbfile = os.path.join('database', 'id' + ndd.meta['REFSPEC1'])
-                add_db_entry(dbfile, 'shift', shift)
+                slitdbname = ndd.meta['REFSPEC1']
             else:
-                raise KeyError('missing REFSPEC1 in {0} (#{1})'\
-                               .format(str(df.filename)), n)
+                slitdbname = '{0}_{1:03}'.format(df.filename.root, n)
+
+            dbfile = os.path.join('database', 'id' + slitdbname)
+            add_db_entry(dbfile, 'shift', shift)
+
+            # Until we have more intelligent checksumming, avoid leaving the
+            # input files flagged as dirty just due to the above meta look-up:
+            ndd._unloaded = unloaded
 
     return inputs
 
