@@ -1,14 +1,14 @@
 NDMapper change log
 ===================
 
-0.2 (unreleased)
+0.3 (unreleased)
 ----------------
 
 - No changes yet. Planning to split out NDProcess module.
 
 
-0.1.3 (2016-10-06)
-------------------
+0.2 (2016-10-06)
+----------------
 
 - Add wrapper steps for ``gmos.spec.ifu`` data cube mosaicking and logarithmic
   re-binning, using my PyFU Python package.
