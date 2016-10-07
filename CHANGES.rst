@@ -49,7 +49,7 @@ NDMapper change log
 
 - Support assignment to a ``DataFile`` index (__setitem__).
 
-- NDLater compatibility with AstroPy 1.2.1.
+- ``NDLater`` compatibility with AstroPy 1.2.1.
 
 - Support assignment to ``TabMapIO.table`` (for updating MDFs; still missing a
   proper public API).
