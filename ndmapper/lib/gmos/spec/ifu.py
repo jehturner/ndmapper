@@ -133,8 +133,8 @@ def prepare(inputs, out_names=None, mdf=None, reprocess=None):
 
 @ndprocess_defaults
 def subtract_bias(inputs, out_names=None, ovs_function='spline3', ovs_order=1,
-                  ovs_lsigma=2.0, ovs_hsigma=2.0, ovs_niter=5, reprocess=None,
-                  interact=None):
+                  ovs_lsigma=2.0, ovs_hsigma=2.0, ovs_niter=5,
+                  ovs_sample=(2,63), reprocess=None, interact=None):
 
     """
     Subtract overscan level & pixel-to-pixel variations in zero point. This
@@ -172,6 +172,11 @@ def subtract_bias(inputs, out_names=None, ovs_function='spline3', ovs_order=1,
 
     ovs_niter : int
         Number of rejection iterations for overscan fitting (default 5).
+
+    ovs_sample : list or tuple or None, optional
+        Zero-indexed range of rows to include in the overscan fit, to help
+        avoid contamination (default (2,63)). A value of None selects all the
+        available rows (gireduce 'default').
 
     interact : bool, None
         Fit the overscan region interactively in IRAF? If None (default),
@@ -215,6 +220,14 @@ def subtract_bias(inputs, out_names=None, ovs_function='spline3', ovs_order=1,
     if not out_names:
         out_names = '@inimages'
 
+    # Convert range of overscan rows fitted to the right format for IRAF:
+    if ovs_sample is None:
+        biasrows='default'
+    elif len(ovs_sample) != 2:
+        raise IndexError('ovs_sample should contain 2 limits')
+    else:
+        biasrows = '{0}:{1}'.format(*(i+1 for i in ovs_sample))
+
     # Get a list of biases to use from the input file "cals" dictionaries.
     # If the entry exists, assume the value is already a valid DataFile.
     try:
@@ -247,7 +260,7 @@ def subtract_bias(inputs, out_names=None, ovs_function='spline3', ovs_order=1,
         bpmfile=gemvars['gmosdata']+'chipgaps.dat', grow=1.5, reference='',
         response='', wavtraname='', sfunction='', extinction='',
         fl_fixnc=False, fl_fixgaps=True, fl_novlap=True, perovlap=10.0,
-        nbiascontam='default', biasrows='3:64', order=ovs_order,
+        nbiascontam='default', biasrows=biasrows, order=ovs_order,
         low_reject=ovs_lsigma, high_reject=ovs_hsigma, niterate=ovs_niter,
         line=iraf.INDEF, nsum=10, trace=False, recenter=False, thresh=200.,
         function=ovs_function, t_order=21, t_nsum=10, weights='none',
