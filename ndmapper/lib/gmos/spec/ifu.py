@@ -471,7 +471,8 @@ def extract_spectra(inputs, out_names=None, startpos=None, threshold=1000.,
 
 
 @ndprocess_defaults
-def calibrate_wavelength(inputs, order=4, line_list=None, interact=None):
+def calibrate_wavelength(inputs, order=4, threshold=0., line_list=None,
+                         interact=None):
     """
     Determine an absolute wavelength solution for each row (fibre) of the
     input spectra. Currently, this information is saved only in an IRAF
@@ -493,6 +494,10 @@ def calibrate_wavelength(inputs, order=4, line_list=None, interact=None):
         Order of the one-dimensional Chebyshev fitting function, used to
         describe wavelength as a function of pixel index for each row
         (default 4).
+
+    threshold : float, optional
+        Minimum required range of pixel intensities around a candidate feature
+        (default 0.). See "help reidentify" and "help center1d" in IRAF.
 
     line_list : str, optional
         Name of a text file from which reference wavelengths are to be read
@@ -546,12 +551,13 @@ def calibrate_wavelength(inputs, order=4, line_list=None, interact=None):
         gratingdb=gemvars['gmosdata']+'GMOSgratings.dat',
         filterdb=gemvars['gmosdata']+'GMOSfilters.dat', fl_inter=fl_inter,
         section='default', nsum=1, ftype='emission', fwidth=10., gsigma=0.,
-        cradius=10., threshold=0., minsep=2.5, match=-6., function='chebyshev',
-        order=order, sample='*', niterate=10., low_reject=2.5, high_reject=2.5,
-        grow=0., refit=True, step=1, trace=True, nlost=10, maxfeatures=150,
-        ntarget=30, npattern=5, fl_addfeat=True, aiddebug='s', fl_dbwrite='YES',
-        fl_overwrite=True, fl_gsappwave=False, fitcfunc='chebyshev',
-        fitcxord=4, fitcyord=4, verbose=gemvars['verbose']
+        cradius=10., threshold=threshold, minsep=2.5, match=-6.,
+        function='chebyshev', order=order, sample='*', niterate=10.,
+        low_reject=2.5, high_reject=2.5, grow=0., refit=True, step=1,
+        trace=True, nlost=10, maxfeatures=150, ntarget=30, npattern=5,
+        fl_addfeat=True, aiddebug='s', fl_dbwrite='YES', fl_overwrite=True,
+        fl_gsappwave=False, fitcfunc='chebyshev', fitcxord=4, fitcyord=4,
+        verbose=gemvars['verbose']
     )
 
     # Propagate the task inputs unmodified since the solution currently isn't
