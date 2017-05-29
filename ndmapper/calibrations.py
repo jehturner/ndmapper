@@ -1,4 +1,4 @@
-# Copyright(c) 2015 Association of Universities for Research in Astronomy, Inc.
+# Copyright(c) 2015-2017 Association of Universities for Research in Astronomy, Inc.
 # by James E.H. Turner.
 
 """
@@ -175,17 +175,18 @@ def add_cal_entry(filename, cal_type, matches, cal_dict):
     Parameters
     ----------
 
-    filename : `str`
+    filename : str-like
         Name of the file for which the applicable calibration files are to
-        be recorded.
+        be recorded (may be a FileName or DataFile object).
 
     cal_type : `str`
         Type of calibration looked up (matching a name in the dependencies
         dictionary applicable to the instrument mode).
 
-    matches : `list` of (`str`, `str` or `None`)
-        List of (filename, checksum) pairs from a prior calibration look-up,
-        to be included in the calibration dictionary.
+    matches : `list` of str-like, or `list` of (str-like, `str` or `None`)
+        List of filenames or (filename, checksum) pairs from a prior
+        calibration look-up, to be included in the calibration dictionary.
+        The names can also be FileName or DataFile objects.
 
     cal_dict : `dict`
         The calibration dictionary to populate, already initialized in the
@@ -193,13 +194,34 @@ def add_cal_entry(filename, cal_type, matches, cal_dict):
 
     """
 
-    # Complain if "matches" doesn't actually look like a list of matches.
-    # Maybe this is more processing than one would habitually call from a
-    # recursive loop but it should be fast compared with the look-up itself.
-    if not hasattr(matches, '__iter__') or \
-       not all([hasattr(match, '__getitem__') and len(match)==2 \
-                for match in matches]):
-        raise ValueError('matches should be a list of (filename, checksum)')
+    filename = str(filename)
+
+    # Convert filenames to (filename, None) pairs if needed, to simplify
+    # manipulation below, and complain if "matches" doesn't look like a list
+    # of names or 2-tuples. Maybe this is more processing than one would
+    # habitually call from a recursive loop but it should be fast compared
+    # with the look-up itself.
+    err = False
+    matchtuples = []
+    if hasattr(matches, '__iter__'):
+       for match in matches:
+           if not hasattr(match, '__getitem__') and \
+              not isinstance(match, FileName):
+               err = True
+               break
+           if isinstance(match, (DataFile, FileName, basestring)):
+               match = (match, None)
+           elif len(match) != 2:
+               err = True
+               break
+           fn = str(FileName(str(match[0]), strip=True, dirname=''))
+           matchtuples.append((fn, match[1]))
+    else:
+        err = True
+
+    if err:
+        raise ValueError('matches should be a list of filenames or '\
+                         '(filename, checksum) pairs')
 
     # For now we assume the calibration dictionary is in the right format.
     # Checking that would involve writing a verification function.
@@ -215,7 +237,7 @@ def add_cal_entry(filename, cal_type, matches, cal_dict):
 
     # If there are no matches to add, just return a placeholder entry for
     # this calibration type, for the user to fill in manually:
-    if not matches:
+    if not matchtuples:
         associations[filename][cal_type] = None
         return
 
@@ -223,17 +245,17 @@ def add_cal_entry(filename, cal_type, matches, cal_dict):
     # happens to be presented in a different order for multiple look-ups and
     # also reproduces Gemini's usual naming convention. Don't sort in place,
     # to avoid changing our input parameters.
-    matches = sorted(matches)
+    matchtuples = sorted(matchtuples)
     
     # Group calibration files under a label that's based on the first filename
     # in the sorted matches list; this label will later become the processed
     # calibration filename.
-    ref_base, ref_ext = splitext(matches[0][0])
+    ref_base, ref_ext = splitext(matchtuples[0][0])
     label_base = '{0}_{1}'.format(ref_base, cal_type)
     label = addext(label_base, ref_ext)   # feasible to drop ext??
 
     # Extract the filenames from the matches:
-    match_names = [match[0] for match in matches]
+    match_names = [match[0] for match in matchtuples]
 
     # If there's already an entry for this calibration label in the dictionary
     # but the corresponding list of files is different, append a running number
@@ -249,7 +271,7 @@ def add_cal_entry(filename, cal_type, matches, cal_dict):
 
     # Record each file's checksum, only if there is one. The condition here
     # ensures entries won't change, eg. if user has corrected a bad checksum:
-    for key, val in matches:
+    for key, val in matchtuples:
         if val and key not in checksums:
             checksums[key] = val
 
