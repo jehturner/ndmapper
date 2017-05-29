@@ -168,9 +168,10 @@ def add_cal_entry(filename, cal_type, matches, cal_dict):
     At this level, any existing association between the specified filename
     and the same type of calibration will be overwritten, but any existing
     lists of available calibration files and the corresponding checksums will
-    be left unchanged. Normally, this function only gets called (eg. via
-    `services.look_up_cals()`) for calibration entries that don't already exist
-    in the dictionary, to preserve existing associations.
+    be left unchanged. This function gets called by `services.look_up_cals()`
+    for calibration entries that don't already exist in the dictionary
+    (preserving existing associations), but can also be used directly by
+    user scripts.
 
     Parameters
     ----------
