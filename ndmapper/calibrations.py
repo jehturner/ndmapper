@@ -12,8 +12,8 @@ import json
 from ndmapper.libutils import splitext, addext
 from ndmapper.data import FileName, DataFile, DataFileList
 
-__all__ = ['init_cal_dict', 'save_cal_dict', 'add_cal_entry', 'cal_entries',
-           'associate_cals']
+__all__ = ['init_cal_dict', 'save_cal_dict', 'add_cal_entry',
+           'clean_cal_entries_if_unused', 'cal_entries', 'associate_cals']
 
 
 K_ASSOCIATIONS = 'associations'
@@ -160,18 +160,30 @@ def recurse_file_cals(filename, obs_type, dependencies, lookup_fn, cal_dict):
     return cal_dict
 
 
-def add_cal_entry(filename, cal_type, matches, cal_dict):
+def add_cal_entry(filename, cal_type, matches, cal_dict, clean=True):
     """
-    Populate each component of the calibration dictionary with the specified
-    list of calibration files matching a given filename.
+    Populate the calibration dictionary with a specified list of files, from
+    which a given type of calibration is to be created for a given filename.
+    Internally, the list is given a label generated from its first filename
+    and the calibration type (which is user-modifiable, if done consistently).
 
-    At this level, any existing association between the specified filename
-    and the same type of calibration will be overwritten, but any existing
-    lists of available calibration files and the corresponding checksums will
-    be left unchanged. This function gets called by `services.look_up_cals()`
-    for calibration entries that don't already exist in the dictionary
-    (preserving existing associations), but can also be used directly by
-    user scripts.
+    At this level, any existing association between the specified filename and
+    the same type of calibration will be overwritten. If clean==True, the
+    calibration entry pointed to previously will also be removed, unless still
+    associated with other files (as will its own calibrations in turn).
+
+    This function primarily gets called by ``services.look_up_cals()``, only
+    for calibration entries that don't already exist in the dictionary (to
+    preserve existing associations), but can also be used directly, to modify
+    the automatically-determined results (or where there are none).
+
+    When simply associating `filename` with an existing calibration label name,
+    rather than creating a new one, an alternative is to modify the dictionary
+    directly (which can be useful when re-using one calibration type for
+    another purpose, eg. 'flat' as 'trace', avoiding duplicate entries). Eg.:
+
+      associations = cal_dict['associations']
+      associations['S20140718S0020.fits']['trace'] = 'S20141105S0157_flat.fits'
 
     Parameters
     ----------
@@ -193,31 +205,38 @@ def add_cal_entry(filename, cal_type, matches, cal_dict):
         The calibration dictionary to populate, already initialized in the
         required format by `init_cal_dict()`.
 
+    clean : `bool`, optional
+        When overwriting existing ``matches``, remove any entries in the
+        calibration dictionary that (as a result) are no longer used?
+        Defaults to True.
+
     """
 
     filename = str(filename)
 
-    # Convert filenames to (filename, None) pairs if needed, to simplify
+    # Convert match filenames to (filename, None) pairs if needed, to simplify
     # manipulation below, and complain if "matches" doesn't look like a list
     # of names or 2-tuples. Maybe this is more processing than one would
     # habitually call from a recursive loop but it should be fast compared
     # with the look-up itself.
     err = False
-    matchtuples = []
     if hasattr(matches, '__iter__'):
-       for match in matches:
-           if not hasattr(match, '__getitem__') and \
-              not isinstance(match, FileName):
-               err = True
-               break
-           if isinstance(match, (DataFile, FileName, basestring)):
-               match = (match, None)
-           elif len(match) != 2:
-               err = True
-               break
-           fn = str(FileName(str(match[0]), strip=True, dirname=''))
-           matchtuples.append((fn, match[1]))
-    else:
+        matchtuples = []
+        fntypes = (DataFile, FileName, basestring)
+        for match in matches:
+            if not hasattr(match, '__getitem__') and \
+               not isinstance(match, FileName):
+                err = True
+                break
+            if isinstance(match, fntypes):
+                match = (match, None)
+            elif len(match) != 2 or not isinstance(match[0], fntypes):
+                err = True
+                break
+            fn = str(FileName(str(match[0]), strip=True, dirname=''))
+            matchtuples.append((fn, match[1]))
+        matches = matchtuples
+    elif matches is not None:
         err = True
 
     if err:
@@ -236,48 +255,123 @@ def add_cal_entry(filename, cal_type, matches, cal_dict):
     if filename not in associations:
         associations[filename] = {}
 
-    # If there are no matches to add, just return a placeholder entry for
-    # this calibration type, for the user to fill in manually:
-    if not matchtuples:
-        associations[filename][cal_type] = None
+    # Record any existing association that we're replacing, so its entry can
+    # be removed afterwards, if no references to it remain:
+    old_label = associations[filename][cal_type] \
+                if cal_type in associations[filename] else None
+
+    # If there are no matches to add (or the user specified matches=None, to
+    # remove existing entries), just return a placeholder entry for this
+    # calibration type, for the user to fill in manually:
+    if not matches:
+        label = None
+
+    else:
+        # Sort the copy of matches. This avoids duplicate lists if the same set
+        # of files happens to be presented in a different order for multiple
+        # look-ups and also reproduces Gemini's usual naming convention.
+        matches.sort()
+    
+        # Group calibration files under a label that's based on the first
+        # filename in the sorted matches list; this label will later become the
+        # processed calibration filename.
+        ref_base, ref_ext = splitext(matches[0][0])
+        label_base = '{0}_{1}'.format(ref_base, cal_type)
+        label = addext(label_base, ref_ext)   # feasible to drop ext??
+
+        # Extract the filenames from the matches:
+        match_names = [match[0] for match in matches]
+
+        # If there's already an entry for this calibration label in the
+        # dictionary but the corresponding list of files is different, append a
+        # running number to the label until it's either unique or does match an
+        # existing entry:
+        n = 0
+        while label in calibrations and calibrations[label] != match_names:
+            n += 1
+            label = addext('{0}_{1}'.format(label_base, n), ref_ext)
+
+        # Add list of calibration files to the dictionary if not already there:
+        if label not in calibrations:
+            calibrations[label] = match_names
+
+        # Record each file's checksum, only if there is one. The condition here
+        # ensures entries won't change, eg. if user has corrected bad checksum:
+        for key, val in matches:
+            if val and key not in checksums:
+                checksums[key] = val
+
+    # Record the new calibration association corresponding to this look-up:
+    associations[filename][cal_type] = label
+
+    # Optionally remove any calibration that is now unused after replacing the
+    # association for filename with a new one:
+    if clean and old_label and label != old_label:
+        clean_cal_entries_if_unused(old_label, cal_dict)
+
+
+def clean_cal_entries_if_unused(label, cal_dict):
+    """
+    If a name ``label`` in the 'calibrations' section of ``cal_dict`` is now
+    unused (following user changes to the 'associations' section), remove its
+    entry and, recursively, any associated calibrations that are not also used
+    elsewhere in the dictionary. This function is usually called indirectly, by
+    ``add_cal_entry``, to clean up old entries when replacing the results of a
+    calibration look-up with a manually-determined calibration association. Any
+    disassociation from other files should be done separately beforehand.
+
+    Passing a non-existent ``label``, which may happen naturally in the course
+    of recursion through the dependency chain, will succeed as a silent no-op.
+
+    Parameters
+    ----------
+
+    label : `str`
+        The label ('calibrations' section key) to be removed, along with its
+        unique dependencies, eg. 'S20140822S0071_flat.fits'.
+
+    cal_dict : `dict`
+        A dictionary of calibration files & associations, in the format
+        produced by `init_cal_dict()` or `services.look_up_cals()`.
+
+    """
+
+    associations = cal_dict[K_ASSOCIATIONS]
+    calibrations = cal_dict[K_CALIBRATIONS]
+    checksums    = cal_dict[K_CHECKSUMS]
+
+    # Check which calibration name labels remain associated with files:
+    labels_used = {dep_label for file_assoc in associations.values()
+                   for dep_label in file_assoc.values()}
+
+    # Stop if there's nothing to clean up. If given a non-existent label, just
+    # do nothing rather than raising an exception, as it could have been
+    # deleted by a previous level of recursion:
+    if label not in calibrations or label in labels_used:
         return
 
-    # Sort the matches. This avoids duplicate lists if the same set of files
-    # happens to be presented in a different order for multiple look-ups and
-    # also reproduces Gemini's usual naming convention. Don't sort in place,
-    # to avoid changing our input parameters.
-    matchtuples = sorted(matchtuples)
-    
-    # Group calibration files under a label that's based on the first filename
-    # in the sorted matches list; this label will later become the processed
-    # calibration filename.
-    ref_base, ref_ext = splitext(matchtuples[0][0])
-    label_base = '{0}_{1}'.format(ref_base, cal_type)
-    label = addext(label_base, ref_ext)   # feasible to drop ext??
+    # The calibration is defined but unused, so make a copy of its constituent
+    # files and remove it:
+    removed = calibrations[label]
+    del calibrations[label]
 
-    # Extract the filenames from the matches:
-    match_names = [match[0] for match in matchtuples]
+    # (Re)-generate a set of all the files remaining in other "calibrations"
+    # entries (which could be modified at each iteration):
+    remaining = {fn for flist in calibrations.values() for fn in flist}
 
-    # If there's already an entry for this calibration label in the dictionary
-    # but the corresponding list of files is different, append a running number
-    # to the label until it's either unique or does match an existing entry:
-    n = 0
-    while label in calibrations and calibrations[label] != match_names:
-        n += 1
-        label = addext('{0}_{1}'.format(label_base, n), ref_ext)
-
-    # Add the list of calibration files to the dictionary if not already there:
-    if label not in calibrations:
-        calibrations[label] = match_names
-
-    # Record each file's checksum, only if there is one. The condition here
-    # ensures entries won't change, eg. if user has corrected a bad checksum:
-    for key, val in matchtuples:
-        if val and key not in checksums:
-            checksums[key] = val
-
-    # Record the calibration association corresponding to this look-up:
-    associations[filename][cal_type] = label
+    # Check whether each constituent file is also used elsewhere and, if not,
+    # remove its own entry in "associations" (if it has one) and "checksums"
+    # and then recurse for each of its dependencies, to remove the entries for
+    # any of those labels that are now unused, in turn:
+    for fn in removed:
+        if fn not in remaining:
+            if fn in associations:
+                fn_deps = associations[fn].values()
+                del associations[fn]
+                for dep_label in fn_deps:
+                    clean_cal_entries_if_unused(dep_label, cal_dict)
+            if fn in checksums:
+                del checksums[fn]
 
 
 def cal_entries(cal_dict, cal_type, reference=None):
