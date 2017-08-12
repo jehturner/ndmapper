@@ -28,8 +28,8 @@ __all__ = ['CAL_DEPS', 'make_bias', 'clean_pixels']
 # NB. PyRAF accepts True/False, iraf.yes/iraf.no & 'yes'/'no' interchangeably.
 
 @ndprocess_defaults
-def make_bias(inputs, bias=None, bpm=None, ovs_function='spline3',
-    ovs_order=1, ovs_lsigma=2.0, ovs_hsigma=2.0, ovs_niter=5,
+def make_bias(inputs, bias=None, bpm=None, ovs_function='chebyshev',
+    ovs_order=1, ovs_lsigma=2.0, ovs_hsigma=2.0, ovs_niter=5, ovs_sample=(2,63),
     comb_lsigma=2.0, comb_hsigma=2.0, reprocess=None, interact=None):
 
     """
@@ -67,6 +67,11 @@ def make_bias(inputs, bias=None, bpm=None, ovs_function='spline3',
 
     ovs_niter : int
         Number of rejection iterations for overscan fitting (default 5).
+
+    ovs_sample : list or tuple or None, optional
+        Zero-indexed range of rows to include in the overscan fit, to help
+        avoid contamination (default (2,63)). A value of None selects all the
+        available rows (gireduce 'default').
 
     comb_lsigma : float
         Negative sigma rejection threshold for averaging biases (default 2.0).
@@ -129,6 +134,14 @@ def make_bias(inputs, bias=None, bpm=None, ovs_function='spline3',
     if bpm:
         inputs['bpm'] = bpm
 
+    # Convert range of overscan rows fitted to the right format for IRAF:
+    if ovs_sample is None:
+        biasrows='default'
+    elif len(ovs_sample) != 2:
+        raise IndexError('ovs_sample should contain 2 limits')
+    else:
+        biasrows = '{0}:{1}'.format(*(i+1 for i in ovs_sample))
+
     # Most of the IRAF package tasks don't have the granularity to control
     # VAR & DQ propagation separately, so just turn them both on if either
     # is specified. This isn't handled by ndprocess_defaults since the
@@ -148,7 +161,7 @@ def make_bias(inputs, bias=None, bpm=None, ovs_function='spline3',
         key_ron='RDNOISE', key_gain='GAIN', ron=3.5, gain=2.2,
         gaindb='default', sci_ext=labels['data'],
         var_ext=labels['uncertainty'], dq_ext=labels['flags'], sat='default',
-        nbiascontam='default', biasrows='default', fl_inter=interact,
+        nbiascontam='default', biasrows=biasrows, fl_inter=interact,
         median=False, function=ovs_function, order=ovs_order,
         low_reject=ovs_lsigma, high_reject=ovs_hsigma, niterate=ovs_niter,
         combine='average', reject='avsigclip', lthreshold=iraf.INDEF,
