@@ -132,8 +132,8 @@ def prepare(inputs, out_names=None, mdf=None, reprocess=None):
 
 
 @ndprocess_defaults
-def subtract_bias(inputs, out_names=None, ovs_function='spline3', ovs_order=1,
-                  ovs_lsigma=2.0, ovs_hsigma=2.0, ovs_niter=5,
+def subtract_bias(inputs, out_names=None, ovs_function='chebyshev',
+                  ovs_order=1, ovs_lsigma=2.0, ovs_hsigma=2.0, ovs_niter=5,
                   ovs_sample=(2,63), reprocess=None, interact=None):
 
     """
@@ -159,7 +159,10 @@ def subtract_bias(inputs, out_names=None, ovs_function='spline3', ovs_order=1,
 
     ovs_function : str
         Function to use for fitting the overscan region in IRAF (default
-        'spline3'; may also be 'chebyshev, 'legendre' or 'spline1').
+        'chebyshev'; may also be 'legendre', 'spline1' or 'spline3').
+
+        This parameter is currently ignored because it doesn't exist in
+        gfreduce; fix this.
 
     ovs_order : int
         Order of the overscan fitting function (default 1).
@@ -263,7 +266,7 @@ def subtract_bias(inputs, out_names=None, ovs_function='spline3', ovs_order=1,
         nbiascontam='default', biasrows=biasrows, order=ovs_order,
         low_reject=ovs_lsigma, high_reject=ovs_hsigma, niterate=ovs_niter,
         line=iraf.INDEF, nsum=10, trace=False, recenter=False, thresh=200.,
-        function=ovs_function, t_order=21, t_nsum=10, weights='none',
+        function='chebyshev', t_order=21, t_nsum=10, weights='none',
         gratingdb=gemvars['gmosdata']+'GMOSgratings.dat',
         filterdb=gemvars['gmosdata']+'GMOSfilters.dat', xoffset=iraf.INDEF,
         expr='default', sepslits=False, w1=iraf.INDEF, w2=iraf.INDEF,
