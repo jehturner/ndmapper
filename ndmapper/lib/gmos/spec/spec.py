@@ -34,8 +34,8 @@ biases, traces, arcs, flats, bg_reg, standards = {}, {}, {}, {}, {}, {}
 
 
 @ndprocess_defaults
-def calibrate_flux(inputs, out_names=None, reference=None, lookup_dir=None,
-                   reprocess=None, interact=None):
+def calibrate_flux(inputs, out_names=None, reference=None, order=6,
+                   lookup_dir=None, reprocess=None, interact=None):
     """
     Generate an instrumental sensitivity spectrum in magnitudes from the 1D
     integrated spectrum of a spectrophotometric standard star.
@@ -60,6 +60,9 @@ def calibrate_flux(inputs, out_names=None, reference=None, lookup_dir=None,
         abbreviated to 'L', to match the "noao$onedstds" convention). The
         precise bandpasses to be  used can be adjusted by editing a copy of
         this file.
+
+    order : int
+        Order of the cubic-spline sensitivity fitting function (default 6).
 
     lookup_dir : str or None, optional
         Directory name in which to find the `reference` file with tabulated
@@ -157,7 +160,7 @@ def calibrate_flux(inputs, out_names=None, reference=None, lookup_dir=None,
             bandwidth=iraf.INDEF, bandsep=iraf.INDEF, fnuzero=3.68e-20,
             caldir=lookup_dir, observatory=gemvars['observatory'], mag='',
             magband='', teff='', ignoreaps=True, extinction='',
-            out_extinction='extinct.dat', function='spline3', order=3,
+            out_extinction='extinct.dat', function='spline3', order=order,
             graphs='sr', marks='plus cross box', colors='2 1 3 4',
             verbose=gemvars['verbose']
         )
