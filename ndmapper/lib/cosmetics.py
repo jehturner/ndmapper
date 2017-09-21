@@ -332,7 +332,7 @@ def lacosmic_spec(input_ndd, x_order=None, y_order=None, sigclip=4.5,
 @ndprocess_defaults
 def clean_cosmic_rays(inputs, out_names=None, x_order=None, y_order=None,
                       sigma=4.5, sigfrac=0.32, objlim=1.0, iterations=5,
-                      reprocess=None):
+                      reprocess=None, sepmed=True):
     """
     Identify pixels contaminated by cosmic ray flux, using McCully's version
     of the LACosmic algorithm (see `lacosmic_spec`), record the detections in
@@ -374,6 +374,11 @@ def clean_cosmic_rays(inputs, out_names=None, x_order=None, y_order=None,
 
     iterations : int, optional
         Number of iterations of the detection algorithm to perform. Default: 5.
+
+    sepmed : boolean, optional
+        Use 1D-separable median filter (default True)? This is faster than the
+        original LA Cosmic's 2D median but tends not to work quite as well at
+        the edges of the image.
 
 
     Returns
@@ -434,8 +439,8 @@ def clean_cosmic_rays(inputs, out_names=None, x_order=None, y_order=None,
                 out_df[n] = lacosmic_spec(in_ndd, x_order=x_order,
                                           y_order=y_order, sigclip=sigma,
                                           sigfrac=sigfrac, objlim=objlim,
-                                          niter=iterations, sepmed=True,
-                                          cleantype='meanmask')
+                                          niter=iterations, sepmed=sepmed,
+                                          cleantype='medmask')
 
         outlist.append(out_df)
 
