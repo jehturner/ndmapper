@@ -187,14 +187,14 @@ def lacosmic_spec(input_ndd, x_order=None, y_order=None, sigclip=4.5,
     """
     Detect and clean cosmic rays in a 2D wavelength-dispersed image, using the
     well-known LA Cosmic algorithm of van Dokkum (2001)*, as implemented in
-    McCully's optimized version for Python, "lacosmicx"+.
+    McCully's optimized version for Python, "astroscrappy"+.
 
     * LA Cosmic: http://www.astro.yale.edu/dokkum/lacosmic
-    + lacosmicx: https://github.com/cmccully/lacosmicx
+    + astroscrappy: https://github.com/astropy/astroscrappy
 
-    lacosmicx is an optional dependency, whose absence will cause this
+    astroscrappy is an optional dependency, whose absence will cause this
     function to fail with an ImportError. For the time being, the slightly
-    modified fork at https://github.com/jehturner/lacosmicx must be used.
+    modified fork at https://github.com/jehturner/astroscrappy must be used.
 
     Currently, input and output bad pixel masks are expected to be found in
     the NDDataArray `flags` attribute, but this will likely change to `mask`
@@ -253,7 +253,7 @@ def lacosmic_spec(input_ndd, x_order=None, y_order=None, sigclip=4.5,
     """
 
     # This can fail if the optional dependency is missing:
-    from lacosmicx import lacosmicx
+    from astroscrappy import detect_cosmics
 
     # For this function to be general-purpose, it should use a meta-data
     # abstraction for the gain, read noise & saturation, based on a
@@ -264,7 +264,7 @@ def lacosmic_spec(input_ndd, x_order=None, y_order=None, sigclip=4.5,
     read_noise = input_ndd.meta['RDNOISE']
     saturation = 65535.
 
-    # Convert DQ to a boolean array of pixels for lacosmicx to treat as bad
+    # Convert DQ to a boolean array of pixels for astroscrappy to treat as bad
     # from the beginning:
     bitmask = 65535  # do we want to include everything?
     if input_ndd.flags is None:
@@ -298,11 +298,11 @@ def lacosmic_spec(input_ndd, x_order=None, y_order=None, sigclip=4.5,
         objfit += skyfit  # keep combined fits for later restoration
         del skyfit
 
-    # Delegate all the actual identification and cleaning to lacosmicx (a
+    # Delegate all the actual identification and cleaning to astroscrappy (a
     # version to which I've added a bgsub parameter that allows for a
     # previously-subtracted spectroscopic object+sky model to be included in
     # the noise estimates, as in the original):
-    cr_mask, clean_data = lacosmicx(
+    cr_mask, clean_data = detect_cosmics(
         input_ndd.data, inmask=inmask, bgsub=objfit, sigclip=sigclip,
         sigfrac=sigfrac, objlim=objlim, gain=gain, readnoise=read_noise,
         satlevel=saturation, pssl=0.0, niter=niter, sepmed=sepmed,
@@ -323,7 +323,7 @@ def lacosmic_spec(input_ndd, x_order=None, y_order=None, sigclip=4.5,
     else:
         flags = None
 
-    # Construct an NDData-like object from the lacosmicx output, plus the
+    # Construct an NDData-like object from the astroscrappy output, plus the
     # original variance and bad pixel mask, and return it,
     return NDLater(data=clean_data, uncertainty=uncertainty, flags=flags,
                    meta=input_ndd.meta)

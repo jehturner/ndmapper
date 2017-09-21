@@ -520,7 +520,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
                     else:
                         templog = None
 
-                    # print('pars', params)
+                    print('pars', params)
 
                     # Execute with Python inputs converted to IRAF-style pars:
                     try:
