@@ -281,36 +281,30 @@ def lacosmic_spec(input_ndd, x_order=None, y_order=None, sigclip=4.5,
 
     # To do: use dispaxis below, rather than -1.
 
-    # Fit and subtract the object spectrum. For some reason, subtracting the
-    # model directly from the NDData instance here resets .flags to None.
+    # Fit the object spectrum:
     if x_order > 0:
         objfit = fit_1D(input_ndd.data, function='legendre', order=x_order,
                         axis=1, lsigma=4.0, hsigma=4.0, iterations=3)
-        input_ndd.data -= objfit
     else:
         objfit = np.zeros_like(input_ndd.data)
+    input_copy = input_ndd.data - objfit
 
     # Fit sky lines:
     if y_order > 0:
-        skyfit = fit_1D(input_ndd.data, function='legendre', order=y_order,
+        skyfit = fit_1D(input_copy, function='legendre', order=y_order,
                         axis=0, lsigma=4.0, hsigma=4.0, iterations=3)
-        input_ndd.data -= skyfit
         objfit += skyfit  # keep combined fits for later restoration
-        del skyfit
+        del skyfit, input_copy
 
     # Delegate all the actual identification and cleaning to astroscrappy (a
-    # version to which I've added a bgsub parameter that allows for a
-    # previously-subtracted spectroscopic object+sky model to be included in
-    # the noise estimates, as in the original):
+    # version to which I've added a bkg parameter that allows for subtracting
+    # a spectroscopic object+sky model, as in the original):
     cr_mask, clean_data = detect_cosmics(
-        input_ndd.data, inmask=inmask, bgsub=objfit, sigclip=sigclip,
+        input_ndd.data, inmask=inmask, bkg=objfit, sigclip=sigclip,
         sigfrac=sigfrac, objlim=objlim, gain=gain, readnoise=read_noise,
-        satlevel=saturation, pssl=0.0, niter=niter, sepmed=sepmed,
-        cleantype=cleantype, fsmode='median', verbose=True
+        satlevel=saturation, niter=niter, sepmed=sepmed, cleantype=cleantype,
+        fsmode='median', verbose=True
     )
-
-    # Add object & sky signal back in, after cleaning what structure is left:
-    clean_data += objfit
 
     # Obey config options for whether to propagate uncertainty & flags:
     if input_ndd.uncertainty is not None and config['use_uncert']:
