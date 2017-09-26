@@ -38,6 +38,7 @@ def gemini_iraf_helper():
         vardq = False
 
     vals = {'gmosdata' : 'gmos$data/',
+            'gmoscalib' : 'gmos$calib/',
             'key_airmass' : 'AIRMASS',
             'key_biassec' : 'BIASSEC',
             'key_ccdsec'  : 'CCDSEC',

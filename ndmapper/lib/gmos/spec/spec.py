@@ -40,6 +40,12 @@ def calibrate_flux(inputs, out_names=None, reference=None, order=6,
     Generate an instrumental sensitivity spectrum in magnitudes from the 1D
     integrated spectrum of a spectrophotometric standard star.
 
+    If an input ``DataFile`` meta dictionary contains 'OBSERVAT' with the
+    value Gemini-North or Gemini-South (ignoring capitalization), an extinction
+    curve for Maunakea or CTIO is applied, respectively, otherwise extinction
+    is ignored and a warning issued.
+
+
     Parameters
     ----------
 
@@ -130,6 +136,21 @@ def calibrate_flux(inputs, out_names=None, reference=None, order=6,
                 ref = 'l' + ref[3:]
         else:
             ref = reference
+
+        # Determine the appropriate extinction table to use for the site:
+        try:
+            observatory = str(indf.meta['OBSERVAT']).lower()
+        except KeyError:
+            observatory = gemvars['observatory']  # can be 'default'
+        if observatory == 'gemini-north':
+            extinct_file = gemvars['gmoscalib']+'mkoextinct.dat'
+        elif observatory == 'gemini-south':
+            extinct_file = 'onedstds$ctioextinct.dat'
+        else:
+            extinct_file = ''
+            warnings.warn('no extinction file for observatory {0}'\
+                          .format(observatory))
+
         # Avoid run_task making an unnecessary temp copy pending a more
         # intelligent mechanism for discerning when data are modified:
         indf._unloaded = status
@@ -159,7 +180,7 @@ def calibrate_flux(inputs, out_names=None, reference=None, order=6,
             starname=ref, samestar=True, apertures='', beamswitch=False,
             bandwidth=iraf.INDEF, bandsep=iraf.INDEF, fnuzero=3.68e-20,
             caldir=lookup_dir, observatory=gemvars['observatory'], mag='',
-            magband='', teff='', ignoreaps=True, extinction='',
+            magband='', teff='', ignoreaps=True, extinction=extinct_file,
             out_extinction='extinct.dat', function='spline3', order=order,
             graphs='sr', marks='plus cross box', colors='2 1 3 4',
             verbose=gemvars['verbose']
@@ -171,10 +192,16 @@ def calibrate_flux(inputs, out_names=None, reference=None, order=6,
 
 
 @ndprocess_defaults
-def apply_flux_cal(inputs, out_names=None, reprocess=None, interact=None):
+def apply_flux_cal(inputs, out_names=None, reprocess=None):
     """
-    Apply a previously-measured sensitivity spectrum to each input to
+    Apply a previously-measured sensitivity spectrum to each input, to
     convert the data values to spectrophotometric flux units.
+
+    If the first input ``DataFile`` meta dictionary contains 'OBSERVAT' with
+    the value Gemini-North or Gemini-South (ignoring capitalization), an
+    extinction curve for Maunakea or CTIO is applied, respectively, otherwise
+    extinction is ignored and a warning issued.
+
 
     Parameters
     ----------
@@ -235,7 +262,31 @@ def apply_flux_cal(inputs, out_names=None, reprocess=None, interact=None):
     # Determine input DataFile EXTNAME convention, to pass to the task:
     labels = get_extname_labels(inputs)
 
-    # To do: deal with extinction correction?
+    # Get the site from the first input file. If they might realistically
+    # differ, this can be made into a loop, as in calibrate_flux.
+    indf = inputs[0]
+    status = indf.unloaded
+
+    # Determine the appropriate extinction table to use for the site:
+    try:
+        observatory = str(indf.meta['OBSERVAT']).lower()
+    except KeyError:
+        observatory = gemvars['observatory']  # can be 'default'
+    fl_ext = True
+    if observatory == 'gemini-north':
+        extinct_file = gemvars['gmoscalib']+'mkoextinct.dat'
+    elif observatory == 'gemini-south':
+        extinct_file = 'onedstds$ctioextinct.dat'
+    else:
+        extinct_file = ''
+        fl_ext = False
+        warnings.warn('no extinction file for observatory {0}'\
+                      .format(observatory))
+
+    # Avoid run_task making an unnecessary temp copy pending a more
+    # intelligent mechanism for discerning when data are modified:
+    indf._unloaded = status
+
     result = run_task(
         'gemini.gmos.gscalibrate',
         inputs={'input' : inputs, 'sfunction' : sensspec},
@@ -244,8 +295,8 @@ def apply_flux_cal(inputs, out_names=None, reprocess=None, interact=None):
         sci_ext=labels['data'], var_ext=labels['uncertainty'],
         dq_ext=labels['flags'], key_airmass=gemvars['key_airmass'],
         key_exptime=gemvars['key_exptime'], fl_vardq=gemvars['vardq'],
-        fl_ext=False, fl_flux=True, fl_scale=True, fluxscale=1.0e15,
-        ignoreaps=True, fl_fnu=False, extinction='',
+        fl_ext=fl_ext, fl_flux=True, fl_scale=True, fluxscale=1.0e15,
+        ignoreaps=True, fl_fnu=False, extinction=extinct_file,
         observatory=gemvars['observatory'], verbose=gemvars['verbose']
     )
 
