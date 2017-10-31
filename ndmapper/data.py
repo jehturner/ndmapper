@@ -13,6 +13,7 @@ import os.path
 import string
 import re
 from copy import copy, deepcopy
+from collections import OrderedDict
 
 import numpy as np
 
@@ -20,7 +21,6 @@ import numpy as np
 from astropy.nddata import NDDataBase, NDData, NDDataArray
 # from astropy.nddata.mixins.ndarithmetic import _arit_doc
 from astropy.table import Table
-from astropy.utils.compat.odict import OrderedDict
 # from astropy.utils import format_doc
 
 from . import config
