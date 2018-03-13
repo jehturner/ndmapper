@@ -2,6 +2,7 @@
 # by James E.H. Turner.
 
 import hashlib
+from past.builtins import basestring
 
 import numpy as np
 

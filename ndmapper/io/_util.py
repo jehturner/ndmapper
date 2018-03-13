@@ -29,7 +29,7 @@ def get_backend_fn(funcname, filename):
     """
     fext = (splitext(filename)[1] or '').lower()
     backend_fn = None
-    for fmt, vals in formats.iteritems():
+    for fmt, vals in formats.items():
         if fext in vals:
             # Import back-end module if not done already; just assume it
             # exists if defined in formats dict, otherwise we have a bug.

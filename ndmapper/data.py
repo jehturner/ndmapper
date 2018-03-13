@@ -14,6 +14,7 @@ import string
 import re
 from copy import copy, deepcopy
 from collections import OrderedDict
+from past.builtins import basestring
 
 import numpy as np
 
@@ -485,7 +486,7 @@ class DataFile(object):
         return self
 
     # Iteration over the DataFile instance returns ~NDData:
-    def next(self):
+    def __next__(self):
         self._n += 1
         if self._n > self._len:
             raise StopIteration
@@ -876,7 +877,7 @@ def as_int_or_none(val):
     elif isinstance(val, basestring):
         try:
             result = int(val)
-        except ValueError, TypeError:
+        except (ValueError, TypeError):
             result = False
     else:
         result = False

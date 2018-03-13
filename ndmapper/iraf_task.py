@@ -18,6 +18,7 @@ import os.path
 import tempfile
 import datetime
 import traceback
+from past.builtins import basestring
 
 from pyraf import iraf
 
@@ -532,7 +533,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
                     # occurs, so we have to check separately that the expected
                     # output gets created to be confident it worked.
 
-                    except (iraf.IrafError, KeyError), errstr:
+                    except (iraf.IrafError, KeyError):
                         # Currently just a placeholder for any clean-up.
                         raise
 
