@@ -74,7 +74,7 @@ def fit_1D(image, function='legendre', order=1, axis=-1, lsigma=3.0, hsigma=3.0,
     # transpose the array accordingly, and then flatten all dimensions prior to
     # the last one into a single axis:
     ndim = len(image.shape)
-    dims = range(ndim)
+    dims = list(range(ndim))
     dims.append(dims.pop(axis))
     image = image.transpose(dims)
     newshape = image.shape
@@ -122,7 +122,7 @@ def fit_1D(image, function='legendre', order=1, axis=-1, lsigma=3.0, hsigma=3.0,
 
     # Restore the original ordering & shape of the (substitute) array:
     fitvals = fitvals.reshape(newshape)
-    dims = range(ndim)
+    dims = list(range(ndim))
     dims.insert(axis, dims[-1])  # insert before pop to handle [-1] properly
     del dims[-1]
     fitvals = fitvals.transpose(dims)

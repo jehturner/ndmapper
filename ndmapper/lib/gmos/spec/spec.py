@@ -106,7 +106,7 @@ def calibrate_flux(inputs, out_names=None, reference=None, order=6,
     suffix = '_sens'
     if not out_names:
         out_names = ['@input'] * len(inputs)
-    elif isinstance(out_names, basestring) or isinstance(out_names, DataFile):
+    elif isinstance(out_names, str) or isinstance(out_names, DataFile):
         out_names = [out_names]
     if len(out_names) != len(inputs):
         raise ValueError('inputs & out_names have unmatched lengths')

@@ -2,7 +2,6 @@
 # by James E.H. Turner.
 
 import hashlib
-from past.builtins import basestring
 
 import numpy as np
 
@@ -63,7 +62,7 @@ class NDMapIO(object):
         # before or after instantiation. Once one of them is saved, it will
         # still get re-mapped independently.
 
-        if not isinstance(filename, basestring):
+        if not isinstance(filename, str):
             raise ValueError('filename must be supplied as a string')
 
         self.filename = filename
@@ -169,7 +168,7 @@ class TabMapIO(object):
         # otherwise lazy loading of data not yet in memory will fail when
         # changing the filename of a DataFile instance and trying to save it.
 
-        if not isinstance(filename, basestring):
+        if not isinstance(filename, str):
             raise ValueError('filename must be supplied as a string')
 
         self.filename = filename

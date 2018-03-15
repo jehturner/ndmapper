@@ -1,4 +1,4 @@
-# Copyright(c) 2015 Association of Universities for Research in Astronomy, Inc.
+# Copyright(c) 2015-2018 Association of Universities for Research in Astronomy, Inc.
 # by James E.H. Turner.
 
 """
@@ -6,6 +6,7 @@ Some high-level utilities for direct use in scripts & processing functions
 (or which depend on the high-level data representations used in NDMapper).
 """
 
+from ndmapper.libutils import is_list_like
 from ndmapper.data import FileName, DataFile, DataFileList
 
 from .calibrations import K_CALIBRATIONS
@@ -32,7 +33,7 @@ def convert_region(region, convention):
     """
 
     # Check arguments:
-    if not isinstance(region, basestring):
+    if not isinstance(region, str):
         raise TypeError('region must be a string')
     
     convention = convention.lower()
@@ -100,7 +101,7 @@ def to_filename_strings(objects, strip_names=True, strip_dirs=True,
     """
     # Convert any recognized single objects to a list (partly to ensure we
     # don't inadvertently iterate over the NDData instances of a DataFile):
-    if isinstance(objects, (DataFile, FileName, basestring)):
+    if isinstance(objects, (DataFile, FileName, str)):
         objects = [objects]
 
     # If the objects argument looks like a calibration dict, extract a list
@@ -108,11 +109,11 @@ def to_filename_strings(objects, strip_names=True, strip_dirs=True,
     elif use_cal_dict and hasattr(objects, 'keys') and \
          K_CALIBRATIONS in objects:
         objects = list(set([fn for flist in \
-                            objects[K_CALIBRATIONS].itervalues() \
-                   for fn in (flist if hasattr(flist, '__iter__') else [])]))
+                            objects[K_CALIBRATIONS].values() \
+                   for fn in (flist if is_list_like(flist) else [])]))
 
     # This must be list-like after the above:
-    if not hasattr(objects, '__iter__') or hasattr(objects, 'keys'):
+    if not is_list_like(objects) or hasattr(objects, 'keys'):
         raise ValueError('objects parameter has an unexpected type')
 
     return [str(FileName(str(obj), strip=strip_names, \
@@ -134,7 +135,7 @@ def to_datafilelist(arg, mode=None):
     """
 
     # Ensure the input is in a list, for iteration:
-    if isinstance(arg, DataFile) or not hasattr(arg, '__iter__'):
+    if (isinstance(arg, DataFile) or not is_list_like(arg)):
         arg = [arg]
 
     # If passed existing DataFile(s), use them as the data argument for

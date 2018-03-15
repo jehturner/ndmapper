@@ -129,7 +129,7 @@ def _convert_meta(meta):
             hdr = meta  # preserve comments
         else:
             hdr = pyfits.Header([pyfits.Card(key, val, verify='warn') \
-                                 for key, val in meta.iteritems()])
+                                 for key, val in meta.items()])
         return hdr
     # (Return None by default if meta is None)
 

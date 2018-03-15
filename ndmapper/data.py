@@ -1,4 +1,4 @@
-# Copyright(c) 2015-2016 Association of Universities for Research in Astronomy, Inc.
+# Copyright(c) 2015-2018 Association of Universities for Research in Astronomy, Inc.
 # by James E.H. Turner.
 
 # Code & documentation based on NDData: Copyright (c) 2011-2015, Astropy
@@ -14,7 +14,6 @@ import string
 import re
 from copy import copy, deepcopy
 from collections import OrderedDict
-from past.builtins import basestring
 
 import numpy as np
 
@@ -27,7 +26,7 @@ from astropy.table import Table
 from . import config
 from . import io as ndmio
 from .io import NDMapIO, TabMapIO
-from .libutils import splitext, new_filename
+from .libutils import splitext, new_filename, is_list_like
 
 
 __all__ = ['FileName', 'DataFile', 'DataFileList', 'NDLater', 'load_file_list',
@@ -132,7 +131,7 @@ class FileName(object):
             regex = config['filename_regex']
 
         # Compile regular expression if supplied as a string:
-        if isinstance(regex, basestring):
+        if isinstance(regex, str):
             self._re = re.compile(regex)
         else:
             self._re = regex
@@ -146,7 +145,7 @@ class FileName(object):
         # FileName, DataFile & string types, to avoid confusion.
         if isinstance(path, (FileName, DataFile)):
             path = str(path)
-        elif path is not None and not isinstance(path, basestring):
+        elif path is not None and not isinstance(path, str):
             raise ValueError('path must be a str, %s or DataFile instance' % \
                              str(self.__class__.__name__))
 
@@ -396,7 +395,7 @@ class DataFile(object):
         if not self._labels:
             self._labels = copy(config['labels'])
         if labels:
-            if isinstance(labels, basestring):
+            if isinstance(labels, str):
                 self._labels['data'] = labels
             elif hasattr(labels, 'keys'):
                 self._labels.update(labels)
@@ -501,7 +500,7 @@ class DataFile(object):
     def __setitem__(self, key, value):
         # Disallow non-trivial indexing when setting values, for the time
         # being, which can have strange results unless implemented carefully:
-        if not isinstance(key, (int, long)):
+        if not isinstance(key, int):
             raise IndexError('may only assign to a single numeric index')
         self._data[key] = NDLater(data=value)
 
@@ -872,9 +871,9 @@ def as_int_or_none(val):
     Convert int or str(int) to an integer, preserving None values and returning
     False for other types.
     """
-    if val is None or isinstance(val, (int, long)):
+    if val is None or isinstance(val, int):
         result = val
-    elif isinstance(val, basestring):
+    elif isinstance(val, str):
         try:
             result = int(val)
         except (ValueError, TypeError):
@@ -986,22 +985,22 @@ class DataFileList(list):
         # These cases are enumerated to distinguish them from container lists.
         if _compatible_data_obj(data) or data == []:
             data = [data]
-        elif data is not None and not hasattr(data, '__iter__'):
+        elif data is not None and not is_list_like(data):
             # If the constituent elements of the list don't have the right
             # type, let DataFile complain rather than checking here.
             raise TypeError('data parameter has an unexpected type')
         # How many data items do we have (None or 1 or length of list >=0)?
         len_data = seqlen(data)
 
-        if isinstance(filenames, basestring):
+        if isinstance(filenames, str):
             filenames = [filenames]
-        elif filenames is not None and not hasattr(filenames, '__iter__'):
+        elif filenames is not None and not is_list_like(filenames):
             raise TypeError('filenames parameter has an unexpected type')
         len_fn = seqlen(filenames)
 
         if hasattr(meta, 'keys'):  # dict-like (inc. PyFITS headers)
             meta = [meta]
-        elif meta is not None and not hasattr(meta, '__iter__'):
+        elif meta is not None and not is_list_like(meta):
             raise TypeError('meta parameter has an unexpected type')
         len_meta = seqlen(meta)
 
@@ -1191,7 +1190,7 @@ def seqlen(arg, convert_empty=False):
     """
     Return the length of the argument if a sequence, otherwise 1 or None.
     """
-    if hasattr(arg, '__iter__'):   # no strings etc.
+    if is_list_like(arg):   # no strings etc.
         try:
             slen = len(arg)
         except TypeError:

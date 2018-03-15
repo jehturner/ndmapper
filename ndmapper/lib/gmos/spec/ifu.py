@@ -1,7 +1,8 @@
-# Copyright(c) 2015-2016 Association of Universities for Research in Astronomy, Inc.
+# Copyright(c) 2015-2018 Association of Universities for Research in Astronomy, Inc.
 # by James E.H. Turner.
 
 import os
+import numbers
 from pyraf import iraf
 
 from ndmapper import config, ndprocess_defaults
@@ -1156,7 +1157,7 @@ def subtract_bg(inputs, out_names=None, x_order=None, y_order=None,
     # To do: consider writing a more generic type-checking function.
     if not all(bg_reg and hasattr(bg_reg, '__iter__') and \
                all(reg and hasattr(reg, '__iter__') and \
-                   all(isinstance(n, (int, long, basestring)) for n in reg) \
+                   all(isinstance(n, (int, long, str)) for n in reg) \
                  for reg in bg_reg \
                ) for bg_reg in bg_reg_list
            ):
@@ -1182,12 +1183,14 @@ def subtract_bg(inputs, out_names=None, x_order=None, y_order=None,
             xorder = [5] * len_df
             xorder[(len_df-1)//2] = 9
         else:
-            xorder = x_order if hasattr(x_order, '__iter__') else (x_order,)
+            if isinstance(x_order, (numbers.Integral, str)):
+                xorder = (x_order,)
         if y_order is None:
             yorder = [5] * len_df
             yorder[(len_df-1)//2] = 7
         else:
-            yorder = y_order if hasattr(y_order, '__iter__') else (y_order,)
+            if isinstance(y_order, (numbers.Integral, str)):
+                yorder = (y_order,)
 
         # Convert list of orders to comma-separated IRAF syntax:
         xorder = ','.join(str(n) for n in xorder)

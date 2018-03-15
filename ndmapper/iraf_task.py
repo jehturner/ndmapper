@@ -1,4 +1,4 @@
-# Copyright(c) 2015-2016 Association of Universities for Research in Astronomy, Inc.
+# Copyright(c) 2015-2018 Association of Universities for Research in Astronomy, Inc.
 # by James E.H. Turner.
 
 # Draft module to execute IRAF tasks with PyRAF.
@@ -18,13 +18,13 @@ import os.path
 import tempfile
 import datetime
 import traceback
-from past.builtins import basestring
 
 from pyraf import iraf
 
 from . import config
 from .data import FileName, DataFile, DataFileList, temp_saved_datafile
 from .utils import to_datafilelist
+from .libutils import is_list_like
 
 
 __all__ = ['run_task', 'get_extname_labels']
@@ -181,7 +181,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
         logfile = config['logfile']
     if logfile is None:
         userlog = None
-    elif isinstance(logfile, basestring):
+    elif isinstance(logfile, str):
         userlog = open(logfile, 'a')
         userlog.write('%s\n' % logstart)
     else:
@@ -241,7 +241,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
         # user), after ensuring the path to the files is unique:
         if path_param and path_param not in params:
             paths=set()
-            for dfl in inputs.itervalues():
+            for dfl in inputs.values():
                 for df in dfl:
                     if df.filename.dir:  # don't count CWD ('')
                         paths.add(df.filename.dir)
@@ -260,8 +260,8 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
         # parameter to form the corresponding output filenames (this usage is
         # a bit dodgy after re-doing DataFile modes but still works):
         if outputs is not None:
-            for key, val in outputs.iteritems():
-                if isinstance(val, basestring) and val and val[0] in '!@':
+            for key, val in outputs.items():
+                if isinstance(val, str) and val and val[0] in '!@':
                     if prefix is None and suffix is None:
                         raise ValueError('output \'%s\' requires missing '
                             'suffix/prefix value' % key)
@@ -306,7 +306,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
         # When path_param is set and *any* of the inputs needs saving, copies
         # must be made of all the files, since they must reside in the same
         # directory (and the original location may not be writeable).
-        if path_param and not all([df.unloaded for dfl in inputs.itervalues() \
+        if path_param and not all([df.unloaded for dfl in inputs.values() \
                                    for df in dfl]):
             copyall = True
             params[path_param] = ''
@@ -318,7 +318,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
         # method for deciding this is currently a bit primitive (optimizing it
         # is a bit of a minefield) but avoids routine copies in the common case
         # where DataFileList is simply used as a list of files for IRAF.
-        for dfl in inputs.itervalues():
+        for dfl in inputs.values():
             for n, df in enumerate(dfl):
                 if copyall or not df.unloaded:
                     tdf = temp_saved_datafile(df)
@@ -382,7 +382,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
         for outpset in outlist:
             iternames = []
             existing = non_existing = False
-            for dfl in outpset.itervalues():
+            for dfl in outpset.values():
                 for df in dfl:
                     df.log += '\n%s\n' % logstart
                     # (This comparison should also deal automatically with any
@@ -401,7 +401,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
                 raise IOError('reprocess is False & a subset of these outputs '\
                               'already exist:\n  {0}'
                               .format('\n  '.join([str(df) for dfl \
-                                                   in outpset.itervalues() \
+                                                   in outpset.values() \
                                                    for df in dfl])))
 
         # Iterate over the parameter set(s) and run the task on each one:
@@ -415,7 +415,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
             # removal of results in case of failure:
             if reprocess is not None:
                 # This variable also gets re-used in the call_task else clause:
-                names = [str(df) for dfl in outpset.itervalues() for df in dfl]
+                names = [str(df) for dfl in outpset.values() for df in dfl]
                 for name in names:
                     if os.path.exists(name):
                         if reprocess:
@@ -452,8 +452,8 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
                                for param in inpset}
                     # Also derive a flat list of all sorted EXTVER lists, to
                     # check easily that they match & get the nominal EXTVERs:
-                    allvers = [sorted(extmap.iterkeys()) for extmaps in \
-                               extdict.itervalues() for extmap in extmaps]
+                    allvers = [sorted(extmap.keys()) for extmaps in \
+                               extdict.values() for extmap in extmaps]
                     # Find longest extension list, which we'll iterate over if
                     # all goes well (others should be the same or unit length):
                     extvers = max(allvers, key=len)
@@ -516,7 +516,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
                     # name, use a temporary file and capture its contents
                     # before appending to the user-specified file.
                     if logpar is not None:
-                        templog = tempfile.NamedTemporaryFile()
+                        templog = tempfile.NamedTemporaryFile('w+t')
                         params[logpar] = templog.name
                     else:
                         templog = None
@@ -550,7 +550,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
                             # which if any is the main one and it may apply to
                             # them all:
                             # To do: currently get overwritten by reload below?
-                            for dfl in outpset.itervalues():
+                            for dfl in outpset.values():
                                 for df in dfl:
                                     df.log += logtext
                             templog.close()
@@ -574,7 +574,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
                 msg = 'Skip processing & re-use existing outputs for:'
                 for name in names:   # from "if reprocess" at start of loop
                     msg += '\n  {0}'.format(name)
-                for dfl in outpset.itervalues():
+                for dfl in outpset.values():
                     for df in dfl:
                         df.log += msg
                 if userlog:
@@ -589,7 +589,7 @@ def run_task(taskname, inputs, outputs=None, prefix=None, suffix=None,
         print(logend)
 
         # Add delimiter to individual DataFile log attributes as well:
-        for dfl in outputs.itervalues():
+        for dfl in outputs.values():
             for df in dfl:
                 df.log += '\n%s\n' % logend
                 # print('dfl', df.log)
@@ -644,7 +644,7 @@ def conv_io_pars(pardict, mode):
     for param in pardict:
         pardict[param] = to_datafilelist(pardict[param], mode=mode)
 
-    parlen = [len(val) for val in pardict.itervalues()]
+    parlen = [len(val) for val in pardict.values()]
     return parlen
 
 
@@ -662,11 +662,11 @@ def get_extname_labels(datafiles):
     """
     if isinstance(datafiles, DataFile):
         datafiles = [datafiles]
-    elif not hasattr(datafiles, '__iter__') or \
+    elif not is_list_like(datafiles) or \
          not all([isinstance(df, DataFile) for df in datafiles]):
         raise TypeError('datafiles must be a DataFile list or a DataFile')
 
-    unique_items = set([tuple(df._labels.iteritems()) for df in datafiles])
+    unique_items = set([tuple(df._labels.items()) for df in datafiles])
     if len(unique_items) > 1:
         raise ValueError('datafiles must all have the same "labels" convention')
 

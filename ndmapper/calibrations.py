@@ -1,4 +1,4 @@
-# Copyright(c) 2015-2017 Association of Universities for Research in Astronomy, Inc.
+# Copyright(c) 2015-2018 Association of Universities for Research in Astronomy, Inc.
 # by James E.H. Turner.
 
 """
@@ -9,7 +9,7 @@ a Python dictionary (in conjuction with the "services" module).
 import os.path
 import json
 
-from ndmapper.libutils import splitext, addext
+from ndmapper.libutils import splitext, addext, is_list_like
 from ndmapper.data import FileName, DataFile, DataFileList
 
 __all__ = ['init_cal_dict', 'save_cal_dict', 'add_cal_entry',
@@ -63,14 +63,14 @@ def init_cal_dict(filename=None):
         # could be made more bulletproof & informative but at least ensures
         # that the structures are nested as expected so look-ups will work:
         if isinstance(cal_dict, dict) and \
-           sorted(cal_dict.iterkeys()) == \
+           sorted(cal_dict.keys()) == \
                sorted([K_ASSOCIATIONS, K_CALIBRATIONS, K_CHECKSUMS]) and \
            all([isinstance(val, dict) \
-                for val in cal_dict.itervalues()]) and \
+                for val in cal_dict.values()]) and \
            all([isinstance(val, dict) \
-                for val in cal_dict[K_ASSOCIATIONS].itervalues()]) and \
+                for val in cal_dict[K_ASSOCIATIONS].values()]) and \
            all([isinstance(val, list) \
-                for val in cal_dict[K_CALIBRATIONS].itervalues()]):
+                for val in cal_dict[K_CALIBRATIONS].values()]):
             valid = True
         else:
             valid = False
@@ -220,9 +220,9 @@ def add_cal_entry(filename, cal_type, matches, cal_dict, clean=True):
     # habitually call from a recursive loop but it should be fast compared
     # with the look-up itself.
     err = False
-    if hasattr(matches, '__iter__'):
+    if is_list_like(matches):
         matchtuples = []
-        fntypes = (DataFile, FileName, basestring)
+        fntypes = (DataFile, FileName, str)
         for match in matches:
             if not hasattr(match, '__getitem__') and \
                not isinstance(match, FileName):
@@ -416,14 +416,14 @@ def cal_entries(cal_dict, cal_type, reference=None):
     """
 
     # Convert reference to a tuple if a single name is provided:
-    if isinstance(reference, basestring):
+    if isinstance(reference, str):
         reference = (reference,)
 
     # Extract the unique keys (calibration name labels) matching the specified
     # calibration type and reference files from the associations sub-dict:
-    keys = {name for refkey, calmap in cal_dict[K_ASSOCIATIONS].iteritems() \
+    keys = {name for refkey, calmap in cal_dict[K_ASSOCIATIONS].items() \
               if reference is None or refkey in reference \
-            for typekey, name in calmap.iteritems() if typekey == cal_type}
+            for typekey, name in calmap.items() if typekey == cal_type}
 
     # Now extract the entries from the calibrations sub-dict corresponding to
     # the keys determined above. This could also be nested with the above set
@@ -509,7 +509,7 @@ def associate_cals(cals, inputs, cal_type, from_type=None, cal_dict=None):
     # If passed a dict and associating with 'self', convert keys to original
     # filenames, as discussed above:
     elif from_self:
-        cals = {FileName(key).orig : df for key, df in cals.iteritems()}
+        cals = {FileName(key).orig : df for key, df in cals.items()}
 
     # Default to using same cal_dict type convention as for associated type.
     # Could `from_type` be removed in favour of a brute-force look-up of files

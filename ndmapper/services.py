@@ -9,8 +9,8 @@ downloads, calibration file matching etc.
 import os, os.path
 import sys
 from contextlib import closing
-from StringIO import StringIO
-import urllib2
+from io import BytesIO
+import urllib.request, urllib.error
 import xml.dom.minidom as xmd
 import tarfile
 import hashlib
@@ -105,7 +105,7 @@ def look_up_cals(filenames, dependencies, server, cache=None,
 
     # Check that the dependency dict looks as expected:
     if not hasattr(dependencies, 'keys') or 'target' not in dependencies or \
-       not all([isinstance(val, list) for val in dependencies.itervalues()]):
+       not all([isinstance(val, list) for val in dependencies.values()]):
         raise ValueError('malformed \'dependencies\' dict; see doc string')
 
     if obs_type not in dependencies:
@@ -150,9 +150,9 @@ def look_up_single_cal_gemini(filename, cal_type):
     # query details in case of HTTP errors. Apparently urllib doesn't support
     # "with" directly, so create the context manager with contextlib.closing.
     try:
-        with closing(urllib2.urlopen(query)) as fileobj:
+        with closing(urllib.request.urlopen(query)) as fileobj:
             xml_dom = xmd.parse(fileobj)
-    except urllib2.HTTPError:
+    except urllib.error.HTTPError:
         sys.stderr.write('Failed query: {0}'.format(query))  # to do: log this
         raise
 
@@ -333,8 +333,8 @@ def download_query_gemini(query, dirname=''):
 
     # Perform Web query and download the tar file to a StringIO file object
     # in memory, passing through any HTTP errors.
-    with closing(urllib2.urlopen(query)) as fileobj:
-        fobj_buff = StringIO(fileobj.read())
+    with closing(urllib.request.urlopen(query)) as fileobj:
+        fobj_buff = BytesIO(fileobj.read())
 
     # Open the in-memory tar file & extract its contents.
     with tarfile.open(fileobj=fobj_buff) as tar_obj:
@@ -416,7 +416,7 @@ def decompress_to_disk(data, filename, dirname=''):
 
     elif cmp_format == 'gz':
         import gzip
-        with gzip.GzipFile(fileobj=StringIO(data)) as gzip_obj:
+        with gzip.GzipFile(fileobj=BytesIO(data)) as gzip_obj:
             data = gzip_obj.read()
 
     else:
