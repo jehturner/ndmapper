@@ -1157,7 +1157,7 @@ def subtract_bg(inputs, out_names=None, x_order=None, y_order=None,
     # To do: consider writing a more generic type-checking function.
     if not all(bg_reg and hasattr(bg_reg, '__iter__') and \
                all(reg and hasattr(reg, '__iter__') and \
-                   all(isinstance(n, (int, long, str)) for n in reg) \
+                   all(isinstance(n, (int, str)) for n in reg) \
                  for reg in bg_reg \
                ) for bg_reg in bg_reg_list
            ):
@@ -1185,12 +1185,16 @@ def subtract_bg(inputs, out_names=None, x_order=None, y_order=None,
         else:
             if isinstance(x_order, (numbers.Integral, str)):
                 xorder = (x_order,)
+            else:
+                xorder = x_order
         if y_order is None:
             yorder = [5] * len_df
             yorder[(len_df-1)//2] = 7
         else:
             if isinstance(y_order, (numbers.Integral, str)):
                 yorder = (y_order,)
+            else:
+                yorder = y_order
 
         # Convert list of orders to comma-separated IRAF syntax:
         xorder = ','.join(str(n) for n in xorder)
