@@ -2,6 +2,7 @@
 # by James E.H. Turner.
 
 import os
+import numpy as np
 import astropy.io.fits as pyfits
 
 from .. import config
@@ -56,7 +57,7 @@ def load_table(filename, index):
     # Treat any int (flags) array as unsigned for the appropriate BZERO/BSCALE
     # (to avoid scaling int16 DQ to float32). Not sure whether this applies to
     # binary tables but it should be harmless.
-    return pyfits.getdata(filename, index, uint=True)
+    return np.array(pyfits.getdata(filename, index, uint=True))
 
 
 def save_list(filename, data, array_meta, identifiers, types, common_meta):
