@@ -82,8 +82,8 @@ def fit_1D(image, function='legendre', order=1, axis=-1, lsigma=3.0, hsigma=3.0,
     points_2D = np.tile(points, (image.shape[1], 1)).T  # pending astropy #7317
 
     # Define the model to be fitted:
-    models = function_map[function](degree=order-1, n_models=image.shape[1],
-                                    model_set_axis=1)
+    model_set = function_map[function](degree=order-1, n_models=image.shape[1],
+                                       model_set_axis=1)
 
     # Configure iterative linear fitter with rejection:
     fitter = fitting.FittingWithOutlierRemoval(
@@ -93,11 +93,11 @@ def fit_1D(image, function='legendre', order=1, axis=-1, lsigma=3.0, hsigma=3.0,
     )
 
     # Fit the pixel data with rejection of outlying points:
-    masked_image, models = fitter(models, points, image)
+    masked_image, model_set = fitter(model_set, points, image)
     del masked_image  # comment out when doing test plot
 
     # Determine the evaluated model values we want to return:
-    fitvals = models(points_2D).astype(intype)
+    fitvals = model_set(points_2D).astype(intype)
 
     # # TEST: Plot the fit:
     # import pylab
