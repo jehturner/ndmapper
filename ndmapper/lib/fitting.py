@@ -4,6 +4,7 @@
 import math
 import numpy as np
 from astropy.modeling import models, fitting
+from astropy.stats import sigma_clip
 
 __all__ = ['fit_1D']
 
@@ -16,7 +17,7 @@ function_map = {
 def fit_1D(image, function='legendre', order=1, axis=-1, lsigma=3.0, hsigma=3.0,
            iterations=0):
     """
-    An routine for evaluating the result of fitting 1D polynomials to each
+    A routine for evaluating the result of fitting 1D polynomials to each
     vector along some axis of an N-dimensional image array, with iterative
     pixel rejection and re-fitting, similar to IRAF's fit1d.
 
@@ -68,64 +69,49 @@ def fit_1D(image, function='legendre', order=1, axis=-1, lsigma=3.0, hsigma=3.0,
     # modelling always seems to return float64:
     intype = image.dtype
 
-    # To support fitting any axis of an N-dimensional array, first convert the
-    # input array to a 2D stack of 1D rows (a no-op for 2D images with axis=-1)
-    # -- make a list of dimension numbers, move the specified dim to the end,
-    # transpose the array accordingly, and then flatten all dimensions prior to
-    # the last one into a single axis:
-    ndim = len(image.shape)
-    dims = list(range(ndim))
-    dims.append(dims.pop(axis))
-    image = image.transpose(dims)
-    newshape = image.shape
-    image = image.reshape(-1, npix)
+    # To support fitting any axis of an N-dimensional array, we must flatten
+    # all the other dimensions into a single "model set axis" first; I think
+    # it's marginally more efficient in general to stack the models along the
+    # second axis, because that's what the linear fitter does internally.
+    image = np.rollaxis(image, axis, 0)
+    tmpshape = image.shape
+    image = image.reshape(npix, -1)
 
-    # If applicable, make a temp copy of the image for cleaned pixels:
-    clean = image if iterations == 0 else image.copy()
-
-    # Prepare to perform the fits "simultaneously" with AstroPy modelling:
-    nfits = image.shape[0]
+    # Define pixel grid to fit on:
     points = np.arange(npix, dtype=np.int16)
-    points_2D = np.tile(points, (nfits,1))
-    models = function_map[function](degree=order-1, n_models=nfits)
-    fitter = fitting.LinearLSQFitter()
+    points_2D = np.tile(points, (image.shape[1], 1)).T  # pending astropy #7317
 
-    # Create a mask for tracking rejected pixel values:
-    mask_2D = np.zeros_like(image, dtype=np.bool)
+    # Define the model to be fitted:
+    models = function_map[function](degree=order-1, n_models=image.shape[1],
+                                    model_set_axis=1)
 
-    # (Re-)fit the data with rejection of outlying points:
-    for n in range(iterations+1):
+    # Configure iterative linear fitter with rejection:
+    fitter = fitting.FittingWithOutlierRemoval(
+        fitting.LinearLSQFitter(),
+        sigma_clip, sigma_lower=lsigma, sigma_upper=hsigma, niter=iterations,
+        cenfunc=np.ma.mean, stdfunc=np.ma.std
+    )
 
-        # Fit the pixel data:
-        models = fitter(models, points, clean)
+    # Fit the pixel data with rejection of outlying points:
+    masked_image, models = fitter(models, points, image)
+    del masked_image  # comment out when doing test plot
 
-        # Evaluate the fits at each pixel:
-        fitvals = models(points_2D).astype(intype)
-
-        # Replace deviant pixels in each row with the fitted values:
-        for n, (row, fit, mask) in enumerate(zip(clean, fitvals, mask_2D)):
-            diff = row - fit
-            stddev = math.sqrt(np.mean(diff*diff))
-            rejpix = np.where((diff > hsigma*stddev) | (diff < -lsigma*stddev))
-            mask[rejpix] = True
-            row[mask] = fit[mask]  # replace cumulative rejections with new fit
-            lastdev = stddev
+    # Determine the evaluated model values we want to return:
+    fitvals = models(points_2D).astype(intype)
 
     # # TEST: Plot the fit:
     # import pylab
-    # nrow = 3087
-    # mask = mask_2D[nrow]
-    # pylab.plot(points, image[nrow], 'k.')
-    # pylab.plot(points, fitvals[nrow])
-    # pylab.plot(points[mask], image[nrow][mask], 'rx')
+    # nrow = 2995
+    # mask = masked_image.mask.T[nrow]
+    # pylab.plot(points, masked_image.data.T[nrow], 'm.')
+    # pylab.plot(points, image.T[nrow], 'k.')
+    # pylab.plot(points, fitvals.T[nrow])
+    # pylab.plot(points[mask], image.T[nrow][mask], 'rx')
     # pylab.show()
 
-    # Restore the original ordering & shape of the (substitute) array:
-    fitvals = fitvals.reshape(newshape)
-    dims = list(range(ndim))
-    dims.insert(axis, dims[-1])  # insert before pop to handle [-1] properly
-    del dims[-1]
-    fitvals = fitvals.transpose(dims)
+    # Restore the ordering & shape of the input array:
+    fitvals = fitvals.reshape(tmpshape)
+    fitvals = np.rollaxis(fitvals, 0, axis+1)
 
     return fitvals
 
