@@ -89,7 +89,7 @@ def fit_1D(image, function='legendre', order=1, axis=-1, lsigma=3.0, hsigma=3.0,
     fitter = fitting.FittingWithOutlierRemoval(
         fitting.LinearLSQFitter(),
         sigma_clip, sigma_lower=lsigma, sigma_upper=hsigma, niter=iterations,
-        cenfunc=np.ma.mean, stdfunc=np.ma.std
+        cenfunc=np.ma.mean, stdfunc=np.ma.std, iters=1
     )
 
     # Fit the pixel data with rejection of outlying points:
