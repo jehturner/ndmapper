@@ -296,15 +296,23 @@ def lacosmic_spec(input_ndd, x_order=None, y_order=None, sigclip=4.5,
         objfit += skyfit  # keep combined fits for later restoration
         del skyfit, input_copy
 
+    # Live with redundant square & sqrt operations until NDData is refactored:
+    if input_ndd.uncertainty is None:
+        var = None
+    else:
+        var = input_ndd.uncertainty.array**2
+
     # Delegate all the actual identification and cleaning to astroscrappy (a
     # version to which I've added a bkg parameter that allows for subtracting
     # a spectroscopic object+sky model, as in the original):
     cr_mask, clean_data = detect_cosmics(
-        input_ndd.data, inmask=inmask, bkg=objfit, sigclip=sigclip,
-        sigfrac=sigfrac, objlim=objlim, gain=gain, readnoise=read_noise,
-        satlevel=saturation, niter=niter, sepmed=sepmed, cleantype=cleantype,
-        fsmode='median', verbose=True
+        input_ndd.data, inmask=inmask, bkg=objfit, var=var,
+        sigclip=sigclip, sigfrac=sigfrac, objlim=objlim, gain=gain,
+        readnoise=read_noise, satlevel=saturation, niter=niter, sepmed=sepmed,
+        cleantype=cleantype, fsmode='median', verbose=True
     )
+
+    del var
 
     # Obey config options for whether to propagate uncertainty & flags:
     if input_ndd.uncertainty is not None and config['use_uncert']:
