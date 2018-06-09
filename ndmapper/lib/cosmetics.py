@@ -183,7 +183,7 @@ def add_bpm(inputs, bpm, out_names=None, reprocess=None):
 
 def lacosmic_spec(input_ndd, x_order=None, y_order=None, sigclip=4.5,
                   sigfrac=0.32, objlim=1.0, niter=5, sepmed=True,
-                  cleantype='meanmask'):
+                  cleantype='meanmask', bitmask=65535):
     """
     Detect and clean cosmic rays in a 2D wavelength-dispersed image, using the
     well-known LA Cosmic algorithm of van Dokkum (2001)*, as implemented in
@@ -243,6 +243,11 @@ def lacosmic_spec(input_ndd, x_order=None, y_order=None, sigclip=4.5,
         'idw': A masked 5x5 inverse distance weighted interpolation
         Default: "meanmask".
 
+    bitmask : int, optional
+        Bits in the input data quality `flags` that are to be used to exclude
+        bad pixels from cosmic ray detection and cleaning. Default 65535 (all
+        non-zero bits, up to 16 planes).
+
     Returns
     -------
 
@@ -266,7 +271,6 @@ def lacosmic_spec(input_ndd, x_order=None, y_order=None, sigclip=4.5,
 
     # Convert DQ to a boolean array of pixels for astroscrappy to treat as bad
     # from the beginning:
-    bitmask = 65535  # do we want to include everything?
     if input_ndd.flags is None:
         inmask = None
     else:
@@ -326,7 +330,7 @@ def lacosmic_spec(input_ndd, x_order=None, y_order=None, sigclip=4.5,
 @ndprocess_defaults
 def clean_cosmic_rays(inputs, out_names=None, x_order=None, y_order=None,
                       sigma=4.5, sigfrac=0.32, objlim=1.0, iterations=5,
-                      reprocess=None, sepmed=True):
+                      reprocess=None, sepmed=True, bitmask=0):
     """
     Identify pixels contaminated by cosmic ray flux, using McCully's version
     of the LACosmic algorithm (see `lacosmic_spec`), record the detections in
@@ -373,6 +377,13 @@ def clean_cosmic_rays(inputs, out_names=None, x_order=None, y_order=None,
         Use 1D-separable median filter (default True)? This is faster than the
         original LA Cosmic's 2D median but tends not to work quite as well at
         the edges of the image.
+
+    bitmask : int, optional
+        Bits in the input data quality `flags` that are to be used to exclude
+        bad pixels from cosmic ray detection and cleaning. Defaults to 0
+        (which ignores any input mask) because excluding bad columns can lead
+        to cosmic ray residuals along their edges, due to a lack of pixels in
+        their vicinity for median filtering.
 
 
     Returns
@@ -434,7 +445,7 @@ def clean_cosmic_rays(inputs, out_names=None, x_order=None, y_order=None,
                                           y_order=y_order, sigclip=sigma,
                                           sigfrac=sigfrac, objlim=objlim,
                                           niter=iterations, sepmed=sepmed,
-                                          cleantype='medmask')
+                                          cleantype='medmask', bitmask=bitmask)
 
         outlist.append(out_df)
 
