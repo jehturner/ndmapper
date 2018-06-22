@@ -343,6 +343,7 @@ def download_query_gemini(query, dirname=''):
         chk_dict = {}
         with closing(tar_obj.extractfile(checksum_fn)) as chk_fobj:
             for line in chk_fobj:
+                line = str(line.decode())  # convert byte string in Python 3
                 try:
                     checksum, fn = line.split()
                 except ValueError:
@@ -426,6 +427,6 @@ def decompress_to_disk(data, filename, dirname=''):
     path = os.path.join(dirname, outname)
 
     # Write the file, clobbering any existing copy:
-    with open(path, 'w') as fobj:
+    with open(path, 'wb') as fobj:
         fobj.write(data)
 
