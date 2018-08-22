@@ -903,7 +903,7 @@ def resample_to_cube(inputs, out_names=None, bitmask=8, use_uncert=None,
     outimages : DataFileList
         The 3D images produced by gfcube, each containing a 3D "data cube" with
         0.1" pixels spatially and the flux units of the input converted to
-        values per square arcsecond.
+        values per square arcsecond if (any of) the inputs are flux calibrated.
 
 
     Package 'config' options
@@ -928,13 +928,23 @@ def resample_to_cube(inputs, out_names=None, bitmask=8, use_uncert=None,
     if not out_names:
         out_names = '@inimage'
 
+    # Convert to flux/arcsec^2 if any of the inputs are in physical units
+    # (since the option can only be on or off for all of them):
+    inputs = to_datafilelist(inputs)
+    fl_flux = False
+    for df in inputs:
+        if 'BUNIT' in df[0].meta and \
+                      str(df[0].meta['BUNIT']).lower().startswith('erg/'):
+            fl_flux = True
+            break
+
     # Always generate output DQ since it tracks the interpolation bounds.
     result = run_task(
         'gemini.gmos.gfcube',
         inputs={'inimage' : inputs}, outputs={'outimage' : out_names},
         prefix=prefix, suffix=None, comb_in=False, MEF_ext=False,
         path_param=None, reprocess=reprocess, ssample=0.1, bitmask=bitmask,
-        fl_atmdisp=True, fl_flux=True, fl_var=use_uncert, fl_dq=True
+        fl_atmdisp=True, fl_flux=fl_flux, fl_var=use_uncert, fl_dq=True
     )
 
     return result['outimage']
