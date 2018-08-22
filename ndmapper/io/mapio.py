@@ -107,7 +107,7 @@ class NDMapIO(object):
             # The sqrt is just a temporary hack until I write a Var subclass.
             # StdDevUncertainty isn't directly hashable so cast to str first
             # (also see load_data above for another reason).
-            uncert = StdDevUncertainty(np.sqrt(uncert))
+            uncert = StdDevUncertainty(np.sqrt(np.maximum(uncert, 0.)))
             # self._uncert_hash = hashlib.sha1(uncert).hexdigest()
             return uncert
 
