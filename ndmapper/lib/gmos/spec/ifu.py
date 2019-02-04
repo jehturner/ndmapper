@@ -693,8 +693,8 @@ def rectify_wavelength(inputs, out_names=None, start_wl=None, end_wl=None,
 
 
 @ndprocess_defaults
-def make_flat(inputs, flat_names=None, order=45, sample='*', reprocess=None,
-              interact=None):
+def make_flat(inputs, flat_names=None, order=45, sample='*', norm_blim=100,
+              norm_rlim=100, reprocess=None, interact=None):
     """
     Generate a normalized flat field calibration spectrum that includes both
     fibre-to-fibre and pixel-to-pixel variations, by fitting the average
@@ -727,6 +727,8 @@ def make_flat(inputs, flat_names=None, order=45, sample='*', reprocess=None,
     sample : str, optional
         The range of sample pixels in the wavelength dimension to use for
         continuum fitting (currently IRAF convention, default '*').
+
+    norm_blim, norm_rlim : int, optional
 
     See "help gfresponse" in IRAF for more detailed information.
 
@@ -778,6 +780,7 @@ def make_flat(inputs, flat_names=None, order=45, sample='*', reprocess=None,
         comb_in=False, MEF_ext=False, path_param=None, reprocess=reprocess,
         title='', skyimage='', database='database', fl_inter=interact,
         fl_fit=False, function='chebyshev', order=order, sample=sample,
+        normblim=norm_blim, normrlim=norm_rlim,
         sci_ext=labels['data'], var_ext=labels['uncertainty'],
         dq_ext=labels['flags'], verbose=gemvars['verbose']
     )
@@ -1232,7 +1235,7 @@ def subtract_bg(inputs, out_names=None, x_order=None, y_order=None,
 
 
 @ndprocess_defaults
-def align_wcs(inputs, method='correlate'):
+def align_wcs(inputs, method='correlate', lwlen=None, hwlen=None):
     """
     Measure spatial offsets between IFU data cubes, by comparing their image
     features (summed over wavelength), and update their WCS zero points
@@ -1266,6 +1269,13 @@ def align_wcs(inputs, method='correlate'):
         comparably well to the original 'centroid' for single-peaked sources,
         so has been made the default in this wrapper.
 
+    lwlen, hwlen: float or None, optional
+        Wavelength limits (in the same units as the WCS) between which to
+        reconstruct a collapsed image for each cube. With the defaults of None,
+        the full extent of the wavelength axis in each direction is used,
+        which is also what happens if a specified value falls beyond the range
+        of the input data.
+
     Processing is currently performed using the PyFU function "pyfalign".
 
 
@@ -1286,7 +1296,7 @@ def align_wcs(inputs, method='correlate'):
     inputs = to_datafilelist(inputs)
     names = [str(df) for df in inputs]
 
-    pyfu.pyfalign(names, method=method)
+    pyfu.pyfalign(names, method=method, lwlen=lwlen, hwlen=hwlen)
 
     inputs.reload()  # sync with output saved by pyfalign
 
