@@ -865,8 +865,8 @@ def subtract_sky(inputs, out_names=None, reprocess=None):
 
 
 @ndprocess_defaults
-def resample_to_cube(inputs, out_names=None, bitmask=8, use_uncert=None,
-                     reprocess=None):
+def resample_to_cube(inputs, out_names=None, bitmask=8, dq_thresh=0.25,
+                     use_uncert=None, reprocess=None):
     """
     Resample fibre spectra onto a 3D "data cube", interpolating spatially over
     the hexagonal/triangular grid of the IFU. The alignment between wavelength
@@ -896,6 +896,15 @@ def resample_to_cube(inputs, out_names=None, bitmask=8, use_uncert=None,
         the spatial directions, features of approximately constant wavelength,
         such as chip gaps (16) and bad columns (1) are better dealt with by
         spectral interpolation at an earlier reduction step.
+
+    dq_thresh : float, optional
+        Combined weight of input pixels affected by a particular DQ bit that
+        must contribute to a given output pixel before it inherits the same
+        DQ flag (default 0.25). This weight will vary from 0 in areas with no
+        applicable bad pixels to ~1 in large areas of contiguous bad pixels.
+        It can also be >1 (eg. near edges), due to resampling non-band-limited
+        DQ structure in the same way as science data. A larger value such as
+        2.0 can be used to disable propagation of DQ from the input.
 
     See "help gfcube" in IRAF for more detailed information.
 
@@ -936,10 +945,14 @@ def resample_to_cube(inputs, out_names=None, bitmask=8, use_uncert=None,
     inputs = to_datafilelist(inputs)
     fl_flux = False
     for df in inputs:
+        status = df.unloaded
         if 'BUNIT' in df[0].meta and \
                       str(df[0].meta['BUNIT']).lower().startswith('erg/'):
             fl_flux = True
+            df._unloaded = status  # avoid unnecessary temp. copies
             break
+        df._unloaded = status
+
 
     # Always generate output DQ since it tracks the interpolation bounds.
     result = run_task(
@@ -947,7 +960,8 @@ def resample_to_cube(inputs, out_names=None, bitmask=8, use_uncert=None,
         inputs={'inimage' : inputs}, outputs={'outimage' : out_names},
         prefix=prefix, suffix=None, comb_in=False, MEF_ext=False,
         path_param=None, reprocess=reprocess, ssample=0.1, bitmask=bitmask,
-        fl_atmdisp=True, fl_flux=fl_flux, fl_var=use_uncert, fl_dq=True
+        dqthresh=dq_thresh, fl_atmdisp=True, fl_flux=fl_flux,
+        fl_var=use_uncert, fl_dq=True
     )
 
     return result['outimage']
