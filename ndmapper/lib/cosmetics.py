@@ -288,7 +288,7 @@ def lacosmic_spec(input_ndd, x_order=None, y_order=None, sigclip=4.5,
     # Fit the object spectrum:
     if x_order > 0:
         objfit = fit_1D(input_ndd.data, function='legendre', order=x_order,
-                        axis=1, lsigma=4.0, hsigma=4.0, iterations=3)
+                        axis=1, lsigma=4.0, hsigma=3.0, iterations=3)
     else:
         objfit = np.zeros_like(input_ndd.data)
     input_copy = input_ndd.data - objfit
@@ -296,7 +296,7 @@ def lacosmic_spec(input_ndd, x_order=None, y_order=None, sigclip=4.5,
     # Fit sky lines:
     if y_order > 0:
         skyfit = fit_1D(input_copy, function='legendre', order=y_order,
-                        axis=0, lsigma=4.0, hsigma=4.0, iterations=3)
+                        axis=0, lsigma=4.0, hsigma=3.0, iterations=3)
         objfit += skyfit  # keep combined fits for later restoration
         del skyfit, input_copy
 
