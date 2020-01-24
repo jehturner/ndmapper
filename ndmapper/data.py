@@ -14,6 +14,7 @@ import string
 import re
 from copy import copy, deepcopy
 from collections import OrderedDict
+from collections.abc import MutableSequence, Iterable
 
 import numpy as np
 
@@ -22,6 +23,8 @@ from astropy.nddata import NDDataBase, NDData, NDDataArray
 # from astropy.nddata.mixins.ndarithmetic import _arit_doc
 from astropy.table import Table
 # from astropy.utils import format_doc
+
+from astrodata import AstroData, open as adopen
 
 from . import config
 from . import io as ndmio
@@ -1677,6 +1680,54 @@ class NDLater(NDDataArray):
 
     def __truediv__(self, operand):
         return self.divide(operand)
+
+
+class AstroDataList(MutableSequence):
+    """
+    A version of DataFileList for AstroData.
+    """
+    def __init__(self, items):
+        super().__init__()
+        self._list = self._convert_args(items, to_list=True)
+
+    def __getitem__(self, index):
+        return self._list[index]
+
+    def __setitem__(self, index, value):
+        self._list[index] = self._convert_args(value, to_list=False)
+
+    def __delitem__(self, index):
+        del self._list[index]
+
+    def __len__(self):
+        return len(self._list)
+
+    def insert(self, index, value):
+        self._list.insert(index, self._convert_arg(value))
+
+    # The built-in list also has sort, but leave that for later if needed:
+    # def sort(self):
+    #     pass
+
+    def _convert_arg(self, arg):
+        if not isinstance(arg, AstroData):
+            try:
+                arg = adopen(arg)
+            except Exception:
+                raise TypeError('failed to open {} as AstroData'\
+                                .format(repr(arg)))
+        return arg
+
+    def _convert_args(self, args, to_list=True):
+        if (isinstance(args, Iterable) and
+            not isinstance(args, (AstroData, str, bytes))):
+              args = [self._convert_arg(arg) for arg in args]
+        elif to_list:
+              args = [self._convert_arg(args)]
+        else:
+              args = self._convert_arg(args)
+
+        return args
 
 
 def load_file_list(filename):
