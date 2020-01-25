@@ -1729,6 +1729,9 @@ class AstroDataList(MutableSequence):
 
         return args
 
+    def __repr__(self):
+        return repr([ad.filename for ad in self._list])
+
 
 def load_file_list(filename):
     """
