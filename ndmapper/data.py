@@ -24,7 +24,7 @@ from astropy.nddata import NDDataBase, NDData, NDDataArray
 from astropy.table import Table
 # from astropy.utils import format_doc
 
-from astrodata import AstroData, open as adopen
+from astrodata import AstroData, open as adopen, create as adcreate
 
 from . import config
 from . import io as ndmio
@@ -1685,9 +1685,25 @@ class NDLater(NDDataArray):
 class AstroDataList(MutableSequence):
     """
     A version of DataFileList for AstroData.
+
+    Parameters
+    ----------
+
+    items : `list`-like or single instance of (`AstroData` or `str`-like)
+
+    new : `bool`
+        When file paths are provided as inputs (or added to the list
+        subsequently), create empty new AstroData instances in memory for those
+        files, rather than attempting to read them from disk (default `False`)?
+        This parameter does not affect any existing `AstroData` instances added
+        to the list, which may or may not already exist on disk. Saving the
+        list does not automatically reset this state (an API may be added for
+        doing so explicitly).
+
     """
-    def __init__(self, items):
+    def __init__(self, items, new=False):
         super().__init__()
+        self._new = new
         self._list = self._convert_args(items, to_list=True)
 
     def __getitem__(self, index):
@@ -1711,11 +1727,16 @@ class AstroDataList(MutableSequence):
 
     def _convert_arg(self, arg):
         if not isinstance(arg, AstroData):
-            try:
-                arg = adopen(arg)
-            except Exception:
-                raise TypeError('failed to open {} as AstroData'\
-                                .format(repr(arg)))
+            if self._new:
+                path = str(arg)
+                arg = adcreate({})
+                arg.path = path
+            else:
+                try:
+                    arg = adopen(arg)
+                except Exception:
+                    raise TypeError('failed to open {} as AstroData'\
+                                    .format(repr(arg)))
         return arg
 
     def _convert_args(self, args, to_list=True):
@@ -1731,6 +1752,8 @@ class AstroDataList(MutableSequence):
 
     def __repr__(self):
         return repr([ad.filename for ad in self._list])
+
+    # Do we need: mode? path? prefix/suffix? etc.?
 
 
 def load_file_list(filename):
