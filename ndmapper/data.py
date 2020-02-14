@@ -15,6 +15,7 @@ import re
 from copy import copy, deepcopy
 from collections import OrderedDict
 from collections.abc import MutableSequence, Iterable
+import warnings
 
 import numpy as np
 
@@ -1728,7 +1729,7 @@ class AstroDataList(MutableSequence):
     def _convert_arg(self, arg):
         if not isinstance(arg, AstroData):
             if self._new:
-                path = str(arg)
+                path = str(arg)  # fix this to accept only string-like args
                 arg = adcreate({})
                 arg.path = path
             else:
@@ -1753,7 +1754,74 @@ class AstroDataList(MutableSequence):
     def __repr__(self):
         return repr([ad.filename for ad in self._list])
 
-    # Do we need: mode? path? prefix/suffix? etc.?
+    def reload(self):
+        """
+        Reload the files from disk, abandoning any changes in memory and
+        replacing each AstroData instance with a new one mapped to the same
+        filename. If any file does not exist on disk or its filename is not
+        set, this will raise an exception without changing the original list.
+        """
+        # Re-open as new instances?
+        newlist = []
+        for ad in self._list:
+            try:
+                ad = adopen(ad.path)
+            except Exception:
+                raise TypeError('failed to open {} as AstroData'\
+                                .format(ad.path))
+            newlist.append(ad)
+        self._list = newlist
+
+    def save(self, overwrite=False):
+        """
+        Save all the files in the list, overwriting any existing copies if
+        `overwrite` is `True` (default `False`). Files are not automatically
+        reloaded lazily in order to free memory, so if this is wanted, the
+        user should call `reload` explicitly after saving.
+
+        To avoid leaving the set of files in mixed processing states, a best
+        effort is made to avoid writing anything to disk if the operation is
+        unlikely to be completed (eg. where one or more files already exist and
+        `overwrite` is disabled). This outcome is not guaranteed, eg. under
+        race conditions, because of the duplication that would be required and
+        the associated risk of exhausting the available space. If the operation
+        does fail while writing in spite of checks, an explanatory warning is
+        issued. This behaviour might be revisited in future.
+        """
+        noname = []
+        existing = []
+        noaccess = []
+        for n, ad in enumerate(self._list):
+            if not ad.path:
+                noname.append(str(n))
+            elif os.path.exists(ad.path):
+                existing.append(ad.path)
+                if not (os.path.isfile(ad.path) and
+                        os.access(ad.path, os.W_OK)):
+                    noaccess.append(ad.path)
+            elif not os.access(os.path.dirname(os.path.abspath(ad.path)),
+                               os.W_OK):
+                noaccess.append(ad.path)
+        if noname:
+            raise ValueError('No filename(s) defined for indices: {0}'\
+                             .format(', '.join(noname)))
+        if overwrite is False and existing:
+            raise OSError('Existing files would be overwritten:\n'
+                          '  {0}'.format(' '.join(existing)))
+        if noaccess:
+            raise OSError('No write access for file(s):\n'
+                          '  {0}'.format(' '.join(noaccess)))
+
+        # Make this keep a backup of the files until the operation is complete?
+        for ad in self._list:
+            try:
+                ad.write(overwrite=overwrite)
+            except (IOError, OSError):
+                warnings.warn('A write operation failed, so files may be '
+                              'incomplete or have mixed processing states.')
+                raise
+
+    # Do we need: path? prefix/suffix? etc.?
 
 
 def load_file_list(filename):
