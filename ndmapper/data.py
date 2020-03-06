@@ -1701,10 +1701,31 @@ class AstroDataList(MutableSequence):
         list does not automatically reset this state (an API may be added for
         doing so explicitly).
 
+    strip : `bool`
+        Remove any existing prefix and suffixes from the supplied filename(s)
+        (prior to adding any specified prefix & suffix)?
+
+    prefix : `str` or `None`
+        Prefix string to add before the base filename(s).
+
+    suffix : `str` or `None`
+        Suffix string (including any initial separator) to add after the base
+        filename(s).
+
+    dirname : `str` or `None`
+        Directory name to add to the filename(s) (replacing any existing dir).
+        If this is None, each `AstroData` instance may have a different
+        directory specified as part of its path.
+
     """
-    def __init__(self, items, new=False):
+    def __init__(self, items, new=False, strip=None, prefix=None,
+                 suffix=None, dirname=None):
         super().__init__()
         self._new = new
+        self._strip = strip
+        self._prefix = prefix
+        self._suffix = suffix
+        self._dirname = dirname
         self._list = self._convert_args(items, to_list=True)
 
     def __getitem__(self, index):
@@ -1727,17 +1748,35 @@ class AstroDataList(MutableSequence):
     #     pass
 
     def _convert_arg(self, arg):
-        if not isinstance(arg, AstroData):
+
+        # This uses FileName as previously for the time being, but perhaps it
+        # should now use the update_filename method of AstroData?
+
+        if isinstance(arg, AstroData):
+            path = arg.path
+        elif isinstance(arg, (str, bytes, FileName)):
+            path = str(arg)
+        else:
+            raise TypeError("invalid type for AstroDataList item '{}'"\
+                            .format(arg))
+        mod_path = FileName(path, strip=self._strip, prefix=self._prefix,
+                            suffix=self._suffix, dirname=self._dirname)
+
+        if isinstance(arg, AstroData):
+            if mod_path != path:
+                # Requires a Mar. 2020 AstroData fix for copy() to work:
+                arg = copy(arg)  # shallow copy of AD for modified filename
+                arg.path = str(mod_path)
+        else:
             if self._new:
-                path = str(arg)  # fix this to accept only string-like args
                 arg = adcreate({})
-                arg.path = path
+                arg.path = str(mod_path)
             else:
                 try:
-                    arg = adopen(arg)
+                    arg = adopen(str(mod_path))
                 except Exception:
                     raise TypeError('failed to open {} as AstroData'\
-                                    .format(repr(arg)))
+                                    .format(repr(mod_path)))
         return arg
 
     def _convert_args(self, args, to_list=True):
@@ -1820,8 +1859,6 @@ class AstroDataList(MutableSequence):
                 warnings.warn('A write operation failed, so files may be '
                               'incomplete or have mixed processing states.')
                 raise
-
-    # Do we need: path? prefix/suffix? etc.?
 
 
 def load_file_list(filename):
