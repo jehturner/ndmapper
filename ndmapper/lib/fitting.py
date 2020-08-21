@@ -89,12 +89,12 @@ def fit_1D(image, function='legendre', order=1, axis=-1, lsigma=3.0, hsigma=3.0,
     fitter = fitting.FittingWithOutlierRemoval(
         fitting.LinearLSQFitter(),
         sigma_clip, sigma_lower=lsigma, sigma_upper=hsigma, niter=iterations,
-        cenfunc=np.ma.mean, stdfunc=np.ma.std, iters=1
+        cenfunc='mean', stdfunc='std', maxiters=1
     )
 
     # Fit the pixel data with rejection of outlying points:
-    masked_image, model_set = fitter(model_set, points, image)
-    del masked_image  # comment out when doing test plot
+    model_set, mask = fitter(model_set, points, image)
+    del mask  # comment out when doing test plot
 
     # Determine the evaluated model values we want to return:
     fitvals = model_set(points_2D).astype(intype)
@@ -102,11 +102,10 @@ def fit_1D(image, function='legendre', order=1, axis=-1, lsigma=3.0, hsigma=3.0,
     # # TEST: Plot the fit:
     # import pylab
     # nrow = 2995
-    # mask = masked_image.mask.T[nrow]
-    # pylab.plot(points, masked_image.data.T[nrow], 'm.')
-    # pylab.plot(points, image.T[nrow], 'k.')
+    # maskrow = mask.T[nrow]
+    # pylab.plot(points, image.T[nrow], 'k.')  # need image.data if masked
     # pylab.plot(points, fitvals.T[nrow])
-    # pylab.plot(points[mask], image.T[nrow][mask], 'rx')
+    # pylab.plot(points[maskrow], image.T[nrow][maskrow], 'rx')
     # pylab.show()
 
     # Restore the ordering & shape of the input array:
