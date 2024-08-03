@@ -1,0 +1,74 @@
+[project]
+name = "ndmapper"
+description = "DR based on mapping AstroPy NDData objects to/from files"
+# long_description = """
+# Python frameowrk for semi-automated astronomical data reduction that
+# integrates processing steps implemented natively and in IRAF as seamlessly as
+# practical, using a data representation that tracks related AstroPy NDData
+# objects and their mappings to/from files. The DR steps/wrappers included in
+# the library are mostly for working with GMOS IFU data from Gemini. The
+# original DataFile representation will be replaced by AstroData, now that v2
+# of the latter has more-or-less equivalent functionality.
+# """
+authors = [
+    { name = "Association of Universities for Research in Astronomy, Inc. (by James E.H. Turner)", email = "james.turner@noirlab.edu" },
+]
+readme = "README.rst"
+license = { text = "BSD-3-Clause" }
+# edit-on-github = "True"
+# github-project = "jehturner/ndmapper"
+requires-python = ">=3.7"
+dependencies = [
+  # "astrodata",  # when fully separated from DRAGONS
+    "astropy>=5",
+    "astroscrappy>=1.1",
+  # "dragons",  # replace with stand-alone astropy
+    "numpy>=1.16",
+    "pyfu",
+    "pyraf>=2.2.1",
+]
+dynamic = [ "version" ]
+
+[project.urls]
+Homepage = "https://github.com/jehturner/ndmapper"
+
+[build-system]
+requires = [
+    "setuptools",
+    "setuptools_scm>=6.2",
+  # "numpy",
+]
+build-backend = 'setuptools.build_meta'
+
+[project.optional-dependencies]
+docs = ["sphinx", "sphinx-astropy"]
+test = ["pytest", "pytest-astropy", "pytest-doctestplus"]
+
+[tool.setuptools]
+license-files = ["LICENSE"]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["ndmapper*"]
+
+# [tool.setuptools.package-data]
+# "*" = [ "data/*" ]
+
+[tool.setuptools_scm]
+write_to = "ndmapper/_version.py"
+
+[tool.pytest.ini_options]
+testpaths = ["ndmapper", "docs"]
+astropy_header = true
+doctest_plus = "enabled"
+text_file_format = "rst"
+addopts = [ "--color=yes", "--doctest-rst", "-p no:warnings", "-s"]
+norecursedirs = [
+    "build",
+    "docs[\\/]_build",
+]
+filterwarnings = [
+]
+doctest_subpackage_requires = [
+]
+
