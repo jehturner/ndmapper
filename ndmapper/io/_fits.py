@@ -105,7 +105,7 @@ def save_list(filename, data, array_meta, identifiers, types, common_meta):
         # unnecessary writes (which io.fits does automatically).
         if arr is not None or meta is not None or n > oldlen:
 
-            hduclass = pyfits.BinTableHDU if arrtype is 'table' \
+            hduclass = pyfits.BinTableHDU if arrtype == 'table' \
                        else pyfits.ImageHDU
             hdu = hduclass(data=arr, header=_convert_meta(meta), name=name,
                            uint=True)
