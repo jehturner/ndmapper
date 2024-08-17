@@ -1359,6 +1359,7 @@ class NDLater(NDDataArray):
         self._mask = None
         self._wcs = wcs
         self._unit = None
+        self._psf = None
 
         # Initializing the data (& uncertainty/flags) to None indicates that
         # the data haven't been loaded yet:
