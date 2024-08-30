@@ -304,10 +304,10 @@ def lacosmic_spec(input_ndd, x_order=None, y_order=None, sigclip=4.5,
     # version to which I've added a bkg parameter that allows for subtracting
     # a spectroscopic object+sky model, as in the original):
     cr_mask, clean_data = detect_cosmics(
-        input_ndd.data, inmask=inmask, bkg=objfit, sigclip=sigclip,
-        sigfrac=sigfrac, objlim=objlim, gain=gain, readnoise=read_noise,
-        satlevel=saturation, niter=niter, sepmed=sepmed, cleantype=cleantype,
-        fsmode='median', verbose=True
+        input_ndd.data, inmask=inmask, inbkg=objfit, invar=None,
+        sigclip=sigclip, sigfrac=sigfrac, objlim=objlim, gain=gain,
+        readnoise=read_noise, satlevel=saturation, niter=niter, sepmed=sepmed,
+        cleantype=cleantype, fsmode='median', verbose=True
     )
 
     # Obey config options for whether to propagate uncertainty & flags:
