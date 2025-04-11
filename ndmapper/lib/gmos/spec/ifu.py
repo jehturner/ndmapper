@@ -162,9 +162,6 @@ def subtract_bias(inputs, out_names=None, ovs_function='chebyshev',
         Function to use for fitting the overscan region in IRAF (default
         'chebyshev'; may also be 'legendre', 'spline1' or 'spline3').
 
-        This parameter is currently ignored because it doesn't exist in
-        gfreduce; fix this.
-
     ovs_order : int
         Order of the overscan fitting function (default 1).
 
@@ -264,10 +261,11 @@ def subtract_bias(inputs, out_names=None, ovs_function='chebyshev',
         bpmfile=gemvars['gmosdata']+'chipgaps.dat', grow=1.5, reference='',
         response='', wavtraname='', sfunction='', extinction='',
         fl_fixnc=False, fl_fixgaps=True, fl_novlap=True, perovlap=10.0,
-        nbiascontam='default', biasrows=biasrows, order=ovs_order,
-        low_reject=ovs_lsigma, high_reject=ovs_hsigma, niterate=ovs_niter,
-        line=iraf.INDEF, nsum=10, trace=False, recenter=False, thresh=200.,
-        function='chebyshev', t_order=21, t_nsum=10, weights='none',
+        nbiascontam='default', biasrows=biasrows, ofunction=ovs_function,
+        order=ovs_order, low_reject=ovs_lsigma, high_reject=ovs_hsigma,
+        niterate=ovs_niter, line=iraf.INDEF, nsum=10, trace=False,
+        recenter=False, thresh=200., function='chebyshev', t_order=21,
+        t_nsum=10, weights='none',
         gratingdb=gemvars['gmosdata']+'GMOSgratings.dat',
         filterdb=gemvars['gmosdata']+'GMOSfilters.dat', xoffset=iraf.INDEF,
         expr='default', sepslits=False, w1=iraf.INDEF, w2=iraf.INDEF,
