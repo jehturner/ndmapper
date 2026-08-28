@@ -3,6 +3,7 @@
 
 import os
 import numbers
+import warnings
 from pyraf import iraf
 
 from ndmapper import config, ndprocess_defaults
@@ -229,12 +230,19 @@ def subtract_bias(inputs, out_names=None, ovs_function='chebyshev',
     else:
         biasrows = '{0}:{1}'.format(*(i+1 for i in ovs_sample))
 
+    iraf_inputs={'inimages' : inputs}
+
     # Get a list of biases to use from the input file "cals" dictionaries.
     # If the entry exists, assume the value is already a valid DataFile.
     try:
-        bias = DataFileList(data=[df.cals['bias'] for df in inputs])
+        dobias = True
+        iraf_inputs['bias'] = DataFileList(
+            data=[df.cals['bias'] for df in inputs]
+        )
     except KeyError:
-        raise KeyError('one or more inputs is missing an associated bias')
+        dobias = False
+        warnings.warn('one or more inputs is missing an associated bias; '
+                      'subtracting overscan only')
 
     # Get a few common Gemini IRAF defaults.:
     gemvars = gemini_iraf_helper()
@@ -247,12 +255,12 @@ def subtract_bias(inputs, out_names=None, ovs_function='chebyshev',
     # Here some "unnecessary" parameters are defined just to be certain they
     # don't change anything and so we can easily copy this when wrapping
     # other operations with gfreduce later:
-    result = run_task('gemini.gmos.gfreduce', inputs={'inimages' : inputs,
-        'bias' : bias}, outputs={'outimages' : out_names}, prefix=prefix,
+    result = run_task('gemini.gmos.gfreduce', inputs=iraf_inputs,
+        outputs={'outimages' : out_names}, prefix=prefix,
         comb_in=False, MEF_ext=False, path_param='rawpath',
         reprocess=reprocess, outpref='default', slits='header', exslits='*',
         fl_nodshuffl=False, fl_inter=interact, fl_vardq=gemvars['vardq'],
-        fl_addmdf=False, fl_over=True, fl_trim=True, fl_bias=True,
+        fl_addmdf=False, fl_over=True, fl_trim=True, fl_bias=dobias,
         fl_gscrrej=False, fl_gnsskysub=False, fl_extract=False,
         fl_gsappwave=False, fl_wavtran=False, fl_skysub=False,
         fl_fluxcal=False, fl_fulldq=True, dqthresh=0.1, key_mdf='',
@@ -278,8 +286,8 @@ def subtract_bias(inputs, out_names=None, ovs_function='chebyshev',
 
 @ndprocess_defaults
 def extract_spectra(inputs, out_names=None, startpos=None, threshold=1000.,
-                    order=21, overlap_buffer=0.1, reprocess=None,
-                    interact=None):
+                    order=21, overlap_buffer=0.1, use_uncert=None,
+                    use_flags=None, reprocess=None, interact=None):
 
     """
     Extract one spectrum per IFU fibre from each 2D spectrogram to produce
@@ -435,6 +443,8 @@ def extract_spectra(inputs, out_names=None, startpos=None, threshold=1000.,
 
     # Get a few common Gemini IRAF defaults.:
     gemvars = gemini_iraf_helper()
+    if use_uncert is False and use_flags is False:
+        gemvars['vardq'] = False  # must disable if input VAR is missing
 
     # Determine input DataFile EXTNAME convention, to pass to the task:
     labels = get_extname_labels(inputs)
@@ -569,7 +579,8 @@ def calibrate_wavelength(inputs, order=4, threshold=0., line_list=None,
 
 @ndprocess_defaults
 def rectify_wavelength(inputs, out_names=None, start_wl=None, end_wl=None,
-                       delta_wl=None, npix=None, reprocess=None):
+                       delta_wl=None, npix=None, use_uncert=None,
+                       use_flags=None, reprocess=None):
     """
     Resample ("transform") fibre spectra onto a pixel array with a linear
     wavelength increment.
@@ -666,6 +677,8 @@ def rectify_wavelength(inputs, out_names=None, start_wl=None, end_wl=None,
 
     # Get a few common Gemini IRAF defaults.:
     gemvars = gemini_iraf_helper()
+    if use_uncert is False and use_flags is False:
+        gemvars['vardq'] = False  # must disable if input VAR is missing
 
     # Determine input DataFile EXTNAME convention, to pass to the task:
     labels = get_extname_labels(inputs)
