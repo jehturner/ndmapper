@@ -483,8 +483,8 @@ def extract_spectra(inputs, out_names=None, startpos=None, threshold=1000.,
 
 
 @ndprocess_defaults
-def calibrate_wavelength(inputs, order=4, threshold=0., line_list=None,
-                         interact=None):
+def calibrate_wavelength(inputs, order=4, threshold=0., fwidth=10.,
+                         line_list=None, interact=None):
     """
     Determine an absolute wavelength solution for each row (fibre) of the
     input spectra. Currently, this information is saved only in an IRAF
@@ -510,6 +510,10 @@ def calibrate_wavelength(inputs, order=4, threshold=0., line_list=None,
     threshold : float, optional
         Minimum required range of pixel intensities around a candidate feature
         (default 0.). See "help reidentify" and "help center1d" in IRAF.
+
+    fwidth : float, optional
+        Feature width (default 10.). See "help reidentify" and "help center1d"
+        in IRAF.
 
     line_list : str, optional
         Name of a text file from which reference wavelengths are to be read
@@ -562,8 +566,8 @@ def calibrate_wavelength(inputs, order=4, threshold=0., line_list=None,
         dispaxis=1, database='database', coordlist=line_list,
         gratingdb=gemvars['gmosdata']+'GMOSgratings.dat',
         filterdb=gemvars['gmosdata']+'GMOSfilters.dat', fl_inter=fl_inter,
-        section='default', nsum=1, ftype='emission', fwidth=10., gsigma=0.,
-        cradius=10., threshold=threshold, minsep=2.5, match=-6.,
+        section='default', nsum=1, ftype='emission', fwidth=fwidth, gsigma=0.,
+        cradius=fwidth, threshold=threshold, minsep=2.5, match=-6.,
         function='chebyshev', order=order, sample='*', niterate=10.,
         low_reject=2.5, high_reject=2.5, grow=0., refit=True, step=1,
         trace=True, nlost=10, maxfeatures=150, ntarget=30, npattern=5,
